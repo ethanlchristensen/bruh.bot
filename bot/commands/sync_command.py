@@ -3,6 +3,7 @@ from discord import app_commands
 
 from bot.utils.decarators.admin_check import is_admin
 from bot.utils.decarators.command_logging import log_command_usage
+from bot.utils.decarators.global_block_check import is_globally_blocked
 
 
 class SyncCommand(app_commands.Group):
@@ -13,6 +14,7 @@ class SyncCommand(app_commands.Group):
         )
         @log_command_usage()
         @is_admin()
+        @is_globally_blocked()
         async def sync(interaction: discord.Interaction):
             try:
                 await tree.sync()

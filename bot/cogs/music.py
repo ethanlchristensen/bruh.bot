@@ -8,6 +8,7 @@ from discord.ext import commands
 from bot.services.embed_service import QueuePaginationView
 from bot.services.music.types import FilterPreset
 from bot.utils.decarators.command_logging import log_command_usage
+from bot.utils.decarators.global_block_check import is_globally_blocked
 from bot.utils.decarators.voice_check import require_voice_channel
 
 if TYPE_CHECKING:
@@ -42,6 +43,7 @@ class MusicCog(commands.Cog):
     @app_commands.command(name="join", description="Have Juno join the VC you are currently in.")
     @log_command_usage()
     @require_voice_channel(ephemeral=True, allow_admin_bypass=True)
+    @is_globally_blocked()
     async def join(self, interaction: discord.Interaction):
         action_response = await self.bot.music_queue_service.get_player(interaction.guild).join(interaction)
         await interaction.response.send_message(action_response.message, ephemeral=not action_response.is_success)
@@ -51,6 +53,7 @@ class MusicCog(commands.Cog):
     @app_commands.autocomplete(filter=filter_autocomplete)
     @log_command_usage()
     @require_voice_channel(ephemeral=True, allow_admin_bypass=True)
+    @is_globally_blocked()
     async def play(self, interaction: discord.Interaction, query: str, filter: str | None):
         await interaction.response.defer(ephemeral=True)
 
@@ -83,6 +86,7 @@ class MusicCog(commands.Cog):
     @app_commands.command(name="skip", description="Skip actively playing audio.")
     @log_command_usage()
     @require_voice_channel(ephemeral=True, allow_admin_bypass=True)
+    @is_globally_blocked()
     async def skip(self, interaction: discord.Interaction):
         skip_action_response = await self.bot.music_queue_service.get_player(interaction.guild).skip()
         await interaction.response.send_message(skip_action_response.message, ephemeral=not skip_action_response.is_success)
@@ -90,6 +94,7 @@ class MusicCog(commands.Cog):
     @app_commands.command(name="pause", description="Pause the currently playing audio.")
     @log_command_usage()
     @require_voice_channel(ephemeral=True, allow_admin_bypass=True)
+    @is_globally_blocked()
     async def pause(self, interaction: discord.Interaction):
         pause_action_response = await self.bot.music_queue_service.get_player(interaction.guild).pause()
         await interaction.response.send_message(pause_action_response.message, ephemeral=not pause_action_response.is_success)
@@ -97,6 +102,7 @@ class MusicCog(commands.Cog):
     @app_commands.command(name="resume", description="Resume audio that was previously paused.")
     @log_command_usage()
     @require_voice_channel(ephemeral=True, allow_admin_bypass=True)
+    @is_globally_blocked()
     async def resume(self, interaction: discord.Interaction):
         resume_action_response = await self.bot.music_queue_service.get_player(interaction.guild).resume()
         await interaction.response.send_message(resume_action_response.message, ephemeral=not resume_action_response.is_success)
@@ -104,6 +110,7 @@ class MusicCog(commands.Cog):
     @app_commands.command(name="leave", description="Have Juno leave the voice channel.")
     @log_command_usage()
     @require_voice_channel(ephemeral=True, allow_admin_bypass=True)
+    @is_globally_blocked()
     async def leave(self, interaction: discord.Interaction):
         leave_action_response = await self.bot.music_queue_service.get_player(interaction.guild).leave()
         await interaction.response.send_message(leave_action_response.message, ephemeral=not leave_action_response.is_success)
@@ -111,6 +118,7 @@ class MusicCog(commands.Cog):
     @app_commands.command(name="queue", description="View the current music queue.")
     @log_command_usage()
     @require_voice_channel(ephemeral=True, allow_admin_bypass=True)
+    @is_globally_blocked()
     async def queue(self, interaction: discord.Interaction):
         player = self.bot.music_queue_service.get_player(interaction.guild)
 
@@ -132,6 +140,7 @@ class MusicCog(commands.Cog):
     @app_commands.autocomplete(new_filter=filter_autocomplete)
     @log_command_usage()
     @require_voice_channel(ephemeral=True, allow_admin_bypass=True)
+    @is_globally_blocked()
     async def filter(
         self,
         interaction: discord.Interaction,
@@ -157,6 +166,7 @@ class MusicCog(commands.Cog):
     )
     @log_command_usage()
     @require_voice_channel(ephemeral=True, allow_admin_bypass=True)
+    @is_globally_blocked()
     async def seek(
         self,
         interaction: discord.Interaction,

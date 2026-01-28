@@ -11,6 +11,7 @@ from bot.services.ai.types import Message
 from bot.services.mongo_morning_config_service import MongoMorningConfigService
 from bot.utils.decarators.admin_check import is_admin
 from bot.utils.decarators.command_logging import log_command_usage
+from bot.utils.decarators.global_block_check import is_globally_blocked
 
 if TYPE_CHECKING:
     from bot.juno import Juno
@@ -110,6 +111,7 @@ class SchedulerCog(commands.Cog):
     @app_commands.describe(channel="The channel where morning messages will be sent (defaults to current channel)")
     @log_command_usage()
     @is_admin()
+    @is_globally_blocked()
     async def set_morning_channel(self, interaction: discord.Interaction, channel: discord.TextChannel = None):
         """Set the morning message channel for this guild"""
         if channel is None:
@@ -137,6 +139,7 @@ class SchedulerCog(commands.Cog):
     )
     @log_command_usage()
     @is_admin()
+    @is_globally_blocked()
     async def set_morning_time(
         self,
         interaction: discord.Interaction,
@@ -189,6 +192,7 @@ class SchedulerCog(commands.Cog):
     )
     @log_command_usage()
     @is_admin()
+    @is_globally_blocked()
     async def remove_morning_channel(self, interaction: discord.Interaction):
         """Remove morning messages for this guild"""
         removed = self.morning_config_service.remove_config(interaction.guild.id)
@@ -203,6 +207,7 @@ class SchedulerCog(commands.Cog):
     @app_commands.command(name="test_morning", description="Test the morning message functionality")
     @log_command_usage()
     @is_admin()
+    @is_globally_blocked()
     async def test_morning_message(self, interaction: discord.Interaction):
         """Test the morning message functionality"""
         await interaction.followup.send(content="Sending test morning message...", ephemeral=True)
@@ -240,6 +245,7 @@ class SchedulerCog(commands.Cog):
     )
     @log_command_usage()
     @is_admin()
+    @is_globally_blocked()
     async def list_timezones(self, interaction: discord.Interaction):
         """List common timezones that can be used"""
         common_timezones = [

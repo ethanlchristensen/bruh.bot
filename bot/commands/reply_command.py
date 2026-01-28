@@ -3,6 +3,7 @@ from discord import app_commands
 
 from bot.utils.decarators.admin_check import is_admin
 from bot.utils.decarators.command_logging import log_command_usage
+from bot.utils.decarators.global_block_check import is_globally_blocked
 
 
 class ReplyCommand(app_commands.Command):
@@ -13,6 +14,7 @@ class ReplyCommand(app_commands.Command):
         )
         @log_command_usage()
         @is_admin()
+        @is_globally_blocked()
         async def reply(
             interaction: discord.Interaction,
             message_id: str,

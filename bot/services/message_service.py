@@ -38,7 +38,7 @@ class MessageService:
         should_respond = bot_string in message.content or (reference_message and reference_message.author.id == self.bot.user.id)
         return should_respond
 
-    async def should_delete_message(self, message: discord.Message) -> bool:
+    def should_delete_message(self, message: discord.Message) -> bool:
         if self.delete_user_message_config.enabled and message.author.id in self.delete_user_message_config.userIds:
             return True
         return False

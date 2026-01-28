@@ -9,6 +9,7 @@ from discord.ext import commands, voice_recv
 from bot.services import AudioProcessor, RealTimeAudioService, VoiceReceiveSink
 from bot.utils.decarators.admin_check import is_admin
 from bot.utils.decarators.command_logging import log_command_usage
+from bot.utils.decarators.global_block_check import is_globally_blocked
 from bot.utils.decarators.voice_check import require_voice_channel
 
 if TYPE_CHECKING:
@@ -236,6 +237,7 @@ class RealTimeVoiceCog(commands.Cog):
     @log_command_usage()
     @require_voice_channel(ephemeral=True, allow_admin_bypass=True)
     @is_admin()
+    @is_globally_blocked()
     async def voice_join(self, interaction: discord.Interaction):
         """Join the user's voice channel."""
         if self._has_active_session(interaction.guild.id):
@@ -266,6 +268,7 @@ class RealTimeVoiceCog(commands.Cog):
     @log_command_usage()
     @is_admin()
     @require_voice_channel(ephemeral=True, allow_admin_bypass=True)
+    @is_globally_blocked()
     async def voice_start(self, interaction: discord.Interaction, listen_to: discord.Member | None = None):
         """Start a real-time conversation."""
         session = self._get_session(interaction.guild.id)
@@ -332,6 +335,7 @@ class RealTimeVoiceCog(commands.Cog):
     @log_command_usage()
     @is_admin()
     @require_voice_channel(ephemeral=True, allow_admin_bypass=True)
+    @is_globally_blocked()
     async def voice_stop(self, interaction: discord.Interaction):
         """Stop the conversation."""
         session = self._get_session(interaction.guild.id)
@@ -381,6 +385,7 @@ class RealTimeVoiceCog(commands.Cog):
     @log_command_usage()
     @is_admin()
     @require_voice_channel(ephemeral=True, allow_admin_bypass=True)
+    @is_globally_blocked()
     async def voice_leave(self, interaction: discord.Interaction):
         """Leave the voice channel."""
         session = self._get_session(interaction.guild.id)

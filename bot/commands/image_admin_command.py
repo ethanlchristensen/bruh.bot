@@ -2,6 +2,7 @@ import discord
 from discord import app_commands
 
 from bot.utils.decarators.command_logging import log_command_usage
+from bot.utils.decarators.global_block_check import is_globally_blocked
 
 
 class ImageAdminCommand:
@@ -18,6 +19,7 @@ class ImageAdminCommand:
         )
         @app_commands.describe(user="The user to reset limits for")
         @log_command_usage()
+        @is_globally_blocked()
         async def reset_user(interaction: discord.Interaction, user: discord.User):
             """Reset a specific user's image generation limit."""
             await interaction.response.defer(ephemeral=True)
@@ -44,6 +46,7 @@ class ImageAdminCommand:
             description="Reset image generation limits for all users in this server",
         )
         @log_command_usage()
+        @is_globally_blocked()
         async def reset_all(interaction: discord.Interaction):
             """Reset all users' image generation limits."""
             await interaction.response.defer(ephemeral=True)
@@ -71,6 +74,7 @@ class ImageAdminCommand:
         )
         @app_commands.describe(user="The user to set the limit for", limit="The new maximum daily image limit for this user")
         @log_command_usage()
+        @is_globally_blocked()
         async def set_user_limit(interaction: discord.Interaction, user: discord.User, limit: int):
             """Set the daily image generation limit for a specific user."""
             await interaction.response.defer(ephemeral=True)
@@ -109,6 +113,7 @@ class ImageAdminCommand:
         )
         @app_commands.describe(limit="The new maximum daily image limit for all users")
         @log_command_usage()
+        @is_globally_blocked()
         async def set_guild_limit(interaction: discord.Interaction, limit: int):
             """Set the daily image generation limit for all users in the guild."""
             await interaction.response.defer(ephemeral=True)
@@ -141,6 +146,7 @@ class ImageAdminCommand:
         )
         @app_commands.describe(user="The user to check the limit for")
         @log_command_usage()
+        @is_globally_blocked()
         async def view_user_limit(interaction: discord.Interaction, user: discord.User):
             """View the daily image generation limit for a specific user."""
             await interaction.response.defer(ephemeral=True)

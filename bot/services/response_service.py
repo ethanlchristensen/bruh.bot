@@ -44,7 +44,7 @@ class ResponseService:
 
         return chunks
 
-    async def send_response(self, message: discord.Message, content: str, image_file: discord.File | None = None, reply: bool = True):
+    async def send_response(self, message: discord.Message, content: str, image_file: discord.File | None = None, reply: bool = True, ephemral: bool = False):
         """Send the AI response, splitting if necessary."""
         processed_content = self.process_mentions(content)
         chunks = self.split_long_message(processed_content)

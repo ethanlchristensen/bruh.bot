@@ -2,6 +2,7 @@ import discord
 from discord import app_commands
 
 from bot.utils.decarators.command_logging import log_command_usage
+from bot.utils.decarators.global_block_check import is_globally_blocked
 
 
 class ImageStatsCommand:
@@ -11,6 +12,7 @@ class ImageStatsCommand:
             description="Check your remaining daily image generation limit",
         )
         @log_command_usage()
+        @is_globally_blocked()
         async def image_stats(interaction: discord.Interaction):
             """Check the user's image generation stats."""
             await interaction.response.defer(ephemeral=True)

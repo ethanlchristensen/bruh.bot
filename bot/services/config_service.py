@@ -94,6 +94,7 @@ class Config:
     mongoImageLimitsCollectionName: str = "image_limits"
     allowedBotsToRespondTo: list[int] = field(default_factory=list)
     deleteUserMessages: DeleteUserMessagesConfig = field(default_factory=DeleteUserMessagesConfig)
+    globalBlockList: list[int] = field(default_factory=list)
 
     @property
     def discordToken(self) -> str:

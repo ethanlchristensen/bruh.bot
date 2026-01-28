@@ -46,6 +46,12 @@ class OrchestratorConfig:
 
 
 @dataclass
+class DeleteUserMessagesConfig:
+    enabled: bool
+    userIds: list[int]
+
+
+@dataclass
 class OpenAiRealTimeConfig:
     apiKey: str = ""
     realTimeModel: str = ""
@@ -87,6 +93,7 @@ class Config:
     mongoMorningConfigsCollectionName: str = "morning_configs"
     mongoImageLimitsCollectionName: str = "image_limits"
     allowedBotsToRespondTo: list[int] = field(default_factory=list)
+    deleteUserMessages: DeleteUserMessagesConfig = field(default_factory=DeleteUserMessagesConfig)
 
     @property
     def discordToken(self) -> str:

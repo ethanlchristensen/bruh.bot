@@ -64,3 +64,8 @@ mongoMessagesCollectionName: "COLLECTION"
 mongoMorningConfigsCollectionName: "MORNING_CONFIGS"
 mongoImageLimitsCollectionName: "IMAGE_LIMITS"
 allowedBotsToRespondTo: []
+
+deleteUserMessages:
+  enabled: false
+  userIds:
+    - 100000000000000000

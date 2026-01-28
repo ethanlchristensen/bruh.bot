@@ -16,6 +16,7 @@ class MessageService:
         self.bot = bot
         self.prompts = prompts
         self.ids_to_users = ids_to_users
+        self.delete_user_message_config = self.bot.config.deleteUserMessages
         self.logger = logging.getLogger(__name__)
 
     async def get_reference_message(self, message: discord.Message) -> discord.Message | None:
@@ -36,6 +37,11 @@ class MessageService:
         bot_string = f"<@{self.bot.user.id}>"
         should_respond = bot_string in message.content or (reference_message and reference_message.author.id == self.bot.user.id)
         return should_respond
+
+    async def should_delete_message(self, message: discord.Message) -> bool:
+        if self.delete_user_message_config.enabled and message.author.id in self.delete_user_message_config.userIds:
+            return True
+        return False
 
     async def process_message_images(self, message: discord.Message) -> list[dict]:
         """Process and encode image attachments."""

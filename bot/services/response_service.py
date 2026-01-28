@@ -44,18 +44,24 @@ class ResponseService:
 
         return chunks
 
-    async def send_response(self, message: discord.Message, content: str, image_file: discord.File | None = None):
+    async def send_response(self, message: discord.Message, content: str, image_file: discord.File | None = None, reply: bool = True):
         """Send the AI response, splitting if necessary."""
         processed_content = self.process_mentions(content)
         chunks = self.split_long_message(processed_content)
 
         try:
             if image_file:
-                await message.reply(content=processed_content, file=image_file)
+                if reply:
+                    await message.reply(content=processed_content, file=image_file)
+                else:
+                    await message.channel.send(content=processed_content, file=image_file)
             else:
                 for idx, chunk in enumerate(chunks):
                     if idx == 0:
-                        await message.reply(chunk)
+                        if reply:
+                            await message.reply(chunk)
+                        else:
+                            await message.channel.send(chunk)
                     else:
                         await message.channel.send("...")
                         await message.channel.send(chunk)

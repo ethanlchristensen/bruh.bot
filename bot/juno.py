@@ -96,6 +96,10 @@ class Juno(commands.Bot):
         if message.author.bot and message.author.id not in self.config.allowedBotsToRespondTo:
             return
 
+        if await self.message_service.should_delete_message(message):
+            await self.response_service.send_response(message, "L + RATIO", reply=False)
+            await message.delete()
+
         # Check if bot is mentioned or message is a reply to the bot
         reference_message = await self.message_service.get_reference_message(message)
         if not self.message_service.should_respond_to_message(message, reference_message):

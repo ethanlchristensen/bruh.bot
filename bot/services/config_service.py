@@ -83,7 +83,7 @@ class Config:
     usersToId: dict[str, str] = field(default_factory=dict)
     idToUsers: dict[str, str] = field(default_factory=dict)
     mentionCooldown: int = 20
-    cooldownBypasslist: list[int] = field(default_factory=list)
+    cooldownBypassList: list[int] = field(default_factory=list)
     promptsPath: str = "prompts.json"
     morningConfigsPath: str = "morning_configs.json"
     imageLimitsPath: str = "image_limits.json"

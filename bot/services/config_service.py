@@ -1,7 +1,7 @@
 import logging
 import os
 from dataclasses import dataclass, field, fields
-from typing import Literal, TypeVar, get_args, get_origin, Optional, List
+from typing import Literal, TypeVar, get_args, get_origin
 
 import yaml
 
@@ -48,7 +48,7 @@ class OrchestratorConfig:
 @dataclass
 class DeleteUserMessagesConfig:
     enabled: bool
-    userIds: List[int] = []
+    userIds: list[int] = []
 
 
 @dataclass
@@ -77,13 +77,13 @@ class Config:
     environment: str = ""
     devDiscordToken: str = ""
     prodDiscordToken: str = ""
-    adminIds: List[int] = field(default_factory=List)
+    adminIds: list[int] = field(default_factory=list)
     invisible: bool = False
     aiConfig: AIConfig = field(default_factory=AIConfig)
     usersToId: dict[str, str] = field(default_factory=dict)
     idToUsers: dict[str, str] = field(default_factory=dict)
     mentionCooldown: int = 20
-    cooldownBypassList: List[int] = field(default_factory=List)
+    cooldownBypassList: list[int] = field(default_factory=list)
     promptsPath: str = "prompts.json"
     morningConfigsPath: str = "morning_configs.json"
     imageLimitsPath: str = "image_limits.json"
@@ -92,9 +92,9 @@ class Config:
     mongoMessagesCollectionName: str = ""
     mongoMorningConfigsCollectionName: str = "morning_configs"
     mongoImageLimitsCollectionName: str = "image_limits"
-    allowedBotsToRespondTo: List[int] = field(default_factory=List)
+    allowedBotsToRespondTo: list[int] = field(default_factory=list)
     deleteUserMessages: DeleteUserMessagesConfig = field(default_factory=DeleteUserMessagesConfig)
-    globalBlockList: List[int] = field(default_factory=List)
+    globalBlockList: list[int] = field(default_factory=list)
 
     @property
     def discordToken(self) -> str:

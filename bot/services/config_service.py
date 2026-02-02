@@ -48,7 +48,7 @@ class OrchestratorConfig:
 @dataclass
 class DeleteUserMessagesConfig:
     enabled: bool
-    userIds: list[int] = []
+    userIds: list[int] = field(default_factory=list)
 
 
 @dataclass

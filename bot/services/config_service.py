@@ -83,7 +83,7 @@ class Config:
     usersToId: dict[str, str] = field(default_factory=dict)
     idToUsers: dict[str, str] = field(default_factory=dict)
     mentionCooldown: int = 20
-    cooldownBypassList: list[int] = field(default_factory=list)
+    cooldownBypasslist: list[int] = field(default_factory=list)
     promptsPath: str = "prompts.json"
     morningConfigsPath: str = "morning_configs.json"
     imageLimitsPath: str = "image_limits.json"
@@ -94,7 +94,7 @@ class Config:
     mongoImageLimitsCollectionName: str = "image_limits"
     allowedBotsToRespondTo: list[int] = field(default_factory=list)
     deleteUserMessages: DeleteUserMessagesConfig = field(default_factory=DeleteUserMessagesConfig)
-    globalBlockList: list[int] = field(default_factory=list)
+    globalBlocklist: list[int] = field(default_factory=list)
 
     @property
     def discordToken(self) -> str:

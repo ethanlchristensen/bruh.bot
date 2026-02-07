@@ -4,7 +4,7 @@ from typing import TypeVar
 from google.genai import Client
 from pydantic import BaseModel
 
-from ..config_service import Config
+from ..config_service import DynamicConfig
 from .base_service import BaseService
 from .types import AIChatResponse, Message
 
@@ -16,7 +16,7 @@ class GoogleAIService(BaseService):
     A service class for interacting with Google's AI API.
     """
 
-    def __init__(self, config: Config):
+    def __init__(self, config: DynamicConfig):
         """
         Initializes the GoogleAIService with the necessary API key for authentication.
 
@@ -26,8 +26,8 @@ class GoogleAIService(BaseService):
 
         self.logger = logging.getLogger(__name__)
 
-        self.client = Client(api_key=config.aiConfig.gemini.apiKey)
-        self.default_model = config.aiConfig.gemini.preferredModel
+        self.client = Client(api_key=config.aiConfig.google.apiKey)
+        self.default_model = config.aiConfig.google.preferredModel
         self.logger.info(f"Intializing GoogleAIService with default_model={self.default_model}")
 
     async def chat(self, messages: list[Message], model: str | None = None) -> dict:

@@ -1,14 +1,14 @@
 import logging
 
 from ..ai.ai_service_factory import AiServiceFactory
-from ..config_service import Config
+from ..config_service import DynamicConfig
 from .types import Message, UserIntent
 
 logger = logging.getLogger(__name__)
 
 
 class AiOrchestrator:
-    def __init__(self, config: Config):
+    def __init__(self, config: DynamicConfig):
         self.ai_service = AiServiceFactory.get_service(provider=config.aiConfig.orchestrator.preferredAiProvider, config=config)
         self.model = config.aiConfig.orchestrator.preferredModel
         logger.info(f"Initialized AiOrchestrator with provider={config.aiConfig.orchestrator.preferredAiProvider}, model={self.model}")

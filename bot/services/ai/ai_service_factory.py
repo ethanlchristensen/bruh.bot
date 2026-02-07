@@ -1,6 +1,6 @@
 import logging
 
-from ..config_service import Config
+from ..config_service import DynamicConfig
 from .anthropic_service import AnthropicService
 from .base_service import BaseService
 from .google_service import GoogleAIService
@@ -14,7 +14,7 @@ class AiServiceFactory:
     _service_cache = {}
 
     @staticmethod
-    def get_service(provider: str, config: Config) -> BaseService:
+    def get_service(provider: str, config: DynamicConfig) -> BaseService:
         logger.info(f"Getting AI Service for provider={provider}")
 
         if provider in AiServiceFactory._service_cache:

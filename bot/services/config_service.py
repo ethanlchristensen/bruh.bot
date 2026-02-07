@@ -1,219 +1,254 @@
+import asyncio
 import logging
 import os
-from dataclasses import dataclass, field, fields
-from typing import Literal, TypeVar, get_args, get_origin
+from datetime import datetime
+from typing import Literal
 
 import yaml
+from cryptography.fernet import Fernet
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger("bot.config")
 
-T = TypeVar("T")
 
+class ProviderConfig(BaseModel):
+    """Generic AI provider config."""
 
-@dataclass
-class OllamaConfig:
-    endpoint: str = "localhost:11434"
-    preferredModel: str = "llama3.1"
-
-
-@dataclass
-class OpenAIConfig:
     apiKey: str = ""
-    preferredModel: str = "gpt-5-nano"
+    endpoint: str = ""
+    preferredModel: str = ""
+    voice: str = ""
+    realTimeModel: str = ""
 
 
-@dataclass
-class AntropicConfig:
-    apiKey: str = ""
-    preferredModel: str = "claude-4-5-sonnet"
-
-
-@dataclass
-class GeminiConfig:
-    apiKey: str = ""
-    preferredModel: str = "gemini-2.5-flash"
-
-
-@dataclass
-class ElevenLabsConfig:
-    apiKey: str = ""
-
-
-@dataclass
-class OrchestratorConfig:
-    preferredAiProvider: Literal["ollama", "openai", "antropic", "gemini"] = "google"
+class OrchestratorConfig(BaseModel):
+    preferredAiProvider: Literal["ollama", "openai", "antropic", "google"] = "google"
     preferredModel: str = ""
 
 
-@dataclass
-class DeleteUserMessagesConfig:
-    enabled: bool
-    userIds: list[int] = field(default_factory=list)
-
-
-@dataclass
-class OpenAiRealTimeConfig:
-    apiKey: str = ""
-    realTimeModel: str = ""
-    voice: str = "alloy"
-
-
-@dataclass
-class AIConfig:
-    preferredAiProvider: Literal["ollama", "openai", "antropic", "gemini"] = "google"
-    ollama: OllamaConfig | None = None
-    openai: OpenAIConfig | None = None
-    antropic: AntropicConfig | None = None
-    gemini: GeminiConfig | None = None
-    elevenlabs: ElevenLabsConfig | None = None
-    orchestrator: OrchestratorConfig | None = None
-    realTimeConfig: OpenAiRealTimeConfig | None = None
+class AIConfig(BaseModel):
+    preferredAiProvider: Literal["ollama", "openai", "antropic", "google"] = "google"
+    ollama: ProviderConfig = Field(default_factory=lambda: ProviderConfig(endpoint="localhost:11434", preferredModel="llama3.1"))
+    openai: ProviderConfig = Field(default_factory=lambda: ProviderConfig(preferredModel="gpt-5-nano"))
+    antropic: ProviderConfig = Field(default_factory=lambda: ProviderConfig(preferredModel="claude-4-5-sonnet"))
+    google: ProviderConfig = Field(default_factory=lambda: ProviderConfig(preferredModel="gemini-2.5-flash"))
+    elevenlabs: ProviderConfig = Field(default_factory=ProviderConfig)
+    realTimeConfig: ProviderConfig = Field(default_factory=lambda: ProviderConfig(voice="alloy"))
+    orchestrator: OrchestratorConfig = Field(default_factory=lambda: OrchestratorConfig(preferredAiProvider="google", preferredModel="gemini-2.5-flash"))
     boostImagePrompts: bool = False
     maxDailyImages: int = 1
 
 
-@dataclass
-class Config:
-    environment: str = ""
-    devDiscordToken: str = ""
-    prodDiscordToken: str = ""
-    adminIds: list[int] = field(default_factory=list)
-    invisible: bool = False
-    aiConfig: AIConfig = field(default_factory=AIConfig)
-    usersToId: dict[str, str] = field(default_factory=dict)
-    idToUsers: dict[str, str] = field(default_factory=dict)
-    mentionCooldown: int = 20
-    cooldownBypassList: list[int] = field(default_factory=list)
-    promptsPath: str = "prompts.json"
-    morningConfigsPath: str = "morning_configs.json"
-    imageLimitsPath: str = "image_limits.json"
-    mongoUri: str = ""
-    mongoDbName: str = ""
-    mongoMessagesCollectionName: str = ""
-    mongoMorningConfigsCollectionName: str = "morning_configs"
-    mongoImageLimitsCollectionName: str = "image_limits"
-    allowedBotsToRespondTo: list[int] = field(default_factory=list)
-    deleteUserMessages: DeleteUserMessagesConfig = field(default_factory=DeleteUserMessagesConfig)
-    globalBlockList: list[int] = field(default_factory=list)
+class DeleteUserMessagesConfig(BaseModel):
+    enabled: bool = False
+    userIds: list[int] = []
 
-    @property
-    def discordToken(self) -> str:
-        """Get the appropriate Discord token based on environment."""
-        env = os.getenv("ENVIRONMENT", "dev").lower()
-        if env == "prod" or env == "production":
-            return self.prodDiscordToken
-        return self.devDiscordToken
+
+class BaseConfig(BaseModel):
+    """Secrets from YAML - never changes."""
+
+    devDiscordToken: str
+    prodDiscordToken: str
+    mongoUri: str
+    mongoDbName: str
+    encryptionKey: str
+    mongoConfigCollectionName: str = "bot_config"
+
+
+class DynamicConfig(BaseModel):
+    """Dynamic config stored in MongoDB."""
+
+    configVersion: int = 1
+    lastUpdated: datetime | None = None
+    adminIds: list[int] = Field(default_factory=list)
+    invisible: bool = False
+    aiConfig: AIConfig = Field(default_factory=AIConfig)
+    usersToId: dict[str, str] = Field(default_factory=dict)
+    idToUsers: dict[str, str] = Field(default_factory=dict)
+    mentionCooldown: int = 20
+    cooldownBypassList: list[int] = Field(default_factory=list)
+    promptsPath: str = "prompts.json"
+    mongoMessagesDbName: str = ""
+    mongoMessagesCollectionName: str = ""
+    mongoMorningConfigsCollectionName: str = "MorningConfigs"
+    mongoImageLimitsCollectionName: str = "ImageLimits"
+    allowedBotsToRespondTo: list[int] = Field(default_factory=list)
+    deleteUserMessages: DeleteUserMessagesConfig = Field(default_factory=DeleteUserMessagesConfig)
+    globalBlockList: list[int] = Field(default_factory=list)
 
 
 class ConfigService:
+    ENCRYPTED_PROVIDERS = [
+        "openai",
+        "antropic",
+        "google",
+        "elevenlabs",
+        "realTimeConfig",
+    ]
+
     def __init__(self, config_path: str = "config.yaml"):
         self.config_path = config_path
-        self.config: Config | None = None
+        self.base: BaseConfig | None = None
+        self.dynamic: DynamicConfig | None = None
+        self.db: AsyncIOMotorDatabase | None = None
+        self.cipher: Fernet | None = None
+        self._version: int = 0
+        self._watch_task: asyncio.Task | None = None
+        self.environment: str | None = None
 
-    def load(self, environment: str) -> Config:
-        """Load and validate configuration from YAML file."""
+    async def initialize(self, environment: str):
+        """Load config from YAML and MongoDB."""
+        self.base = self._load_yaml(environment)
+        self.cipher = Fernet(self.base.encryptionKey.encode())
+
+        client = AsyncIOMotorClient(self.base.mongoUri)
+        self.db = client[self.base.mongoDbName]
+        logger.info(f"Connected to MongoDB: {self.base.mongoDbName}")
+
+        await self._load_from_mongo()
+        self._validate()
+
+        logger.info(f"Config loaded: env={environment.upper()}, version={self._version}")
+
+    def _load_yaml(self, environment: str) -> BaseConfig:
+        """Load secrets from YAML."""
         if not os.path.exists(self.config_path):
-            raise FileNotFoundError(f"Configuration file not found: {self.config_path}. Please copy config.sample.yaml to config.yaml and configure it.")
+            raise FileNotFoundError(f"Config not found: {self.config_path}")
 
-        with open(self.config_path) as file:
-            raw_config = yaml.safe_load(file)
+        with open(self.config_path) as f:
+            data = yaml.safe_load(f)
 
-        self.config = self._parse_dataclass(Config, raw_config)
-        self._validate_config(self.config)
+        return BaseConfig(**data)
 
-        logger.info(f"Configuration loaded successfully from {self.config_path}")
-        logger.info(f"Environment: {environment.upper()} (using {'prodDiscordToken' if environment in ['prod', 'production'] else 'devDiscordToken'})")
+    async def _load_from_mongo(self):
+        """Load dynamic config from MongoDB."""
+        coll = self.db[self.base.mongoConfigCollectionName]
+        doc = await coll.find_one({"_id": "main"})
 
-        self.config.environment = environment
+        if not doc:
+            logger.warning("No config in MongoDB, creating default...")
+            self.dynamic = DynamicConfig()
+            await self.save()
+        else:
+            doc.pop("_id", None)
+            self._decrypt(doc)
+            self.dynamic = DynamicConfig(**doc)
+            self._version = self.dynamic.configVersion
 
-        return self.config
+        logger.info(f"Dynamic config loaded (v{self._version})")
 
-    def _parse_dataclass(self, cls: type[T], data: dict | None) -> T:
-        """Recursively parse a dictionary into a dataclass instance."""
-        if data is None:
-            return cls()
+    async def save(self):
+        """Save dynamic config to MongoDB."""
+        self.dynamic.configVersion += 1
+        self.dynamic.lastUpdated = datetime.utcnow()
+        self._version = self.dynamic.configVersion
 
-        kwargs = {}
-        for field_info in fields(cls):
-            field_name = field_info.name
-            field_type = field_info.type
-            field_value = data.get(field_name)
+        data = self.dynamic.model_dump()
+        self._encrypt(data)
 
-            if field_value is None:
-                continue
+        coll = self.db[self.base.mongoConfigCollectionName]
+        await coll.update_one({"_id": "main"}, {"$set": data}, upsert=True)
 
-            origin = get_origin(field_type)
+        logger.info(f"Config saved (v{self._version})")
 
-            if origin is type(None) or (origin is type(field_type) and type(None) in get_args(field_type)):
-                args = get_args(field_type)
-                if args:
-                    inner_type = next((arg for arg in args if arg is not type(None)), None)
-                    if inner_type and hasattr(inner_type, "__dataclass_fields__"):
-                        kwargs[field_name] = self._parse_dataclass(inner_type, field_value)
-                    else:
-                        kwargs[field_name] = field_value
-                else:
-                    kwargs[field_name] = field_value
-            elif hasattr(field_type, "__dataclass_fields__"):
-                kwargs[field_name] = self._parse_dataclass(field_type, field_value)
-            else:
-                kwargs[field_name] = field_value
+    def _encrypt(self, config: dict):
+        """Encrypt API keys in place."""
+        ai = config.get("aiConfig", {})
+        for provider in self.ENCRYPTED_PROVIDERS:
+            if provider in ai and ai[provider]:
+                key = ai[provider].get("apiKey", "")
+                if key:
+                    ai[provider]["apiKey"] = self.cipher.encrypt(key.encode()).decode()
 
-        return cls(**kwargs)
+    def _decrypt(self, config: dict):
+        """Decrypt API keys in place."""
+        ai = config.get("aiConfig", {})
+        for provider in self.ENCRYPTED_PROVIDERS:
+            if provider in ai and ai[provider]:
+                key = ai[provider].get("apiKey", "")
+                if key:
+                    try:
+                        ai[provider]["apiKey"] = self.cipher.decrypt(key.encode()).decode()
+                    except Exception as e:
+                        logger.warning(f"Failed to decrypt {provider}: {e}")
 
-    def _validate_config(self, config: Config):
-        """Validate the loaded configuration."""
-        if not config.devDiscordToken:
-            raise ValueError("devDiscordToken is missing or empty in the configuration.")
+    async def reload_if_changed(self) -> bool:
+        """Check for config changes and reload."""
+        coll = self.db[self.base.mongoConfigCollectionName]
+        doc = await coll.find_one({"_id": "main"}, {"configVersion": 1})
 
-        if not config.prodDiscordToken:
-            raise ValueError("prodDiscordToken is missing or empty in the configuration.")
+        if doc and doc.get("configVersion", 0) > self._version:
+            logger.info(f"Config changed (v{doc['configVersion']}), reloading...")
+            await self._load_from_mongo()
+            self._validate()
+            return True
 
-        if not config.adminIds:
-            raise ValueError("adminIds is missing in the configuration.")
+        return False
 
-        if not config.aiConfig:
-            raise ValueError("aiConfig is missing in the configuration.")
+    async def start_watcher(self, interval: int = 5):
+        """Start background watcher for config changes."""
 
-        if not config.aiConfig.preferredAiProvider:
-            raise ValueError("preferredAiProvider is missing in aiConfig.")
+        async def watch():
+            while True:
+                try:
+                    await asyncio.sleep(interval)
+                    if await self.reload_if_changed():
+                        logger.info("Config reloaded")
+                except Exception as e:
+                    logger.error(f"Watcher error: {e}")
 
-        self._validate_preferred_provider(config.aiConfig)
+        self._watch_task = asyncio.create_task(watch())
+        logger.info(f"Watcher started (interval={interval}s)")
 
-    def _validate_preferred_provider(self, ai_config: AIConfig):
-        """Ensure the preferred AI provider is properly configured."""
-        provider = ai_config.preferredAiProvider.lower()
+    async def stop_watcher(self):
+        """Stop the watcher."""
+        if self._watch_task:
+            self._watch_task.cancel()
+            try:
+                await self._watch_task
+            except asyncio.CancelledError:
+                pass
+            logger.info("Watcher stopped")
 
-        provider_map = {
-            "ollama": (ai_config.ollama, lambda c: c.endpoint and c.preferredModel),
-            "openai": (ai_config.openai, lambda c: c.apiKey),
-            "antropic": (ai_config.antropic, lambda c: c.apiKey),
-            "anthropic": (ai_config.antropic, lambda c: c.apiKey),
-            "gemini": (ai_config.gemini, lambda c: c.apiKey),
-            "google": (ai_config.gemini, lambda c: c.apiKey),
-        }
+    async def update(self, updates: dict):
+        """Update dynamic config."""
+        data = self.dynamic.model_dump()
+        data.update(updates)
+        self.dynamic = DynamicConfig(**data)
+        await self.save()
+        self._validate()
 
-        if provider not in provider_map:
-            raise ValueError(f"Invalid preferredAiProvider: {provider}. Must be one of: {', '.join(provider_map.keys())}")
+    def _validate(self):
+        """Validate config."""
+        if not self.base.devDiscordToken or not self.base.prodDiscordToken:
+            raise ValueError("Discord tokens missing")
+        if not self.dynamic.adminIds:
+            raise ValueError("adminIds missing")
 
-        config_obj, validator = provider_map[provider]
+        provider = self.dynamic.aiConfig.preferredAiProvider
+        cfg = getattr(self.dynamic.aiConfig, provider)
 
-        if config_obj is None or not validator(config_obj):
-            raise ValueError(f"Preferred AI provider '{provider}' is not properly configured. Please add valid configuration for {provider} in aiConfig.")
+        if provider == "ollama":
+            if not cfg.endpoint or not cfg.preferredModel:
+                raise ValueError("Ollama not configured")
+        else:
+            if not cfg.apiKey:
+                raise ValueError(f"{provider} apiKey missing")
 
-    def get_config(self) -> Config:
-        """Get the loaded configuration."""
-        if self.config is None:
-            raise RuntimeError("Configuration not loaded. Call load() first.")
-        return self.config
+    @property
+    def discord_token(self) -> str:
+        """Get Discord token for current environment."""
+        env = os.getenv("ENVIRONMENT", "dev").lower()
+        return self.base.prodDiscordToken if env in ["prod", "production"] else self.base.devDiscordToken
 
 
-_config_service: ConfigService | None = None
+_service: ConfigService | None = None
 
 
 def get_config_service(config_path: str = "config.yaml") -> ConfigService:
-    """Get or create the ConfigService singleton."""
-    global _config_service
-    if _config_service is None:
-        _config_service = ConfigService(config_path)
-    return _config_service
+    """Get singleton."""
+    global _service
+    if _service is None:
+        _service = ConfigService(config_path)
+    return _service

@@ -15,9 +15,9 @@ if TYPE_CHECKING:
 class DiscordMessagesService:
     def __init__(self, bot: "Juno"):
         self.bot = bot
-        self.mongo_client = pymongo.MongoClient(self.bot.config.mongoUri)
-        self.db = self.mongo_client[self.bot.config.mongoDbName]
-        self.messages_collection = self.db[self.bot.config.mongoMessagesCollectionName]
+        self.mongo_client = pymongo.MongoClient(self.bot.config_service.base.mongoUri)
+        self.db = self.mongo_client[self.bot.config_service.dynamic.mongoMessagesDbName]
+        self.messages_collection = self.db[self.bot.config_service.dynamic.mongoMessagesCollectionName]
         self.logger = logging.getLogger(__name__)
         self.logger.info(f"Initialized DiscordMessagesService with collection {self.messages_collection.name}")
 

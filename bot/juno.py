@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -6,18 +7,20 @@ import time
 import discord
 from discord.ext import commands
 
-from bot.services import AiOrchestrator, AiServiceFactory, AudioService, Config, CooldownService, DiscordMessagesService, EmbedService, ImageGenerationService, MessageService, MongoImageLimitService, MusicQueueService, ResponseService
+from bot.services import AiOrchestrator, AiServiceFactory, AudioService, ConfigService, CooldownService, DiscordMessagesService, DynamicConfig, EmbedService, ImageGenerationService, MessageService, MongoImageLimitService, MusicQueueService, ResponseService
 from bot.utils import JunoSlash
 
 
 class Juno(commands.Bot):
-    def __init__(self, intents, config: Config):
+    def __init__(self, intents, config: DynamicConfig, config_service: ConfigService):
         status = discord.Status.invisible if config.invisible else discord.Status.online
         super().__init__(command_prefix="!", intents=intents, status=status, activity=None)
         self.start_time = time.time()
         self.juno_slash = JunoSlash(self.tree)
         self.config = config
+        self.config_service = config_service
         self.logger = logging.getLogger(__name__)
+        self._config_reload_lock = False
 
         # Load prompts
         self.prompts = self._load_prompts(config.promptsPath)
@@ -86,7 +89,52 @@ class Juno(commands.Bot):
         user_count = sum(g.member_count for g in self.guilds)
 
         self.logger.info(f"🌐 Connected to {guild_count} guilds with access to {user_count} users")
+        self.logger.info(f"📝 Config version: {self.config_service.dynamic.configVersion}")
         self.logger.info("✅ Juno is online!")
+
+        # Start background task to check for config changes
+        self.loop.create_task(self._config_reload_handler())
+
+    async def _config_reload_handler(self):
+        """Background task to reload services when config changes."""
+        current_version = self.config_service.dynamic.configVersion
+
+        while not self.is_closed():
+            await asyncio.sleep(6)  # Check slightly after the watcher checks
+
+            new_version = self.config_service.dynamic.configVersion
+
+            if new_version > current_version and not self._config_reload_lock:
+                self._config_reload_lock = True
+                try:
+                    self.logger.info(f"🔄 Config changed (v{current_version} -> v{new_version}), reloading services...")
+                    await self._reload_services()
+                    current_version = new_version
+                    self.logger.info("✅ Services reloaded successfully")
+                except Exception as e:
+                    self.logger.error(f"❌ Failed to reload services: {e}", exc_info=True)
+                finally:
+                    self._config_reload_lock = False
+
+    async def _reload_services(self):
+        """Reload services that depend on config."""
+        # Update config reference
+        self.config = self.config_service.dynamic
+
+        # Reload AI service with new provider/settings
+        self.ai_service = AiServiceFactory.get_service(provider=self.config.aiConfig.preferredAiProvider, config=self.config)
+
+        # Update other services that depend on config
+        self.cooldown_service = CooldownService(self.config.mentionCooldown, self.config.cooldownBypassList)
+
+        self.message_service = MessageService(self, self.prompts, self.config.idToUsers)
+        self.response_service = ResponseService(self.config.usersToId)
+        self.image_limit_service = MongoImageLimitService(self, self.config.aiConfig.maxDailyImages)
+
+        await self.change_presence(status=discord.Status.invisible if self.config_service.dynamic.invisible else discord.Status.online)
+
+        self.logger.info(f"🤖 AI Provider: {self.config.aiConfig.preferredAiProvider}")
+        self.logger.info(f"⏱️  Mention Cooldown: {self.config.mentionCooldown}s")
 
     async def on_message(self, message: discord.Message):
         # Early returns for invalid messages

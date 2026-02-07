@@ -4,7 +4,7 @@ from typing import TypeVar
 import anthropic
 from pydantic import BaseModel
 
-from ..config_service import Config
+from ..config_service import DynamicConfig
 from .base_service import BaseService
 from .types import AIChatResponse, Message
 
@@ -12,7 +12,7 @@ T = TypeVar("T", bound=BaseModel)
 
 
 class AnthropicService(BaseService):
-    def __init__(self, config: Config):
+    def __init__(self, config: DynamicConfig):
         self.logger = logging.getLogger(__name__)
         self.client = anthropic.Anthropic(api_key=config.aiConfig.anthropic.apiKey)
         self.default_model = config.aiConfig.anthropic.preferredModel

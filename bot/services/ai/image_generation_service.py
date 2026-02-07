@@ -26,7 +26,7 @@ class ImageGenerationService:
             model: The Gemini model to use for image generation
         """
         self.bot = bot
-        self.client = Client(api_key=bot.config.aiConfig.gemini.apiKey)
+        self.client = Client(api_key=bot.config.aiConfig.google.apiKey)
         self.model = model
         self.base_prompt = "You must generate an image with the following user prompt. Do not ask follow questions to get the user to refine the prompt."
 

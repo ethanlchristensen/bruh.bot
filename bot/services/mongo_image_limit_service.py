@@ -17,9 +17,9 @@ class MongoImageLimitService:
     def __init__(self, bot: "Juno", max_daily_images: int):
         self.bot = bot
         self.default_max_daily_images = max_daily_images  # Default from config
-        self.mongo_client = pymongo.MongoClient(self.bot.config.mongoUri)
-        self.db = self.mongo_client[self.bot.config.mongoDbName]
-        self.collection = self.db[self.bot.config.mongoImageLimitsCollectionName]
+        self.mongo_client = pymongo.MongoClient(self.bot.config_service.base.mongoUri)
+        self.db = self.mongo_client[self.bot.config_service.base.mongoDbName]
+        self.collection = self.db[self.bot.config_service.dynamic.mongoImageLimitsCollectionName]
         self.timezone = ZoneInfo("America/Chicago")  # Central Time
         self.logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class MongoImageLimitService:
             self.collection.create_index([("guild_id", pymongo.ASCENDING), ("user_id", pymongo.ASCENDING)], unique=True)
             # Create index on reset_time for potential cleanup queries
             self.collection.create_index([("reset_time", pymongo.ASCENDING)])
-            self.logger.info("Created indexes on image_limits collection")
+            self.logger.info("Created indexes on ImageLimits collection")
         except pymongo.errors.OperationFailure as e:
             self.logger.warning(f"Could not create indexes: {e}")
 

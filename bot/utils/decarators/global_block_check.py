@@ -5,7 +5,7 @@ from typing import ParamSpec, TypeVar, cast
 
 import discord
 
-from bot.services.config_service import Config
+from bot.services.config_service import DynamicConfig
 from bot.services.embed_service import EmbedService
 
 P = ParamSpec("P")
@@ -33,7 +33,7 @@ def is_globally_blocked() -> Callable[[Callable[P, Awaitable[T]]], Callable[P, A
                 # If there's no interaction, just call the original function
                 return await func(*args, **kwargs)
 
-            config: Config = interaction.client.config
+            config: DynamicConfig = interaction.client.config
 
             if interaction.user.id not in config.globalBlockList:
                 return await func(*args, **kwargs)

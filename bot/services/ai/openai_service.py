@@ -4,7 +4,7 @@ from typing import TypeVar
 import openai
 from pydantic import BaseModel
 
-from ..config_service import Config
+from ..config_service import DynamicConfig
 from .base_service import BaseService
 from .types import AIChatResponse, Message
 
@@ -12,7 +12,7 @@ T = TypeVar("T", bound=BaseModel)
 
 
 class OpenAIService(BaseService):
-    def __init__(self, config: Config):
+    def __init__(self, config: DynamicConfig):
         self.logger = logging.getLogger(__name__)
         self.client = openai.Client(api_key=config.aiConfig.openai.apiKey)
         self.default_model = config.aiConfig.openai.preferredModel

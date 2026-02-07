@@ -5,7 +5,7 @@ from typing import ParamSpec, TypeVar, cast
 
 import discord
 
-from bot.services.config_service import Config
+from bot.services.config_service import DynamicConfig
 from bot.services.embed_service import EmbedService
 
 P = ParamSpec("P")
@@ -35,7 +35,7 @@ def is_admin() -> Callable[[Callable[P, Awaitable[T]]], Callable[P, Awaitable[T]
 
             await interaction.response.defer(ephemeral=True)
 
-            config: Config = interaction.client.config
+            config: DynamicConfig = interaction.client.config
 
             if interaction.user.id in config.adminIds:
                 return await func(*args, **kwargs)

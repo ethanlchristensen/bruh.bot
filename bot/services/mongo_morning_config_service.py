@@ -13,9 +13,9 @@ class MongoMorningConfigService:
 
     def __init__(self, bot: "Juno"):
         self.bot = bot
-        self.mongo_client = pymongo.MongoClient(self.bot.config.mongoUri)
-        self.db = self.mongo_client[self.bot.config.mongoDbName]
-        self.collection = self.db[self.bot.config.mongoMorningConfigsCollectionName]
+        self.mongo_client = pymongo.MongoClient(self.bot.config_service.base.mongoUri)
+        self.db = self.mongo_client[self.bot.config_service.base.mongoDbName]
+        self.collection = self.db[self.bot.config_service.dynamic.mongoMorningConfigsCollectionName]
         self.logger = logging.getLogger(__name__)
 
         # Initialize collection with indexes

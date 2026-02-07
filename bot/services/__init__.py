@@ -7,7 +7,7 @@ from .ai.real_time_audio_service import (
     VoiceReceiveSink,
 )
 from .ai.types import AIChatResponse, ImageGenerationResponse, Message, UserIntent
-from .config_service import Config, get_config_service
+from .config_service import BaseConfig, ConfigService, DynamicConfig, get_config_service
 from .cooldown_service import CooldownService
 from .discord_messages_service import DiscordMessagesService
 from .embed_service import EmbedService, QueuePaginationView
@@ -36,7 +36,9 @@ __all__ = [
     "ImageGenerationService",
     "ImageGenerationResponse",
     "get_config_service",
-    "Config",
+    "BaseConfig",
+    "DynamicConfig",
+    "ConfigService",
     "MessageService",
     "ResponseService",
     "CooldownService",

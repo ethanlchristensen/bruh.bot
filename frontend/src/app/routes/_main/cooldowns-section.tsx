@@ -4,15 +4,46 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
-import type { BotConfig } from "@/lib/types"
+import type { DynamicConfig } from "@/lib/api-client"
 import { Clock, Plus, Shield, Trash2 } from "lucide-react"
+import { useState, useEffect } from "react"
 
 interface CooldownsSectionProps {
-  config: BotConfig
-  onUpdate: (updates: Partial<BotConfig>) => void
+  config: DynamicConfig
+  onUpdate: (updates: Partial<DynamicConfig>) => void
 }
 
 export function CooldownsSection({ config, onUpdate }: CooldownsSectionProps) {
+  const [localBypassList, setLocalBypassList] = useState<number[]>(config.cooldownBypassList)
+
+  useEffect(() => {
+    setLocalBypassList(config.cooldownBypassList)
+  }, [config.cooldownBypassList])
+
+  const handleBypassChange = (index: number, value: string) => {
+    const newList = [...localBypassList]
+    newList[index] = parseInt(value) || 0
+    setLocalBypassList(newList)
+  }
+
+  const handleAddBypass = () => {
+    setLocalBypassList([...localBypassList, 0])
+  }
+
+  const handleRemoveBypass = (index: number) => {
+    const newList = localBypassList.filter((_, i) => i !== index)
+    setLocalBypassList(newList)
+    onUpdate({ cooldownBypassList: newList })
+  }
+
+  const handleSaveBypassList = () => {
+    onUpdate({ cooldownBypassList: localBypassList })
+  }
+
+  const handleCooldownChange = (value: number) => {
+    onUpdate({ mentionCooldown: value })
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -42,7 +73,7 @@ export function CooldownsSection({ config, onUpdate }: CooldownsSectionProps) {
             </div>
             <Slider
               value={[config.mentionCooldown]}
-              onValueChange={([value]) => onUpdate({ mentionCooldown: value })}
+              onValueChange={([value]) => handleCooldownChange(value)}
               max={120}
               min={0}
               step={5}
@@ -67,39 +98,41 @@ export function CooldownsSection({ config, onUpdate }: CooldownsSectionProps) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {config.cooldownBypassList.map((id, index) => (
+          {localBypassList.map((id, index) => (
             <div key={index} className="flex items-center gap-2">
               <Input
-                value={id}
-                onChange={(e) => {
-                  const newList = [...config.cooldownBypassList]
-                  newList[index] = e.target.value
-                  onUpdate({ cooldownBypassList: newList })
-                }}
-                placeholder="User ID"
+                type="number"
+                value={id || ""}
+                onChange={(e) => handleBypassChange(index, e.target.value)}
+                placeholder="Discord User ID"
                 className="font-mono"
               />
               <Button
                 variant="ghost"
                 size="icon"
                 className="shrink-0 text-muted-foreground hover:text-destructive"
-                onClick={() => {
-                  const newList = config.cooldownBypassList.filter((_, i) => i !== index)
-                  onUpdate({ cooldownBypassList: newList })
-                }}
+                onClick={() => handleRemoveBypass(index)}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
           ))}
-          <Button
-            variant="outline"
-            className="w-full bg-transparent"
-            onClick={() => onUpdate({ cooldownBypassList: [...config.cooldownBypassList, ""] })}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add User
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1 bg-transparent"
+              onClick={handleAddBypass}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add User
+            </Button>
+            <Button
+              onClick={handleSaveBypassList}
+              disabled={JSON.stringify(localBypassList) === JSON.stringify(config.cooldownBypassList)}
+            >
+              Save Changes
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

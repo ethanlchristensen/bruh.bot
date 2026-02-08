@@ -7,10 +7,20 @@ import { Save } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
+import { ConfigChangesProvider, useConfigChanges } from "@/contexts/config-changes-context";
+import { useUpdateConfig, useUpdateAIProvider } from "@/hooks/use-config";
 
 export const Route = createFileRoute("/_main")({
-  component: ProtectedLayout,
+  component: ProtectedLayoutWrapper,
 });
+
+function ProtectedLayoutWrapper() {
+  return (
+    <ConfigChangesProvider>
+      <ProtectedLayout />
+    </ConfigChangesProvider>
+  );
+}
 
 function ProtectedLayout() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -39,10 +49,38 @@ function ProtectedLayout() {
     return <Navigate to="/login" />;
   }
 
-  const handleSave = () => {
-    // Here you would typically save to an API
-    console.log("Saving configuration...");
-    toast.success("Configuration saved successfully");
+  const { hasPendingChanges, getPendingChanges, clearChanges } = useConfigChanges();
+  const updateConfigMutation = useUpdateConfig();
+  const updateAIProviderMutation = useUpdateAIProvider();
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    const changes = getPendingChanges();
+    
+    if (!hasPendingChanges) {
+      toast.info("No changes to save");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // Save config changes
+      if (changes.config && Object.keys(changes.config).length > 0) {
+        await updateConfigMutation.mutateAsync(changes.config);
+      }
+
+      // Save AI provider changes
+      if (changes.aiProvider && Object.keys(changes.aiProvider).length > 0) {
+        await updateAIProviderMutation.mutateAsync(changes.aiProvider);
+      }
+
+      clearChanges();
+      toast.success("Configuration saved successfully");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save configuration");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -55,12 +93,16 @@ function ProtectedLayout() {
       />
       <ContentLayout fullHeight={false}>
         <div className="flex items-center justify-end mb-6">
-          <Button onClick={handleSave} className="gap-2">
+          <Button 
+            onClick={handleSave} 
+            className="gap-2"
+            disabled={!hasPendingChanges || isSaving}
+          >
             <Save className="h-4 w-4" />
-            Save Changes
+            {isSaving ? "Saving..." : "Save Changes"}
           </Button>
         </div>
-        <Outlet context={{ activeSection }} />
+        <Outlet />
       </ContentLayout>
     </div>
   );

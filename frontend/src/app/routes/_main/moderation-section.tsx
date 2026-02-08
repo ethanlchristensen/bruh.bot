@@ -4,15 +4,74 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import type { BotConfig } from "@/lib/types"
+import type { DynamicConfig } from "@/lib/api-client"
 import { Ban, MessageSquareX, Plus, Trash2 } from "lucide-react"
+import { useState, useEffect } from "react"
 
 interface ModerationSectionProps {
-  config: BotConfig
-  onUpdate: (updates: Partial<BotConfig>) => void
+  config: DynamicConfig
+  onUpdate: (updates: Partial<DynamicConfig>) => void
 }
 
 export function ModerationSection({ config, onUpdate }: ModerationSectionProps) {
+  const [localDeleteUserIds, setLocalDeleteUserIds] = useState<number[]>(config.deleteUserMessages.userIds)
+  const [localBlockList, setLocalBlockList] = useState<number[]>(config.globalBlockList)
+
+  useEffect(() => {
+    setLocalDeleteUserIds(config.deleteUserMessages.userIds)
+    setLocalBlockList(config.globalBlockList)
+  }, [config.deleteUserMessages.userIds, config.globalBlockList])
+
+  const handleDeleteUserIdChange = (index: number, value: string) => {
+    const newIds = [...localDeleteUserIds]
+    newIds[index] = parseInt(value) || 0
+    setLocalDeleteUserIds(newIds)
+  }
+
+  const handleAddDeleteUserId = () => {
+    setLocalDeleteUserIds([...localDeleteUserIds, 0])
+  }
+
+  const handleRemoveDeleteUserId = (index: number) => {
+    const newIds = localDeleteUserIds.filter((_, i) => i !== index)
+    setLocalDeleteUserIds(newIds)
+    onUpdate({
+      deleteUserMessages: {
+        enabled: config.deleteUserMessages.enabled,
+        userIds: newIds,
+      },
+    })
+  }
+
+  const handleSaveDeleteUserIds = () => {
+    onUpdate({
+      deleteUserMessages: {
+        enabled: config.deleteUserMessages.enabled,
+        userIds: localDeleteUserIds,
+      },
+    })
+  }
+
+  const handleBlockListChange = (index: number, value: string) => {
+    const newList = [...localBlockList]
+    newList[index] = parseInt(value) || 0
+    setLocalBlockList(newList)
+  }
+
+  const handleAddToBlockList = () => {
+    setLocalBlockList([...localBlockList, 0])
+  }
+
+  const handleRemoveFromBlockList = (index: number) => {
+    const newList = localBlockList.filter((_, i) => i !== index)
+    setLocalBlockList(newList)
+    onUpdate({ globalBlockList: newList })
+  }
+
+  const handleSaveBlockList = () => {
+    onUpdate({ globalBlockList: localBlockList })
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -53,50 +112,41 @@ export function ModerationSection({ config, onUpdate }: ModerationSectionProps) 
 
           <div className="space-y-3 pt-2">
             <Label>User IDs</Label>
-            {config.deleteUserMessages.userIds.map((id, index) => (
+            {localDeleteUserIds.map((id, index) => (
               <div key={index} className="flex items-center gap-2">
                 <Input
-                  value={id}
-                  onChange={(e) => {
-                    const newIds = [...config.deleteUserMessages.userIds]
-                    newIds[index] = e.target.value
-                    onUpdate({
-                      deleteUserMessages: { ...config.deleteUserMessages, userIds: newIds },
-                    })
-                  }}
-                  placeholder="User ID"
+                  type="number"
+                  value={id || ""}
+                  onChange={(e) => handleDeleteUserIdChange(index, e.target.value)}
+                  placeholder="Discord User ID"
                   className="font-mono"
                 />
                 <Button
                   variant="ghost"
                   size="icon"
                   className="shrink-0 text-muted-foreground hover:text-destructive"
-                  onClick={() => {
-                    const newIds = config.deleteUserMessages.userIds.filter((_, i) => i !== index)
-                    onUpdate({
-                      deleteUserMessages: { ...config.deleteUserMessages, userIds: newIds },
-                    })
-                  }}
+                  onClick={() => handleRemoveDeleteUserId(index)}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             ))}
-            <Button
-              variant="outline"
-              className="w-full bg-transparent"
-              onClick={() =>
-                onUpdate({
-                  deleteUserMessages: {
-                    ...config.deleteUserMessages,
-                    userIds: [...config.deleteUserMessages.userIds, ""],
-                  },
-                })
-              }
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add User
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 bg-transparent"
+                onClick={handleAddDeleteUserId}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add User
+              </Button>
+              <Button
+                onClick={handleSaveDeleteUserIds}
+                disabled={JSON.stringify(localDeleteUserIds) === JSON.stringify(config.deleteUserMessages.userIds)}
+              >
+                Save Changes
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -112,39 +162,41 @@ export function ModerationSection({ config, onUpdate }: ModerationSectionProps) 
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {config.globalBlockList.map((id, index) => (
+          {localBlockList.map((id, index) => (
             <div key={index} className="flex items-center gap-2">
               <Input
-                value={id}
-                onChange={(e) => {
-                  const newList = [...config.globalBlockList]
-                  newList[index] = e.target.value
-                  onUpdate({ globalBlockList: newList })
-                }}
-                placeholder="User ID"
+                type="number"
+                value={id || ""}
+                onChange={(e) => handleBlockListChange(index, e.target.value)}
+                placeholder="Discord User ID"
                 className="font-mono"
               />
               <Button
                 variant="ghost"
                 size="icon"
                 className="shrink-0 text-muted-foreground hover:text-destructive"
-                onClick={() => {
-                  const newList = config.globalBlockList.filter((_, i) => i !== index)
-                  onUpdate({ globalBlockList: newList })
-                }}
+                onClick={() => handleRemoveFromBlockList(index)}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
           ))}
-          <Button
-            variant="outline"
-            className="w-full bg-transparent"
-            onClick={() => onUpdate({ globalBlockList: [...config.globalBlockList, ""] })}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Blocked User
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1 bg-transparent"
+              onClick={handleAddToBlockList}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Blocked User
+            </Button>
+            <Button
+              onClick={handleSaveBlockList}
+              disabled={JSON.stringify(localBlockList) === JSON.stringify(config.globalBlockList)}
+            >
+              Save Changes
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

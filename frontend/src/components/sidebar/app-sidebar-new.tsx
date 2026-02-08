@@ -1,6 +1,6 @@
 "use client";
 import { cn } from "@/lib/utils";
-import { useNavigate, useLocation } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Bot,
   Brain,
@@ -37,7 +37,6 @@ export function AppSidebar({
   onClose,
 }: AppSidebarProps) {
   const navigate = useNavigate();
-  const location = useLocation();
 
   const handleNavigation = (item: typeof navItems[0]) => {
     navigate({ to: item.path });

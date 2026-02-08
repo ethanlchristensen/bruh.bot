@@ -3,30 +3,45 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import type { BotConfig } from "@/lib/types"
-import { ArrowLeftRight, Plus, Trash2, UserCircle } from "lucide-react"
+import type { DynamicConfig } from "@/lib/api-client"
+import { ArrowLeftRight, Plus, Trash2, UserCircle, Save } from "lucide-react"
+import { useState, useEffect } from "react"
 
 interface UsersSectionProps {
-  config: BotConfig
-  onUpdate: (updates: Partial<BotConfig>) => void
+  config: DynamicConfig
+  onUpdate: (updates: Partial<DynamicConfig>) => void
 }
 
 export function UsersSection({ config, onUpdate }: UsersSectionProps) {
-  const usersToIdEntries = Object.entries(config.usersToId)
-  const idToUsersEntries = Object.entries(config.idToUsers)
+  const [usersToIdEntries, setUsersToIdEntries] = useState<[string, string][]>(
+    Object.entries(config.usersToId)
+  )
+  const [idToUsersEntries, setIdToUsersEntries] = useState<[string, string][]>(
+    Object.entries(config.idToUsers)
+  )
 
-  const updateUsersToId = (entries: [string, string][]) => {
+  useEffect(() => {
+    setUsersToIdEntries(Object.entries(config.usersToId))
+    setIdToUsersEntries(Object.entries(config.idToUsers))
+  }, [config.usersToId, config.idToUsers])
+
+  const hasUsersToIdChanges = 
+    JSON.stringify(usersToIdEntries) !== JSON.stringify(Object.entries(config.usersToId))
+  const hasIdToUsersChanges = 
+    JSON.stringify(idToUsersEntries) !== JSON.stringify(Object.entries(config.idToUsers))
+
+  const handleSaveUsersToId = () => {
     const newMapping: Record<string, string> = {}
-    entries.forEach(([key, value]) => {
-      if (key) newMapping[key] = value
+    usersToIdEntries.forEach(([key, value]) => {
+      if (key && value) newMapping[key] = value
     })
     onUpdate({ usersToId: newMapping })
   }
 
-  const updateIdToUsers = (entries: [string, string][]) => {
+  const handleSaveIdToUsers = () => {
     const newMapping: Record<string, string> = {}
-    entries.forEach(([key, value]) => {
-      if (key) newMapping[key] = value
+    idToUsersEntries.forEach(([key, value]) => {
+      if (key && value) newMapping[key] = value
     })
     onUpdate({ idToUsers: newMapping })
   }
@@ -57,11 +72,11 @@ export function UsersSection({ config, onUpdate }: UsersSectionProps) {
                 <Label className="text-xs text-muted-foreground">Name</Label>
                 <Input
                   value={name}
-                  onChange={(e) => {
-                    const newEntries = [...usersToIdEntries]
-                    newEntries[index] = [e.target.value, mention]
-                    updateUsersToId(newEntries)
-                  }}
+                                  onChange={(e) => {
+                  const newEntries = [...usersToIdEntries]
+                  newEntries[index] = [e.target.value, mention]
+                  setUsersToIdEntries(newEntries)
+                }}
                   placeholder="username"
                 />
               </div>
@@ -73,7 +88,7 @@ export function UsersSection({ config, onUpdate }: UsersSectionProps) {
                   onChange={(e) => {
                     const newEntries = [...usersToIdEntries]
                     newEntries[index] = [name, e.target.value]
-                    updateUsersToId(newEntries)
+                    setUsersToIdEntries(newEntries)
                   }}
                   placeholder="<@000000000000000000>"
                   className="font-mono"
@@ -85,23 +100,32 @@ export function UsersSection({ config, onUpdate }: UsersSectionProps) {
                 className="shrink-0 mt-6 text-muted-foreground hover:text-destructive"
                 onClick={() => {
                   const newEntries = usersToIdEntries.filter((_, i) => i !== index)
-                  updateUsersToId(newEntries)
+                  setUsersToIdEntries(newEntries)
                 }}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
           ))}
-          <Button
-            variant="outline"
-            className="w-full bg-transparent"
-            onClick={() => {
-              updateUsersToId([...usersToIdEntries, ["", ""]])
-            }}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Mapping
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1 bg-transparent"
+              onClick={() => {
+                setUsersToIdEntries([...usersToIdEntries, ["", ""]])
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Mapping
+            </Button>
+            <Button
+              onClick={handleSaveUsersToId}
+              disabled={!hasUsersToIdChanges}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Save
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -122,11 +146,11 @@ export function UsersSection({ config, onUpdate }: UsersSectionProps) {
                 <Label className="text-xs text-muted-foreground">User ID</Label>
                 <Input
                   value={id}
-                  onChange={(e) => {
-                    const newEntries = [...idToUsersEntries]
-                    newEntries[index] = [e.target.value, name]
-                    updateIdToUsers(newEntries)
-                  }}
+                                  onChange={(e) => {
+                  const newEntries = [...idToUsersEntries]
+                  newEntries[index] = [e.target.value, name]
+                  setIdToUsersEntries(newEntries)
+                }}
                   placeholder="000000000000000000"
                   className="font-mono"
                 />
@@ -139,7 +163,7 @@ export function UsersSection({ config, onUpdate }: UsersSectionProps) {
                   onChange={(e) => {
                     const newEntries = [...idToUsersEntries]
                     newEntries[index] = [id, e.target.value]
-                    updateIdToUsers(newEntries)
+                    setIdToUsersEntries(newEntries)
                   }}
                   placeholder="username"
                 />
@@ -150,23 +174,32 @@ export function UsersSection({ config, onUpdate }: UsersSectionProps) {
                 className="shrink-0 mt-6 text-muted-foreground hover:text-destructive"
                 onClick={() => {
                   const newEntries = idToUsersEntries.filter((_, i) => i !== index)
-                  updateIdToUsers(newEntries)
+                  setIdToUsersEntries(newEntries)
                 }}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
           ))}
-          <Button
-            variant="outline"
-            className="w-full bg-transparent"
-            onClick={() => {
-              updateIdToUsers([...idToUsersEntries, ["", ""]])
-            }}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Mapping
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1 bg-transparent"
+              onClick={() => {
+                setIdToUsersEntries([...idToUsersEntries, ["", ""]])
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Mapping
+            </Button>
+            <Button
+              onClick={handleSaveIdToUsers}
+              disabled={!hasIdToUsersChanges}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Save
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

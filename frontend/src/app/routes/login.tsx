@@ -1,9 +1,8 @@
-import { createFileRoute, Navigate, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Navigate } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getDiscordAuthUrl } from '@/lib/auth';
 import { useAuth } from '@/hooks/use-auth';
-import { LogIn } from 'lucide-react';
 
 export const Route = createFileRoute('/login')({
   component: LoginPage,
@@ -11,7 +10,6 @@ export const Route = createFileRoute('/login')({
 
 function LoginPage() {
   const { isAuthenticated, isLoading } = useAuth();
-  const navigate = useNavigate();
 
   // Redirect if already authenticated
   if (isAuthenticated && !isLoading) {

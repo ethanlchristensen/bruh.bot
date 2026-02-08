@@ -4,85 +4,46 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import type { BotConfig } from "@/lib/types"
-import { Eye, EyeOff, Key } from "lucide-react"
+import type { DynamicConfig } from "@/lib/api-client"
+import { Shield } from "lucide-react"
 import { useState } from "react"
 
 interface GeneralSectionProps {
-  config: BotConfig
-  onUpdate: (updates: Partial<BotConfig>) => void
+  config: DynamicConfig
+  onUpdate: (updates: Partial<DynamicConfig>) => void
 }
 
 export function GeneralSection({ config, onUpdate }: GeneralSectionProps) {
-  const [showDevToken, setShowDevToken] = useState(false)
-  const [showProdToken, setShowProdToken] = useState(false)
+  const [localAdmins, setLocalAdmins] = useState<number[]>(config.adminIds)
+
+  const handleAdminChange = (index: number, value: string) => {
+    const newAdmins = [...localAdmins]
+    newAdmins[index] = parseInt(value) || 0
+    setLocalAdmins(newAdmins)
+  }
+
+  const handleAddAdmin = () => {
+    setLocalAdmins([...localAdmins, 0])
+  }
+
+  const handleRemoveAdmin = (index: number) => {
+    const newAdmins = localAdmins.filter((_, i) => i !== index)
+    setLocalAdmins(newAdmins)
+    onUpdate({ adminIds: newAdmins })
+  }
+
+  const handleSaveAdmins = () => {
+    onUpdate({ adminIds: localAdmins })
+  }
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-semibold tracking-tight">General Settings</h2>
         <p className="text-muted-foreground">
-          Configure your Discord bot tokens and basic settings.
+          Configure basic bot settings and permissions.
         </p>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Key className="h-5 w-5 text-primary" />
-            Discord Tokens
-          </CardTitle>
-          <CardDescription>
-            Your bot authentication tokens for development and production environments.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="devToken">Development Token</Label>
-            <div className="relative">
-              <Input
-                id="devToken"
-                type={showDevToken ? "text" : "password"}
-                value={config.devDiscordToken}
-                onChange={(e) => onUpdate({ devDiscordToken: e.target.value })}
-                placeholder="Enter development Discord token"
-                className="pr-10 font-mono"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                onClick={() => setShowDevToken(!showDevToken)}
-              >
-                {showDevToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="prodToken">Production Token</Label>
-            <div className="relative">
-              <Input
-                id="prodToken"
-                type={showProdToken ? "text" : "password"}
-                value={config.prodDiscordToken}
-                onChange={(e) => onUpdate({ prodDiscordToken: e.target.value })}
-                placeholder="Enter production Discord token"
-                className="pr-10 font-mono"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                onClick={() => setShowProdToken(!showProdToken)}
-              >
-                {showProdToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader>
@@ -110,42 +71,47 @@ export function GeneralSection({ config, onUpdate }: GeneralSectionProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Admin Users</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-primary" />
+            Admin Users
+          </CardTitle>
           <CardDescription>
             Discord user IDs with administrative privileges.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {config.adminIds.map((id, index) => (
+          {localAdmins.map((id, index) => (
             <div key={index} className="flex items-center gap-2">
               <Input
-                value={id}
-                onChange={(e) => {
-                  const newIds = [...config.adminIds]
-                  newIds[index] = e.target.value
-                  onUpdate({ adminIds: newIds })
-                }}
-                placeholder="User ID"
+                type="number"
+                value={id || ""}
+                onChange={(e) => handleAdminChange(index, e.target.value)}
+                placeholder="Discord User ID"
                 className="font-mono"
               />
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  const newIds = config.adminIds.filter((_, i) => i !== index)
-                  onUpdate({ adminIds: newIds })
-                }}
+                onClick={() => handleRemoveAdmin(index)}
               >
                 Remove
               </Button>
             </div>
           ))}
-          <Button
-            variant="outline"
-            onClick={() => onUpdate({ adminIds: [...config.adminIds, ""] })}
-          >
-            Add Admin
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleAddAdmin}
+            >
+              Add Admin
+            </Button>
+            <Button
+              onClick={handleSaveAdmins}
+              disabled={JSON.stringify(localAdmins) === JSON.stringify(config.adminIds)}
+            >
+              Save Changes
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

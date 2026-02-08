@@ -88,7 +88,7 @@ export function NavUser() {
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem asChild>
-                <Link to="/profile" className="flex items-center gap-2">
+                <Link to="/" className="flex items-center gap-2">
                   <BadgeCheck />
                   Account
                 </Link>

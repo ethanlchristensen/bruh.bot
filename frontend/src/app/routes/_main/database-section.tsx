@@ -3,17 +3,46 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import type { BotConfig } from "@/lib/types"
-import { Database, Eye, EyeOff, FileText, FolderOpen } from "lucide-react"
-import { useState } from "react"
+import type { DynamicConfig } from "@/lib/api-client"
+import { Database, FileText, FolderOpen, Save } from "lucide-react"
+import { useState, useEffect } from "react"
 
 interface DatabaseSectionProps {
-  config: BotConfig
-  onUpdate: (updates: Partial<BotConfig>) => void
+  config: DynamicConfig
+  onUpdate: (updates: Partial<DynamicConfig>) => void
 }
 
 export function DatabaseSection({ config, onUpdate }: DatabaseSectionProps) {
-  const [showUri, setShowUri] = useState(false)
+  const [localPromptsPath, setLocalPromptsPath] = useState(config.promptsPath)
+  const [localMessagesDb, setLocalMessagesDb] = useState(config.mongoMessagesDbName)
+  const [localMessagesCollection, setLocalMessagesCollection] = useState(config.mongoMessagesCollectionName)
+  const [localMorningCollection, setLocalMorningCollection] = useState(config.mongoMorningConfigsCollectionName)
+  const [localImageLimitsCollection, setLocalImageLimitsCollection] = useState(config.mongoImageLimitsCollectionName)
+
+  useEffect(() => {
+    setLocalPromptsPath(config.promptsPath)
+    setLocalMessagesDb(config.mongoMessagesDbName)
+    setLocalMessagesCollection(config.mongoMessagesCollectionName)
+    setLocalMorningCollection(config.mongoMorningConfigsCollectionName)
+    setLocalImageLimitsCollection(config.mongoImageLimitsCollectionName)
+  }, [config])
+
+  const hasChanges = 
+    localPromptsPath !== config.promptsPath ||
+    localMessagesDb !== config.mongoMessagesDbName ||
+    localMessagesCollection !== config.mongoMessagesCollectionName ||
+    localMorningCollection !== config.mongoMorningConfigsCollectionName ||
+    localImageLimitsCollection !== config.mongoImageLimitsCollectionName
+
+  const handleSave = () => {
+    onUpdate({
+      promptsPath: localPromptsPath,
+      mongoMessagesDbName: localMessagesDb,
+      mongoMessagesCollectionName: localMessagesCollection,
+      mongoMorningConfigsCollectionName: localMorningCollection,
+      mongoImageLimitsCollectionName: localImageLimitsCollection,
+    })
+  }
 
   return (
     <div className="space-y-6">
@@ -28,44 +57,25 @@ export function DatabaseSection({ config, onUpdate }: DatabaseSectionProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Database className="h-5 w-5 text-primary" />
-            MongoDB Connection
+            MongoDB Database
           </CardTitle>
           <CardDescription>
-            Database connection string and name.
+            Database name for storing bot data.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="mongoUri">Connection URI</Label>
-            <div className="relative">
-              <Input
-                id="mongoUri"
-                type={showUri ? "text" : "password"}
-                value={config.mongoUri}
-                onChange={(e) => onUpdate({ mongoUri: e.target.value })}
-                placeholder="mongodb://localhost:27017/"
-                className="pr-10 font-mono"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                onClick={() => setShowUri(!showUri)}
-              >
-                {showUri ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="mongoDb">Database Name</Label>
+            <Label htmlFor="mongoMessagesDb">Messages Database Name</Label>
             <Input
-              id="mongoDb"
-              value={config.mongoDbName}
-              onChange={(e) => onUpdate({ mongoDbName: e.target.value })}
+              id="mongoMessagesDb"
+              value={localMessagesDb}
+              onChange={(e) => setLocalMessagesDb(e.target.value)}
               placeholder="DB"
               className="font-mono"
             />
+            <p className="text-xs text-muted-foreground">
+              Note: MongoDB URI is configured in environment variables
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -85,8 +95,8 @@ export function DatabaseSection({ config, onUpdate }: DatabaseSectionProps) {
             <Label htmlFor="messagesCollection">Messages Collection</Label>
             <Input
               id="messagesCollection"
-              value={config.mongoMessagesCollectionName}
-              onChange={(e) => onUpdate({ mongoMessagesCollectionName: e.target.value })}
+              value={localMessagesCollection}
+              onChange={(e) => setLocalMessagesCollection(e.target.value)}
               placeholder="COLLECTION"
               className="font-mono"
             />
@@ -95,8 +105,8 @@ export function DatabaseSection({ config, onUpdate }: DatabaseSectionProps) {
             <Label htmlFor="morningCollection">Morning Configs Collection</Label>
             <Input
               id="morningCollection"
-              value={config.mongoMorningConfigsCollectionName}
-              onChange={(e) => onUpdate({ mongoMorningConfigsCollectionName: e.target.value })}
+              value={localMorningCollection}
+              onChange={(e) => setLocalMorningCollection(e.target.value)}
               placeholder="MORNING_CONFIGS"
               className="font-mono"
             />
@@ -105,8 +115,8 @@ export function DatabaseSection({ config, onUpdate }: DatabaseSectionProps) {
             <Label htmlFor="imageLimitsCollection">Image Limits Collection</Label>
             <Input
               id="imageLimitsCollection"
-              value={config.mongoImageLimitsCollectionName}
-              onChange={(e) => onUpdate({ mongoImageLimitsCollectionName: e.target.value })}
+              value={localImageLimitsCollection}
+              onChange={(e) => setLocalImageLimitsCollection(e.target.value)}
               placeholder="IMAGE_LIMITS"
               className="font-mono"
             />
@@ -129,14 +139,25 @@ export function DatabaseSection({ config, onUpdate }: DatabaseSectionProps) {
             <Label htmlFor="promptsPath">Prompts File Path</Label>
             <Input
               id="promptsPath"
-              value={config.promptsPath}
-              onChange={(e) => onUpdate({ promptsPath: e.target.value })}
+              value={localPromptsPath}
+              onChange={(e) => setLocalPromptsPath(e.target.value)}
               placeholder="prompts.json"
               className="font-mono"
             />
           </div>
         </CardContent>
       </Card>
+
+      <div className="flex justify-end">
+        <Button
+          onClick={handleSave}
+          disabled={!hasChanges}
+          className="min-w-30"
+        >
+          <Save className="h-4 w-4 mr-2" />
+          Save Changes
+        </Button>
+      </div>
     </div>
   )
 }

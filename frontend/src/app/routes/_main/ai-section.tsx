@@ -12,23 +12,24 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import type { AIConfig, BotConfig } from "@/lib/types"
+import type { AIConfig, AIProvider, UpdateAIProviderRequest } from "@/lib/api-client"
 import { Bot, Eye, EyeOff, Mic, Sparkles, Zap } from "lucide-react"
 import { useState } from "react"
 
 interface AISectionProps {
-  config: BotConfig
-  onUpdate: (updates: Partial<BotConfig>) => void
+  config: AIConfig
+  onUpdate: (updates: Partial<AIConfig>) => void
+  onUpdateProvider: (updates: UpdateAIProviderRequest) => void
 }
 
-const aiProviders = [
+const aiProviders: { value: AIProvider; label: string }[] = [
   { value: "ollama", label: "Ollama" },
   { value: "openai", label: "OpenAI" },
-  { value: "anthropic", label: "Anthropic" },
+  { value: "antropic", label: "Anthropic" },
   { value: "google", label: "Google (Gemini)" },
 ]
 
-export function AISection({ config, onUpdate }: AISectionProps) {
+export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps) {
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({})
 
   const toggleShowKey = (key: string) => {
@@ -36,7 +37,7 @@ export function AISection({ config, onUpdate }: AISectionProps) {
   }
 
   const updateAIConfig = (updates: Partial<AIConfig>) => {
-    onUpdate({ aiConfig: { ...config.aiConfig, ...updates } })
+    onUpdate({ ...config, ...updates })
   }
 
   return (
@@ -63,8 +64,8 @@ export function AISection({ config, onUpdate }: AISectionProps) {
             <div className="space-y-2">
               <Label htmlFor="preferredProvider">Preferred AI Provider</Label>
               <Select
-                value={config.aiConfig.preferredAiProvider}
-                onValueChange={(value) => updateAIConfig({ preferredAiProvider: value })}
+                value={config.preferredAiProvider}
+                onValueChange={(value: AIProvider) => updateAIConfig({ preferredAiProvider: value })}
               >
                 <SelectTrigger id="preferredProvider">
                   <SelectValue placeholder="Select provider" />
@@ -84,7 +85,7 @@ export function AISection({ config, onUpdate }: AISectionProps) {
                 id="maxImages"
                 type="number"
                 min={0}
-                value={config.aiConfig.maxDailyImages}
+                value={config.maxDailyImages}
                 onChange={(e) => updateAIConfig({ maxDailyImages: parseInt(e.target.value) || 0 })}
               />
             </div>
@@ -99,7 +100,7 @@ export function AISection({ config, onUpdate }: AISectionProps) {
             </div>
             <Switch
               id="boostPrompts"
-              checked={config.aiConfig.boostImagePrompts}
+              checked={config.boostImagePrompts}
               onCheckedChange={(checked) => updateAIConfig({ boostImagePrompts: checked })}
             />
           </div>
@@ -130,10 +131,11 @@ export function AISection({ config, onUpdate }: AISectionProps) {
                 <Label htmlFor="ollamaEndpoint">Endpoint</Label>
                 <Input
                   id="ollamaEndpoint"
-                  value={config.aiConfig.ollama.endpoint}
+                  value={config.ollama.endpoint}
                   onChange={(e) =>
-                    updateAIConfig({
-                      ollama: { ...config.aiConfig.ollama, endpoint: e.target.value },
+                    onUpdateProvider({
+                      provider: "ollama",
+                      endpoint: e.target.value,
                     })
                   }
                   placeholder="localhost:11434"
@@ -144,10 +146,11 @@ export function AISection({ config, onUpdate }: AISectionProps) {
                 <Label htmlFor="ollamaModel">Preferred Model</Label>
                 <Input
                   id="ollamaModel"
-                  value={config.aiConfig.ollama.preferredModel}
+                  value={config.ollama.preferredModel}
                   onChange={(e) =>
-                    updateAIConfig({
-                      ollama: { ...config.aiConfig.ollama, preferredModel: e.target.value },
+                    onUpdateProvider({
+                      provider: "ollama",
+                      preferredModel: e.target.value,
                     })
                   }
                   placeholder="llama3.1"
@@ -162,10 +165,11 @@ export function AISection({ config, onUpdate }: AISectionProps) {
                   <Input
                     id="openaiKey"
                     type={showKeys.openai ? "text" : "password"}
-                    value={config.aiConfig.openai.apiKey}
+                    value={config.openai.apiKey}
                     onChange={(e) =>
-                      updateAIConfig({
-                        openai: { ...config.aiConfig.openai, apiKey: e.target.value },
+                      onUpdateProvider({
+                        provider: "openai",
+                        apiKey: e.target.value,
                       })
                     }
                     placeholder="sk-..."
@@ -186,10 +190,11 @@ export function AISection({ config, onUpdate }: AISectionProps) {
                 <Label htmlFor="openaiModel">Preferred Model</Label>
                 <Input
                   id="openaiModel"
-                  value={config.aiConfig.openai.preferredModel}
+                  value={config.openai.preferredModel}
                   onChange={(e) =>
-                    updateAIConfig({
-                      openai: { ...config.aiConfig.openai, preferredModel: e.target.value },
+                    onUpdateProvider({
+                      provider: "openai",
+                      preferredModel: e.target.value,
                     })
                   }
                   placeholder="gpt-5-nano"
@@ -204,10 +209,11 @@ export function AISection({ config, onUpdate }: AISectionProps) {
                   <Input
                     id="anthropicKey"
                     type={showKeys.anthropic ? "text" : "password"}
-                    value={config.aiConfig.antropic.apiKey}
+                    value={config.antropic.apiKey}
                     onChange={(e) =>
-                      updateAIConfig({
-                        antropic: { ...config.aiConfig.antropic, apiKey: e.target.value },
+                      onUpdateProvider({
+                        provider: "antropic",
+                        apiKey: e.target.value,
                       })
                     }
                     placeholder="sk-ant-..."
@@ -228,10 +234,11 @@ export function AISection({ config, onUpdate }: AISectionProps) {
                 <Label htmlFor="anthropicModel">Preferred Model</Label>
                 <Input
                   id="anthropicModel"
-                  value={config.aiConfig.antropic.preferredModel}
+                  value={config.antropic.preferredModel}
                   onChange={(e) =>
-                    updateAIConfig({
-                      antropic: { ...config.aiConfig.antropic, preferredModel: e.target.value },
+                    onUpdateProvider({
+                      provider: "antropic",
+                      preferredModel: e.target.value,
                     })
                   }
                   placeholder="claude-4-5-sonnet"
@@ -246,10 +253,11 @@ export function AISection({ config, onUpdate }: AISectionProps) {
                   <Input
                     id="geminiKey"
                     type={showKeys.gemini ? "text" : "password"}
-                    value={config.aiConfig.gemini.apiKey}
+                    value={config.google.apiKey}
                     onChange={(e) =>
-                      updateAIConfig({
-                        gemini: { ...config.aiConfig.gemini, apiKey: e.target.value },
+                      onUpdateProvider({
+                        provider: "google",
+                        apiKey: e.target.value,
                       })
                     }
                     placeholder="API Key"
@@ -270,10 +278,11 @@ export function AISection({ config, onUpdate }: AISectionProps) {
                 <Label htmlFor="geminiModel">Preferred Model</Label>
                 <Input
                   id="geminiModel"
-                  value={config.aiConfig.gemini.preferredModel}
+                  value={config.google.preferredModel}
                   onChange={(e) =>
-                    updateAIConfig({
-                      gemini: { ...config.aiConfig.gemini, preferredModel: e.target.value },
+                    onUpdateProvider({
+                      provider: "google",
+                      preferredModel: e.target.value,
                     })
                   }
                   placeholder="gemini-2.5-flash"
@@ -300,10 +309,10 @@ export function AISection({ config, onUpdate }: AISectionProps) {
                 <Input
                   id="elevenKey"
                   type={showKeys.elevenlabs ? "text" : "password"}
-                  value={config.aiConfig.elevenlabs.apiKey}
+                  value={config.elevenlabs.apiKey}
                   onChange={(e) =>
                     updateAIConfig({
-                      elevenlabs: { apiKey: e.target.value },
+                      elevenlabs: { ...config.elevenlabs, apiKey: e.target.value },
                     })
                   }
                   placeholder="API Key"
@@ -335,10 +344,10 @@ export function AISection({ config, onUpdate }: AISectionProps) {
             <div className="space-y-2">
               <Label htmlFor="orchProvider">Provider</Label>
               <Select
-                value={config.aiConfig.orchestrator.preferredAiProvider}
-                onValueChange={(value) =>
+                value={config.orchestrator.preferredAiProvider}
+                onValueChange={(value: AIProvider) =>
                   updateAIConfig({
-                    orchestrator: { ...config.aiConfig.orchestrator, preferredAiProvider: value },
+                    orchestrator: { ...config.orchestrator, preferredAiProvider: value },
                   })
                 }
               >
@@ -358,10 +367,10 @@ export function AISection({ config, onUpdate }: AISectionProps) {
               <Label htmlFor="orchModel">Model</Label>
               <Input
                 id="orchModel"
-                value={config.aiConfig.orchestrator.preferredModel}
+                value={config.orchestrator.preferredModel}
                 onChange={(e) =>
                   updateAIConfig({
-                    orchestrator: { ...config.aiConfig.orchestrator, preferredModel: e.target.value },
+                    orchestrator: { ...config.orchestrator, preferredModel: e.target.value },
                   })
                 }
                 placeholder="gemini-2.5-flash"
@@ -384,10 +393,10 @@ export function AISection({ config, onUpdate }: AISectionProps) {
               <Label htmlFor="rtModel">Model</Label>
               <Input
                 id="rtModel"
-                value={config.aiConfig.realTimeConfig.realTimeModel}
+                value={config.realTimeConfig.realTimeModel}
                 onChange={(e) =>
                   updateAIConfig({
-                    realTimeConfig: { ...config.aiConfig.realTimeConfig, realTimeModel: e.target.value },
+                    realTimeConfig: { ...config.realTimeConfig, realTimeModel: e.target.value },
                   })
                 }
                 placeholder="gpt-realtime-mini"
@@ -399,10 +408,10 @@ export function AISection({ config, onUpdate }: AISectionProps) {
                 <Input
                   id="rtKey"
                   type={showKeys.realtime ? "text" : "password"}
-                  value={config.aiConfig.realTimeConfig.apiKey}
+                  value={config.realTimeConfig.apiKey}
                   onChange={(e) =>
                     updateAIConfig({
-                      realTimeConfig: { ...config.aiConfig.realTimeConfig, apiKey: e.target.value },
+                      realTimeConfig: { ...config.realTimeConfig, apiKey: e.target.value },
                     })
                   }
                   placeholder="sk-..."
@@ -423,10 +432,10 @@ export function AISection({ config, onUpdate }: AISectionProps) {
               <Label htmlFor="rtVoice">Voice</Label>
               <Input
                 id="rtVoice"
-                value={config.aiConfig.realTimeConfig.voice}
+                value={config.realTimeConfig.voice}
                 onChange={(e) =>
                   updateAIConfig({
-                    realTimeConfig: { ...config.aiConfig.realTimeConfig, voice: e.target.value },
+                    realTimeConfig: { ...config.realTimeConfig, voice: e.target.value },
                   })
                 }
                 placeholder="sage"

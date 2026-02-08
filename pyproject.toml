@@ -31,6 +31,7 @@ discord-ext-voice-recv = "^0.5.2a179"
 pymongo = "^4.15.3"
 fastapi = "^0.128.3"
 motor = "^3.7.1"
+uvicorn = "^0.40.0"
 
 [build-system]
 requires = ["poetry-core"]

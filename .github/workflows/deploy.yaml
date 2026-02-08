@@ -39,13 +39,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Checkout Secrets Prod
-        run: cp -r /home/ethan/source/repos/bruh.bot/config/* ./config
+        run: | 
+          cp -r /home/ethan/source/repos/bruh.bot/config/* ./config
+          cp -r /home/ethan/source/repots/bruh.bot/frontend/.env.production ./frontend/.env
 
       - name: Deploy Prod with Docker Compose
         run: |
           echo "Stopping existing prod services (if any)..."
-          docker compose down bruh-bot-prod --remove-orphans || true
+          docker compose down bruh-bot-prod config-api-prod bruh-bot-frontend-prod --remove-orphans || true
           echo "Building and starting prod services..."
-          docker compose up -d --build bruh-bot-prod
+          docker compose up -d --build bruh-bot-prod config-api-prod bruh-bot-frontend-prod
           echo "Cleaning up old Docker images..."
           docker image prune -af

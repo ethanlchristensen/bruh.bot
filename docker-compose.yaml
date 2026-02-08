@@ -1,3 +1,4 @@
+# docker-compose.yaml (with separate Dockerfile)
 services:
   bruh-bot-dev:
     container_name: bruh.bot.dev
@@ -10,6 +11,7 @@ services:
       - ./prompts.json:/app/prompts.json:ro
       - ./config:/app/config
     restart: unless-stopped
+
   bruh-bot-prod:
     container_name: bruh.bot.prod
     build:
@@ -21,3 +23,89 @@ services:
       - ./prompts.json:/app/prompts.json:ro
       - ./config:/app/config
     restart: unless-stopped
+
+  config-api-dev:
+    container_name: bruh.api.dev
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      - ENVIRONMENT=dev
+      - API_PORT=5000
+    volumes:
+      - ./config:/app/config
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+    networks:
+      - app-network  # ADD THIS
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  config-api-prod:
+    container_name: bruh.api.prod
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      - ENVIRONMENT=prod
+      - API_PORT=5000
+    volumes:
+      - ./config:/app/config
+    ports:
+      - "5001:5000"
+    restart: unless-stopped
+    networks:
+      - app-network  # ADD THIS
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+  bruh-bot-frontend-dev:
+    container_name: bruh.bot.frontend.dev
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_BACKEND_API_URL=${VITE_BACKEND_API_URL:-http://localhost:8001}
+    restart: unless-stopped
+    ports:
+      - "5175:80"
+      - "8444:443"
+    depends_on:
+      - config-api-dev
+    volumes:
+      - media_data:/usr/share/nginx/media:ro
+    networks:
+      - app-network
+    
+  bruh-bot-frontend-prod:
+    container_name: bruh.bot.frontend.prod
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_BACKEND_API_URL=${VITE_BACKEND_API_URL:-http://localhost:8001}
+    restart: unless-stopped
+    ports:
+      - "5174:80"
+      - "8443:443"
+    depends_on:
+      - config-api-prod
+    volumes:
+      - media_data:/usr/share/nginx/media:ro
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  db_data:
+  media_data:
+  redis_data:

@@ -54,6 +54,8 @@ class BaseConfig(BaseModel):
     mongoDbName: str
     encryptionKey: str
     mongoConfigCollectionName: str = "bot_config"
+    adminApiKey: str
+    adminApiKeyProd: str
 
 
 class DynamicConfig(BaseModel):
@@ -242,11 +244,16 @@ class ConfigService:
         env = os.getenv("ENVIRONMENT", "dev").lower()
         return self.base.prodDiscordToken if env in ["prod", "production"] else self.base.devDiscordToken
 
+    @property
+    def api_admin_key(self) -> str:
+        env = os.getenv("ENVIRONMENT", "dev").lower()
+        return self.base.adminApiKeyProd if env in ["prod", "production"] else self.base.adminApiKey
+
 
 _service: ConfigService | None = None
 
 
-def get_config_service(config_path: str = "config.yaml") -> ConfigService:
+def get_config_service(config_path: str = "config/base_config.yaml") -> ConfigService:
     """Get singleton."""
     global _service
     if _service is None:

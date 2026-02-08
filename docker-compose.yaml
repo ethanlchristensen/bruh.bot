@@ -92,8 +92,8 @@ services:
         - VITE_BACKEND_API_URL=${VITE_BACKEND_API_URL:-http://localhost:8001}
     restart: unless-stopped
     ports:
-      - "5174:80"
-      - "8443:443"
+      - "5175:80"
+      - "8444:443"
     depends_on:
       - config-api-prod
     volumes:

@@ -76,6 +76,8 @@ services:
     ports:
       - "5175:80"
       - "8444:443"
+    environment:
+      - API_HOST=config-api-dev
     depends_on:
       - config-api-dev
     volumes:
@@ -92,8 +94,10 @@ services:
         - VITE_BACKEND_API_URL=${VITE_BACKEND_API_URL:-http://localhost:8001}
     restart: unless-stopped
     ports:
-      - "5175:80"
-      - "8444:443"
+      - "5176:80"
+      - "8445:443"
+    environment:
+      - API_HOST=config-api-prod
     depends_on:
       - config-api-prod
     volumes:

@@ -24,11 +24,14 @@ RUN npm run build
 # Production stage
 FROM nginx:alpine
 
-# Copy custom nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy nginx config as template (nginx will auto-process with envsubst)
+COPY nginx.conf /etc/nginx/templates/default.conf.template
 
 # Copy built assets from Vite
 COPY --from=build /app/dist /usr/share/nginx/html
+
+# Set default API_HOST (will be overridden by docker-compose)
+ENV API_HOST=config-api-dev
 
 EXPOSE 80
 

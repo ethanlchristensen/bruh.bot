@@ -174,7 +174,6 @@ cython_debug/
 prompts.json
 *.encrypted
 morning_configs.json
-*config.json
 *config.yaml
 image_limits.json
 .idea

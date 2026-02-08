@@ -41,7 +41,7 @@ jobs:
       - name: Checkout Secrets Prod
         run: | 
           cp -r /home/ethan/source/repos/bruh.bot/config/* ./config
-          cp -r /home/ethan/source/repots/bruh.bot/frontend/production.env ./frontend/.env
+          cp -r /home/ethan/source/repos/bruh.bot/frontend/production.env ./frontend/.env
 
       - name: Deploy Prod with Docker Compose
         run: |

@@ -78,6 +78,7 @@ class MessageService:
     - Each line represents a different message, possibly from different users
     - Pay close attention to the username before each message
     - When responding, you may address specific users by name if appropriate
+    - IMPORTANT: DO NOT prepend your response with your name or brackets. Just send the message content directly. Your message is going straight to the discord server.
     """
             messages.append(Message(role="system", content=multi_user_prompt))
 
@@ -184,7 +185,7 @@ class MessageService:
 
         # Check referenced message for images (from any user, not just bot)
         if reference_message:
-            ref_images = [att for att in reference_message.attachments if att.content_type and att.content_type.startswith("image/")]
+            ref_images = [att for att in reference_message.attachments if att.content_type and att.content_type.startswith("image/")
 
             if ref_images:
                 author_name = self.ids_to_users.get(str(reference_message.author.id), reference_message.author.name)

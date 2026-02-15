@@ -185,7 +185,7 @@ class MessageService:
 
         # Check referenced message for images (from any user, not just bot)
         if reference_message:
-            ref_images = [att for att in reference_message.attachments if att.content_type and att.content_type.startswith("image/")
+            ref_images = [att for att in reference_message.attachments if att.content_type and att.content_type.startswith("image/")]
 
             if ref_images:
                 author_name = self.ids_to_users.get(str(reference_message.author.id), reference_message.author.name)

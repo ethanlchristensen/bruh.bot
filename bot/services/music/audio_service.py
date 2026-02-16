@@ -81,10 +81,7 @@ class AudioService:
         position: float = 0,
     ) -> discord.FFmpegPCMAudio:
         self.logger.info("[GETAUDIOSOURCE] - Getting the FFmpegPCMAudio source to play the song")
-        before_options = (
-            "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
-            '-user_agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"'
-        )
+        before_options = '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -user_agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"'
 
         if position > 0:
             self.logger.info("Recieved position when getting audio source. Attempting to seek to position.")

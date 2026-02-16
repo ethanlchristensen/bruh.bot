@@ -11,12 +11,7 @@ from .types import AudioMetaData, AudioSource, FilterPreset
 
 class AudioService:
     def __init__(self):
-        self.ydl_opts = {
-            "format": ("bestaudio[acodec=mp3][protocol!=m3u8]/bestaudio[acodec^=mp4a][protocol!=m3u8]/bestaudio[protocol!=m3u8]/bestaudio/best"),
-            "quiet": True,
-            "noplaylist": True,
-            "extract_flat": False,
-        }
+        self.ydl_opts = {"format": ("bestaudio[acodec=mp3][protocol!=m3u8]/bestaudio[acodec^=mp4a][protocol!=m3u8]/bestaudio[protocol!=m3u8]/bestaudio/best"), "quiet": True, "noplaylist": True, "extract_flat": False, "extractor_args": {"youtube": {"player_client": ["android", "ios"], "skip": ["web_safari", "web"]}}}
         self.logger = logging.getLogger(__name__)
 
     def is_direct_media_url(self, url: str) -> bool:

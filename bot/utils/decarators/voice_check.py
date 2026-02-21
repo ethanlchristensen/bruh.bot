@@ -6,6 +6,8 @@ from typing import ParamSpec, TypeVar, cast
 
 import discord
 
+from bot.services.config_service import DynamicConfig
+
 P = ParamSpec("P")
 T = TypeVar("T")
 
@@ -33,9 +35,8 @@ def require_voice_channel(ephemeral: bool = True, allow_admin_bypass: bool = Fal
 
             # Check if admin bypass is enabled and user is an admin
             if allow_admin_bypass:
-                admin_list_str = os.getenv("ADMINS", "[]")
-                admin_list = json.loads(admin_list_str)
-                if interaction.user.id in admin_list:
+                config: DynamicConfig = interaction.client.config
+                if interaction.user.id in config.adminIds:
                     # Admin bypass - proceed with the command
                     return await func(*args, **kwargs)
 

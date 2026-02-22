@@ -34,7 +34,7 @@ def require_voice_channel(ephemeral: bool = True, allow_admin_bypass: bool = Fal
             # Check if admin bypass is enabled and user is an admin
             if allow_admin_bypass:
                 config: DynamicConfig = interaction.client.config
-                if interaction.user.id in config.adminIds:
+                if str(interaction.user.id) in config.adminIds:
                     # Admin bypass - proceed with the command
                     return await func(*args, **kwargs)
 

@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Literal
 
 import yaml
@@ -32,10 +32,10 @@ class AIConfig(BaseModel):
     ollama: ProviderConfig = Field(default_factory=lambda: ProviderConfig(endpoint="localhost:11434", preferredModel="llama3.1"))
     openai: ProviderConfig = Field(default_factory=lambda: ProviderConfig(preferredModel="gpt-5-nano"))
     antropic: ProviderConfig = Field(default_factory=lambda: ProviderConfig(preferredModel="claude-4-5-sonnet"))
-    google: ProviderConfig = Field(default_factory=lambda: ProviderConfig(preferredModel="gemini-2.5-flash"))
+    google: ProviderConfig = Field(default_factory=lambda: ProviderConfig(preferredModel="gemini-3-flash-preview"))
     elevenlabs: ProviderConfig = Field(default_factory=ProviderConfig)
     realTimeConfig: ProviderConfig = Field(default_factory=lambda: ProviderConfig(voice="alloy"))
-    orchestrator: OrchestratorConfig = Field(default_factory=lambda: OrchestratorConfig(preferredAiProvider="google", preferredModel="gemini-2.5-flash"))
+    orchestrator: OrchestratorConfig = Field(default_factory=lambda: OrchestratorConfig(preferredAiProvider="google", preferredModel="gemini-3-flash-preview"))
     boostImagePrompts: bool = False
     maxDailyImages: int = 1
 
@@ -63,21 +63,21 @@ class DynamicConfig(BaseModel):
 
     configVersion: int = 1
     lastUpdated: datetime | None = None
-    adminIds: list[int] = Field(default_factory=list)
+    adminIds: list[str] = Field(default_factory=list)
     invisible: bool = False
     aiConfig: AIConfig = Field(default_factory=AIConfig)
     usersToId: dict[str, str] = Field(default_factory=dict)
     idToUsers: dict[str, str] = Field(default_factory=dict)
     mentionCooldown: int = 20
-    cooldownBypassList: list[int] = Field(default_factory=list)
+    cooldownBypassList: list[str] = Field(default_factory=list)
     promptsPath: str = "prompts.json"
     mongoMessagesDbName: str = ""
     mongoMessagesCollectionName: str = ""
     mongoMorningConfigsCollectionName: str = "MorningConfigs"
     mongoImageLimitsCollectionName: str = "ImageLimits"
-    allowedBotsToRespondTo: list[int] = Field(default_factory=list)
+    allowedBotsToRespondTo: list[str] = Field(default_factory=list)
     deleteUserMessages: DeleteUserMessagesConfig = Field(default_factory=DeleteUserMessagesConfig)
-    globalBlockList: list[int] = Field(default_factory=list)
+    globalBlockList: list[str] = Field(default_factory=list)
 
 
 class ConfigService:
@@ -143,7 +143,7 @@ class ConfigService:
     async def save(self):
         """Save dynamic config to MongoDB."""
         self.dynamic.configVersion += 1
-        self.dynamic.lastUpdated = datetime.utcnow()
+        self.dynamic.lastUpdated = datetime.now(UTC)
         self._version = self.dynamic.configVersion
 
         data = self.dynamic.model_dump()

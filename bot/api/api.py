@@ -29,7 +29,7 @@ config = get_config_service()
 
 class DeleteUserMessagesConfig(BaseModel):
     enabled: bool
-    userIds: list[int]
+    userIds: list[str]
 
 
 class UpdateConfigRequest(BaseModel):
@@ -54,7 +54,7 @@ class UpdateAIProviderRequest(BaseModel):
 
 
 class AddAdminRequest(BaseModel):
-    userId: int
+    userId: str
 
 
 class ConfigResponse(BaseModel):
@@ -112,7 +112,7 @@ async def get_config(authorized: bool = Depends(verify_admin)):
                 if provider in data["aiConfig"] and data["aiConfig"][provider]:
                     key = data["aiConfig"][provider].get("apiKey", "")
                     if key:
-                        data["aiConfig"][provider]["apiKey"] = "***" + key[-4:] if len(key) > 4 else "***"
+                        data["aiConfig"][provider]["apiKey"] = ("*" * (len(key) - 4)) + key[-4:] if len(key) > 4 else "***"
 
         return ConfigResponse(success=True, version=config._version, config=data)
 
@@ -212,7 +212,7 @@ async def add_admin(data: AddAdminRequest, authorized: bool = Depends(verify_adm
 
 
 @app.delete("/config/admins/{user_id}", response_model=ConfigResponse)
-async def remove_admin(user_id: int, authorized: bool = Depends(verify_admin)):
+async def remove_admin(user_id: str, authorized: bool = Depends(verify_admin)):
     """Remove admin user ID."""
     try:
         config = get_config_service()

@@ -35,7 +35,7 @@ def is_globally_blocked() -> Callable[[Callable[P, Awaitable[T]]], Callable[P, A
 
             config: DynamicConfig = interaction.client.config
 
-            if interaction.user.id not in config.globalBlockList:
+            if str(interaction.user.id) not in config.globalBlockList:
                 return await func(*args, **kwargs)
             else:
                 logger.warning(f"User '{interaction.user.name}' of '{interaction.guild.name}' attempted to run an slash command, but is globally blocked.")

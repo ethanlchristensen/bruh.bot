@@ -37,7 +37,7 @@ def is_admin() -> Callable[[Callable[P, Awaitable[T]]], Callable[P, Awaitable[T]
 
             config: DynamicConfig = interaction.client.config
 
-            if interaction.user.id in config.adminIds:
+            if str(interaction.user.id) in config.adminIds:
                 return await func(*args, **kwargs)
             else:
                 logger.warning(f"User '{interaction.user.name}' of '{interaction.guild.name}' attempted to run an Admin command.")

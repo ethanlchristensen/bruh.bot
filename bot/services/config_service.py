@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Literal
 
 import yaml

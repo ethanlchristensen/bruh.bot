@@ -1,19 +1,19 @@
-import * as React from "react";
+import * as React from 'react'
 
-import { ErrorBoundary } from "react-error-boundary";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { ThemeProvider } from "@/components/theme/theme-provider";
-import { SidebarProvider } from "@/components/ui/sidebar";
+import { ErrorBoundary } from 'react-error-boundary'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+import { ThemeProvider } from '@/components/theme/theme-provider'
+import { SidebarProvider } from '@/components/ui/sidebar'
 
-import { MainErrorFallback } from "@/components/errors/main";
-import { Spinner } from "@/components/ui/spinner";
-import { queryConfig } from "@/lib/react-query";
-import { AuthProvider } from "@/contexts/auth-context";
+import { MainErrorFallback } from '@/components/errors/main'
+import { Spinner } from '@/components/ui/spinner'
+import { queryConfig } from '@/lib/react-query'
+import { AuthProvider } from '@/contexts/auth-context'
 
 type AppProviderProps = {
-  children: React.ReactNode;
-};
+  children: React.ReactNode
+}
 
 export const AppProvider = ({ children }: AppProviderProps) => {
   const [queryClient] = React.useState(
@@ -21,14 +21,14 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       new QueryClient({
         defaultOptions: queryConfig,
       }),
-  );
+  )
 
   const [defaultOpen] = React.useState(() => {
-    const saved = localStorage.getItem("sidebar-open");
-    return saved ? JSON.parse(saved) : true;
-  });
+    const saved = localStorage.getItem('sidebar-open')
+    return saved ? JSON.parse(saved) : true
+  })
 
-    return (
+  return (
     <ThemeProvider defaultTheme="dark" storageKey="bruh-ui-theme">
       <React.Suspense
         fallback={
@@ -43,7 +43,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
               <SidebarProvider
                 style={
                   {
-                    "--sidebar-width": "350px",
+                    '--sidebar-width': '350px',
                   } as React.CSSProperties
                 }
                 defaultOpen={defaultOpen}
@@ -56,5 +56,5 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         </ErrorBoundary>
       </React.Suspense>
     </ThemeProvider>
-  );
-};
+  )
+}

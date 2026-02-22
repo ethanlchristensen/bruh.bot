@@ -1,22 +1,22 @@
 export interface BotConfig {
   devDiscordToken: string
   prodDiscordToken: string
-  adminIds: string[]
+  adminIds: Array<string>
   invisible: boolean
   aiConfig: AIConfig
   usersToId: Record<string, string>
   idToUsers: Record<string, string>
   mentionCooldown: number
-  cooldownBypassList: string[]
+  cooldownBypassList: Array<string>
   promptsPath: string
   mongoUri: string
   mongoDbName: string
   mongoMessagesCollectionName: string
   mongoMorningConfigsCollectionName: string
   mongoImageLimitsCollectionName: string
-  allowedBotsToRespondTo: string[]
+  allowedBotsToRespondTo: Array<string>
   deleteUserMessages: DeleteUserMessagesConfig
-  globalBlockList: string[]
+  globalBlockList: Array<string>
 }
 
 export interface AIConfig {
@@ -69,5 +69,5 @@ export interface RealTimeConfig {
 
 export interface DeleteUserMessagesConfig {
   enabled: boolean
-  userIds: string[]
+  userIds: Array<string>
 }

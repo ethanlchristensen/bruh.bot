@@ -1,20 +1,30 @@
-"use client"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+'use client'
+import { Bot, Eye, EyeOff, Mic, Sparkles, Zap } from 'lucide-react'
+import { useState } from 'react'
+import type {
+  AIConfig,
+  AIProvider,
+  UpdateAIProviderRequest,
+} from '@/lib/api-client'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import type { AIConfig, AIProvider, UpdateAIProviderRequest } from "@/lib/api-client"
-import { Bot, Eye, EyeOff, Mic, Sparkles, Zap } from "lucide-react"
-import { useState } from "react"
+} from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 interface AISectionProps {
   config: AIConfig
@@ -22,14 +32,18 @@ interface AISectionProps {
   onUpdateProvider: (updates: UpdateAIProviderRequest) => void
 }
 
-const aiProviders: { value: AIProvider; label: string }[] = [
-  { value: "ollama", label: "Ollama" },
-  { value: "openai", label: "OpenAI" },
-  { value: "antropic", label: "Anthropic" },
-  { value: "google", label: "Google (Gemini)" },
+const aiProviders: Array<{ value: AIProvider; label: string }> = [
+  { value: 'ollama', label: 'Ollama' },
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'antropic', label: 'Anthropic' },
+  { value: 'google', label: 'Google (Gemini)' },
 ]
 
-export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps) {
+export function AISection({
+  config,
+  onUpdate,
+  onUpdateProvider,
+}: AISectionProps) {
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({})
 
   const toggleShowKey = (key: string) => {
@@ -43,7 +57,9 @@ export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">AI Configuration</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">
+          AI Configuration
+        </h2>
         <p className="text-muted-foreground">
           Configure AI providers, models, and generation settings.
         </p>
@@ -65,7 +81,9 @@ export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps
               <Label htmlFor="preferredProvider">Preferred AI Provider</Label>
               <Select
                 value={config.preferredAiProvider}
-                onValueChange={(value: AIProvider) => updateAIConfig({ preferredAiProvider: value })}
+                onValueChange={(value: AIProvider) =>
+                  updateAIConfig({ preferredAiProvider: value })
+                }
               >
                 <SelectTrigger id="preferredProvider">
                   <SelectValue placeholder="Select provider" />
@@ -86,7 +104,11 @@ export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps
                 type="number"
                 min={0}
                 value={config.maxDailyImages}
-                onChange={(e) => updateAIConfig({ maxDailyImages: parseInt(e.target.value) || 0 })}
+                onChange={(e) =>
+                  updateAIConfig({
+                    maxDailyImages: parseInt(e.target.value) || 0,
+                  })
+                }
               />
             </div>
           </div>
@@ -101,7 +123,9 @@ export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps
             <Switch
               id="boostPrompts"
               checked={config.boostImagePrompts}
-              onCheckedChange={(checked) => updateAIConfig({ boostImagePrompts: checked })}
+              onCheckedChange={(checked) =>
+                updateAIConfig({ boostImagePrompts: checked })
+              }
             />
           </div>
         </CardContent>
@@ -134,7 +158,7 @@ export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps
                   value={config.ollama.endpoint}
                   onChange={(e) =>
                     onUpdateProvider({
-                      provider: "ollama",
+                      provider: 'ollama',
                       endpoint: e.target.value,
                     })
                   }
@@ -149,7 +173,7 @@ export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps
                   value={config.ollama.preferredModel}
                   onChange={(e) =>
                     onUpdateProvider({
-                      provider: "ollama",
+                      provider: 'ollama',
                       preferredModel: e.target.value,
                     })
                   }
@@ -164,11 +188,11 @@ export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps
                 <div className="relative">
                   <Input
                     id="openaiKey"
-                    type={showKeys.openai ? "text" : "password"}
+                    type={showKeys.openai ? 'text' : 'password'}
                     value={config.openai.apiKey}
                     onChange={(e) =>
                       onUpdateProvider({
-                        provider: "openai",
+                        provider: 'openai',
                         apiKey: e.target.value,
                       })
                     }
@@ -180,9 +204,13 @@ export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps
                     variant="ghost"
                     size="sm"
                     className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                    onClick={() => toggleShowKey("openai")}
+                    onClick={() => toggleShowKey('openai')}
                   >
-                    {showKeys.openai ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showKeys.openai ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
                   </Button>
                 </div>
               </div>
@@ -193,7 +221,7 @@ export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps
                   value={config.openai.preferredModel}
                   onChange={(e) =>
                     onUpdateProvider({
-                      provider: "openai",
+                      provider: 'openai',
                       preferredModel: e.target.value,
                     })
                   }
@@ -208,11 +236,11 @@ export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps
                 <div className="relative">
                   <Input
                     id="anthropicKey"
-                    type={showKeys.anthropic ? "text" : "password"}
+                    type={showKeys.anthropic ? 'text' : 'password'}
                     value={config.antropic.apiKey}
                     onChange={(e) =>
                       onUpdateProvider({
-                        provider: "antropic",
+                        provider: 'antropic',
                         apiKey: e.target.value,
                       })
                     }
@@ -224,9 +252,13 @@ export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps
                     variant="ghost"
                     size="sm"
                     className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                    onClick={() => toggleShowKey("anthropic")}
+                    onClick={() => toggleShowKey('anthropic')}
                   >
-                    {showKeys.anthropic ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showKeys.anthropic ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
                   </Button>
                 </div>
               </div>
@@ -237,7 +269,7 @@ export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps
                   value={config.antropic.preferredModel}
                   onChange={(e) =>
                     onUpdateProvider({
-                      provider: "antropic",
+                      provider: 'antropic',
                       preferredModel: e.target.value,
                     })
                   }
@@ -252,11 +284,11 @@ export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps
                 <div className="relative">
                   <Input
                     id="geminiKey"
-                    type={showKeys.gemini ? "text" : "password"}
+                    type={showKeys.gemini ? 'text' : 'password'}
                     value={config.google.apiKey}
                     onChange={(e) =>
                       onUpdateProvider({
-                        provider: "google",
+                        provider: 'google',
                         apiKey: e.target.value,
                       })
                     }
@@ -268,9 +300,13 @@ export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps
                     variant="ghost"
                     size="sm"
                     className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                    onClick={() => toggleShowKey("gemini")}
+                    onClick={() => toggleShowKey('gemini')}
                   >
-                    {showKeys.gemini ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showKeys.gemini ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
                   </Button>
                 </div>
               </div>
@@ -281,7 +317,7 @@ export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps
                   value={config.google.preferredModel}
                   onChange={(e) =>
                     onUpdateProvider({
-                      provider: "google",
+                      provider: 'google',
                       preferredModel: e.target.value,
                     })
                   }
@@ -308,11 +344,14 @@ export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps
               <div className="relative">
                 <Input
                   id="elevenKey"
-                  type={showKeys.elevenlabs ? "text" : "password"}
+                  type={showKeys.elevenlabs ? 'text' : 'password'}
                   value={config.elevenlabs.apiKey}
                   onChange={(e) =>
                     updateAIConfig({
-                      elevenlabs: { ...config.elevenlabs, apiKey: e.target.value },
+                      elevenlabs: {
+                        ...config.elevenlabs,
+                        apiKey: e.target.value,
+                      },
                     })
                   }
                   placeholder="API Key"
@@ -323,9 +362,13 @@ export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps
                   variant="ghost"
                   size="sm"
                   className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                  onClick={() => toggleShowKey("elevenlabs")}
+                  onClick={() => toggleShowKey('elevenlabs')}
                 >
-                  {showKeys.elevenlabs ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showKeys.elevenlabs ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </Button>
               </div>
             </div>
@@ -347,7 +390,10 @@ export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps
                 value={config.orchestrator.preferredAiProvider}
                 onValueChange={(value: AIProvider) =>
                   updateAIConfig({
-                    orchestrator: { ...config.orchestrator, preferredAiProvider: value },
+                    orchestrator: {
+                      ...config.orchestrator,
+                      preferredAiProvider: value,
+                    },
                   })
                 }
               >
@@ -370,7 +416,10 @@ export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps
                 value={config.orchestrator.preferredModel}
                 onChange={(e) =>
                   updateAIConfig({
-                    orchestrator: { ...config.orchestrator, preferredModel: e.target.value },
+                    orchestrator: {
+                      ...config.orchestrator,
+                      preferredModel: e.target.value,
+                    },
                   })
                 }
                 placeholder="gemini-2.5-flash"
@@ -396,7 +445,10 @@ export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps
                 value={config.realTimeConfig.realTimeModel}
                 onChange={(e) =>
                   updateAIConfig({
-                    realTimeConfig: { ...config.realTimeConfig, realTimeModel: e.target.value },
+                    realTimeConfig: {
+                      ...config.realTimeConfig,
+                      realTimeModel: e.target.value,
+                    },
                   })
                 }
                 placeholder="gpt-realtime-mini"
@@ -407,11 +459,14 @@ export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps
               <div className="relative">
                 <Input
                   id="rtKey"
-                  type={showKeys.realtime ? "text" : "password"}
+                  type={showKeys.realtime ? 'text' : 'password'}
                   value={config.realTimeConfig.apiKey}
                   onChange={(e) =>
                     updateAIConfig({
-                      realTimeConfig: { ...config.realTimeConfig, apiKey: e.target.value },
+                      realTimeConfig: {
+                        ...config.realTimeConfig,
+                        apiKey: e.target.value,
+                      },
                     })
                   }
                   placeholder="sk-..."
@@ -422,9 +477,13 @@ export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps
                   variant="ghost"
                   size="sm"
                   className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                  onClick={() => toggleShowKey("realtime")}
+                  onClick={() => toggleShowKey('realtime')}
                 >
-                  {showKeys.realtime ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showKeys.realtime ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </Button>
               </div>
             </div>
@@ -435,7 +494,10 @@ export function AISection({ config, onUpdate, onUpdateProvider }: AISectionProps
                 value={config.realTimeConfig.voice}
                 onChange={(e) =>
                   updateAIConfig({
-                    realTimeConfig: { ...config.realTimeConfig, voice: e.target.value },
+                    realTimeConfig: {
+                      ...config.realTimeConfig,
+                      voice: e.target.value,
+                    },
                   })
                 }
                 placeholder="sage"

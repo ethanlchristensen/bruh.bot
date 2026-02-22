@@ -1,24 +1,24 @@
-import { Layers, Check } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Check, Layers } from 'lucide-react'
+import { useTheme } from './theme-provider'
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
-import { useTheme } from "./theme-provider";
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 const baseThemes = [
-  { value: "neutral", label: "Neutral", color: "bg-neutral-500" },
-  { value: "stone", label: "Stone", color: "bg-stone-500" },
-  { value: "zinc", label: "Zinc", color: "bg-zinc-500" },
-  { value: "gray", label: "Gray", color: "bg-gray-500" },
-] as const;
+  { value: 'neutral', label: 'Neutral', color: 'bg-neutral-500' },
+  { value: 'stone', label: 'Stone', color: 'bg-stone-500' },
+  { value: 'zinc', label: 'Zinc', color: 'bg-zinc-500' },
+  { value: 'gray', label: 'Gray', color: 'bg-gray-500' },
+] as const
 
 export function BaseThemeToggle() {
-  const { setBaseTheme, baseTheme } = useTheme();
+  const { setBaseTheme, baseTheme } = useTheme()
 
   return (
     <DropdownMenu>
@@ -40,12 +40,12 @@ export function BaseThemeToggle() {
             <div className={`h-4 w-4 rounded-full ${theme.color}`} />
             <Check
               className={`h-4 w-4 transition-opacity ${
-                baseTheme === theme.value ? "opacity-100" : "opacity-0"
+                baseTheme === theme.value ? 'opacity-100' : 'opacity-0'
               }`}
             />
             <span
               className={
-                baseTheme === theme.value ? "font-semibold" : "font-normal"
+                baseTheme === theme.value ? 'font-semibold' : 'font-normal'
               }
             >
               {theme.label}
@@ -54,5 +54,5 @@ export function BaseThemeToggle() {
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
-  );
+  )
 }

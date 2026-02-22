@@ -1,12 +1,17 @@
-"use client"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Slider } from "@/components/ui/slider"
-import type { DynamicConfig } from "@/lib/api-client"
-import { Clock, Plus, Shield, Trash2 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { Clock, Plus, Shield, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import type { DynamicConfig } from '@/lib/api-client'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Slider } from '@/components/ui/slider'
 
 interface CooldownsSectionProps {
   config: DynamicConfig
@@ -14,7 +19,9 @@ interface CooldownsSectionProps {
 }
 
 export function CooldownsSection({ config, onUpdate }: CooldownsSectionProps) {
-  const [localBypassList, setLocalBypassList] = useState<number[]>(config.cooldownBypassList)
+  const [localBypassList, setLocalBypassList] = useState<Array<number>>(
+    config.cooldownBypassList,
+  )
 
   useEffect(() => {
     setLocalBypassList(config.cooldownBypassList)
@@ -102,7 +109,7 @@ export function CooldownsSection({ config, onUpdate }: CooldownsSectionProps) {
             <div key={index} className="flex items-center gap-2">
               <Input
                 type="number"
-                value={id || ""}
+                value={id || ''}
                 onChange={(e) => handleBypassChange(index, e.target.value)}
                 placeholder="Discord User ID"
                 className="font-mono"
@@ -128,7 +135,10 @@ export function CooldownsSection({ config, onUpdate }: CooldownsSectionProps) {
             </Button>
             <Button
               onClick={handleSaveBypassList}
-              disabled={JSON.stringify(localBypassList) === JSON.stringify(config.cooldownBypassList)}
+              disabled={
+                JSON.stringify(localBypassList) ===
+                JSON.stringify(config.cooldownBypassList)
+              }
             >
               Save Changes
             </Button>

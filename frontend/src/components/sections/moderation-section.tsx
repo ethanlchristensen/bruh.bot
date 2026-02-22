@@ -1,21 +1,33 @@
-"use client"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import type { DynamicConfig } from "@/lib/api-client"
-import { Ban, MessageSquareX, Plus, Trash2 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { Ban, MessageSquareX, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import type { DynamicConfig } from '@/lib/api-client'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 
 interface ModerationSectionProps {
   config: DynamicConfig
   onUpdate: (updates: Partial<DynamicConfig>) => void
 }
 
-export function ModerationSection({ config, onUpdate }: ModerationSectionProps) {
-  const [localDeleteUserIds, setLocalDeleteUserIds] = useState<number[]>(config.deleteUserMessages.userIds)
-  const [localBlockList, setLocalBlockList] = useState<number[]>(config.globalBlockList)
+export function ModerationSection({
+  config,
+  onUpdate,
+}: ModerationSectionProps) {
+  const [localDeleteUserIds, setLocalDeleteUserIds] = useState<Array<number>>(
+    config.deleteUserMessages.userIds,
+  )
+  const [localBlockList, setLocalBlockList] = useState<Array<number>>(
+    config.globalBlockList,
+  )
 
   useEffect(() => {
     setLocalDeleteUserIds(config.deleteUserMessages.userIds)
@@ -104,7 +116,10 @@ export function ModerationSection({ config, onUpdate }: ModerationSectionProps) 
               checked={config.deleteUserMessages.enabled}
               onCheckedChange={(checked) =>
                 onUpdate({
-                  deleteUserMessages: { ...config.deleteUserMessages, enabled: checked },
+                  deleteUserMessages: {
+                    ...config.deleteUserMessages,
+                    enabled: checked,
+                  },
                 })
               }
             />
@@ -116,8 +131,10 @@ export function ModerationSection({ config, onUpdate }: ModerationSectionProps) 
               <div key={index} className="flex items-center gap-2">
                 <Input
                   type="number"
-                  value={id || ""}
-                  onChange={(e) => handleDeleteUserIdChange(index, e.target.value)}
+                  value={id || ''}
+                  onChange={(e) =>
+                    handleDeleteUserIdChange(index, e.target.value)
+                  }
                   placeholder="Discord User ID"
                   className="font-mono"
                 />
@@ -142,7 +159,10 @@ export function ModerationSection({ config, onUpdate }: ModerationSectionProps) 
               </Button>
               <Button
                 onClick={handleSaveDeleteUserIds}
-                disabled={JSON.stringify(localDeleteUserIds) === JSON.stringify(config.deleteUserMessages.userIds)}
+                disabled={
+                  JSON.stringify(localDeleteUserIds) ===
+                  JSON.stringify(config.deleteUserMessages.userIds)
+                }
               >
                 Save Changes
               </Button>
@@ -166,7 +186,7 @@ export function ModerationSection({ config, onUpdate }: ModerationSectionProps) 
             <div key={index} className="flex items-center gap-2">
               <Input
                 type="number"
-                value={id || ""}
+                value={id || ''}
                 onChange={(e) => handleBlockListChange(index, e.target.value)}
                 placeholder="Discord User ID"
                 className="font-mono"
@@ -192,7 +212,10 @@ export function ModerationSection({ config, onUpdate }: ModerationSectionProps) 
             </Button>
             <Button
               onClick={handleSaveBlockList}
-              disabled={JSON.stringify(localBlockList) === JSON.stringify(config.globalBlockList)}
+              disabled={
+                JSON.stringify(localBlockList) ===
+                JSON.stringify(config.globalBlockList)
+              }
             >
               Save Changes
             </Button>

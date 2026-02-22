@@ -1,11 +1,16 @@
-"use client"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import type { DynamicConfig } from "@/lib/api-client"
-import { ArrowLeftRight, Plus, Trash2, UserCircle, Save } from "lucide-react"
-import { useState, useEffect } from "react"
+import { ArrowLeftRight, Plus, Save, Trash2, UserCircle } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import type { DynamicConfig } from '@/lib/api-client'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 interface UsersSectionProps {
   config: DynamicConfig
@@ -13,11 +18,11 @@ interface UsersSectionProps {
 }
 
 export function UsersSection({ config, onUpdate }: UsersSectionProps) {
-  const [usersToIdEntries, setUsersToIdEntries] = useState<[string, string][]>(
-    Object.entries(config.usersToId)
+  const [usersToIdEntries, setUsersToIdEntries] = useState<Array<[string, string]>>(
+    Object.entries(config.usersToId),
   )
-  const [idToUsersEntries, setIdToUsersEntries] = useState<[string, string][]>(
-    Object.entries(config.idToUsers)
+  const [idToUsersEntries, setIdToUsersEntries] = useState<Array<[string, string]>>(
+    Object.entries(config.idToUsers),
   )
 
   useEffect(() => {
@@ -25,10 +30,12 @@ export function UsersSection({ config, onUpdate }: UsersSectionProps) {
     setIdToUsersEntries(Object.entries(config.idToUsers))
   }, [config.usersToId, config.idToUsers])
 
-  const hasUsersToIdChanges = 
-    JSON.stringify(usersToIdEntries) !== JSON.stringify(Object.entries(config.usersToId))
-  const hasIdToUsersChanges = 
-    JSON.stringify(idToUsersEntries) !== JSON.stringify(Object.entries(config.idToUsers))
+  const hasUsersToIdChanges =
+    JSON.stringify(usersToIdEntries) !==
+    JSON.stringify(Object.entries(config.usersToId))
+  const hasIdToUsersChanges =
+    JSON.stringify(idToUsersEntries) !==
+    JSON.stringify(Object.entries(config.idToUsers))
 
   const handleSaveUsersToId = () => {
     const newMapping: Record<string, string> = {}
@@ -72,11 +79,11 @@ export function UsersSection({ config, onUpdate }: UsersSectionProps) {
                 <Label className="text-xs text-muted-foreground">Name</Label>
                 <Input
                   value={name}
-                                  onChange={(e) => {
-                  const newEntries = [...usersToIdEntries]
-                  newEntries[index] = [e.target.value, mention]
-                  setUsersToIdEntries(newEntries)
-                }}
+                  onChange={(e) => {
+                    const newEntries = [...usersToIdEntries]
+                    newEntries[index] = [e.target.value, mention]
+                    setUsersToIdEntries(newEntries)
+                  }}
                   placeholder="username"
                 />
               </div>
@@ -99,7 +106,9 @@ export function UsersSection({ config, onUpdate }: UsersSectionProps) {
                 size="icon"
                 className="shrink-0 mt-6 text-muted-foreground hover:text-destructive"
                 onClick={() => {
-                  const newEntries = usersToIdEntries.filter((_, i) => i !== index)
+                  const newEntries = usersToIdEntries.filter(
+                    (_, i) => i !== index,
+                  )
                   setUsersToIdEntries(newEntries)
                 }}
               >
@@ -112,7 +121,7 @@ export function UsersSection({ config, onUpdate }: UsersSectionProps) {
               variant="outline"
               className="flex-1 bg-transparent"
               onClick={() => {
-                setUsersToIdEntries([...usersToIdEntries, ["", ""]])
+                setUsersToIdEntries([...usersToIdEntries, ['', '']])
               }}
             >
               <Plus className="h-4 w-4 mr-2" />
@@ -146,11 +155,11 @@ export function UsersSection({ config, onUpdate }: UsersSectionProps) {
                 <Label className="text-xs text-muted-foreground">User ID</Label>
                 <Input
                   value={id}
-                                  onChange={(e) => {
-                  const newEntries = [...idToUsersEntries]
-                  newEntries[index] = [e.target.value, name]
-                  setIdToUsersEntries(newEntries)
-                }}
+                  onChange={(e) => {
+                    const newEntries = [...idToUsersEntries]
+                    newEntries[index] = [e.target.value, name]
+                    setIdToUsersEntries(newEntries)
+                  }}
                   placeholder="000000000000000000"
                   className="font-mono"
                 />
@@ -173,7 +182,9 @@ export function UsersSection({ config, onUpdate }: UsersSectionProps) {
                 size="icon"
                 className="shrink-0 mt-6 text-muted-foreground hover:text-destructive"
                 onClick={() => {
-                  const newEntries = idToUsersEntries.filter((_, i) => i !== index)
+                  const newEntries = idToUsersEntries.filter(
+                    (_, i) => i !== index,
+                  )
                   setIdToUsersEntries(newEntries)
                 }}
               >
@@ -186,7 +197,7 @@ export function UsersSection({ config, onUpdate }: UsersSectionProps) {
               variant="outline"
               className="flex-1 bg-transparent"
               onClick={() => {
-                setIdToUsersEntries([...idToUsersEntries, ["", ""]])
+                setIdToUsersEntries([...idToUsersEntries, ['', '']])
               }}
             >
               <Plus className="h-4 w-4 mr-2" />

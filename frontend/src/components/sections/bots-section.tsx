@@ -1,10 +1,15 @@
-"use client"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import type { DynamicConfig } from "@/lib/api-client"
-import { Bot, Plus, Trash2 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { Bot, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import type { DynamicConfig } from '@/lib/api-client'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 
 interface BotsSectionProps {
   config: DynamicConfig
@@ -12,7 +17,9 @@ interface BotsSectionProps {
 }
 
 export function BotsSection({ config, onUpdate }: BotsSectionProps) {
-  const [localBotList, setLocalBotList] = useState<number[]>(config.allowedBotsToRespondTo)
+  const [localBotList, setLocalBotList] = useState<Array<number>>(
+    config.allowedBotsToRespondTo,
+  )
 
   useEffect(() => {
     setLocalBotList(config.allowedBotsToRespondTo)
@@ -53,7 +60,8 @@ export function BotsSection({ config, onUpdate }: BotsSectionProps) {
             Allowed Bots to Respond To
           </CardTitle>
           <CardDescription>
-            Bot IDs that your bot is allowed to respond to. Leave empty to ignore all bots.
+            Bot IDs that your bot is allowed to respond to. Leave empty to
+            ignore all bots.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -69,7 +77,7 @@ export function BotsSection({ config, onUpdate }: BotsSectionProps) {
               <div key={index} className="flex items-center gap-2">
                 <Input
                   type="number"
-                  value={id || ""}
+                  value={id || ''}
                   onChange={(e) => handleBotIdChange(index, e.target.value)}
                   placeholder="Discord Bot ID"
                   className="font-mono"
@@ -96,7 +104,10 @@ export function BotsSection({ config, onUpdate }: BotsSectionProps) {
             </Button>
             <Button
               onClick={handleSave}
-              disabled={JSON.stringify(localBotList) === JSON.stringify(config.allowedBotsToRespondTo)}
+              disabled={
+                JSON.stringify(localBotList) ===
+                JSON.stringify(config.allowedBotsToRespondTo)
+              }
             >
               Save Changes
             </Button>

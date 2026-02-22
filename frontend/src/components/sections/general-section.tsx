@@ -1,12 +1,17 @@
-"use client"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import type { DynamicConfig } from "@/lib/api-client"
-import { Shield } from "lucide-react"
-import { useState } from "react"
+import { Shield } from 'lucide-react'
+import { useState } from 'react'
+import type { DynamicConfig } from '@/lib/api-client'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 
 interface GeneralSectionProps {
   config: DynamicConfig
@@ -14,7 +19,7 @@ interface GeneralSectionProps {
 }
 
 export function GeneralSection({ config, onUpdate }: GeneralSectionProps) {
-  const [localAdmins, setLocalAdmins] = useState<number[]>(config.adminIds)
+  const [localAdmins, setLocalAdmins] = useState<Array<number>>(config.adminIds)
 
   const handleAdminChange = (index: number, value: string) => {
     const newAdmins = [...localAdmins]
@@ -39,7 +44,9 @@ export function GeneralSection({ config, onUpdate }: GeneralSectionProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">General Settings</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">
+          General Settings
+        </h2>
         <p className="text-muted-foreground">
           Configure basic bot settings and permissions.
         </p>
@@ -84,7 +91,7 @@ export function GeneralSection({ config, onUpdate }: GeneralSectionProps) {
             <div key={index} className="flex items-center gap-2">
               <Input
                 type="number"
-                value={id || ""}
+                value={id || ''}
                 onChange={(e) => handleAdminChange(index, e.target.value)}
                 placeholder="Discord User ID"
                 className="font-mono"
@@ -99,15 +106,14 @@ export function GeneralSection({ config, onUpdate }: GeneralSectionProps) {
             </div>
           ))}
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={handleAddAdmin}
-            >
+            <Button variant="outline" onClick={handleAddAdmin}>
               Add Admin
             </Button>
             <Button
               onClick={handleSaveAdmins}
-              disabled={JSON.stringify(localAdmins) === JSON.stringify(config.adminIds)}
+              disabled={
+                JSON.stringify(localAdmins) === JSON.stringify(config.adminIds)
+              }
             >
               Save Changes
             </Button>

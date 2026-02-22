@@ -1,32 +1,38 @@
-import { createFileRoute, Navigate } from '@tanstack/react-router';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { getDiscordAuthUrl } from '@/lib/auth';
-import { useAuth } from '@/hooks/use-auth';
+import { Navigate, createFileRoute } from '@tanstack/react-router'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { getDiscordAuthUrl } from '@/lib/auth'
+import { useAuth } from '@/hooks/use-auth'
 
 export const Route = createFileRoute('/login')({
   component: LoginPage,
-});
+})
 
 function LoginPage() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth()
 
   // Redirect if already authenticated
   if (isAuthenticated && !isLoading) {
-    return <Navigate to="/general" />;
+    return <Navigate to="/general" />
   }
 
   const handleDiscordLogin = () => {
-    const authUrl = getDiscordAuthUrl();
-    window.location.href = authUrl;
-  };
+    const authUrl = getDiscordAuthUrl()
+    window.location.href = authUrl
+  }
 
   if (isLoading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
       </div>
-    );
+    )
   }
 
   return (
@@ -67,5 +73,5 @@ function LoginPage() {
         </CardContent>
       </Card>
     </div>
-  );
+  )
 }

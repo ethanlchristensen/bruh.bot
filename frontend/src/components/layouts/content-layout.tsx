@@ -1,12 +1,12 @@
-import * as React from "react";
+import * as React from 'react'
 
-import { SidebarTrigger } from "../ui/sidebar";
-import { ThemeToggle } from "../theme/theme-toggle";
+import { SidebarTrigger } from '../ui/sidebar'
+import { ThemeToggle } from '../theme/theme-toggle'
 
 type ContentLayoutProps = {
-  children: React.ReactNode;
-  fullHeight?: boolean;
-};
+  children: React.ReactNode
+  fullHeight?: boolean
+}
 
 export const ContentLayout = ({
   children,
@@ -30,5 +30,5 @@ export const ContentLayout = ({
         </div>
       )}
     </div>
-  );
-};
+  )
+}

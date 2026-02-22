@@ -23,7 +23,7 @@ services:
       - ./prompts.json:/app/prompts.json:ro
       - ./config:/app/config
     restart: unless-stopped
-
+  
   config-api-dev:
     container_name: bruh.api.dev
     build:
@@ -44,7 +44,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-
+  
   config-api-prod:
     container_name: bruh.api.prod
     build:
@@ -65,6 +65,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+  
   bruh-bot-frontend-dev:
     container_name: bruh.bot.frontend.dev
     build:
@@ -83,8 +84,8 @@ services:
     volumes:
       - media_data:/usr/share/nginx/media:ro
     networks:
-      - app-network
-    
+      - app-network  
+  
   bruh-bot-frontend-prod:
     container_name: bruh.bot.frontend.prod
     build:

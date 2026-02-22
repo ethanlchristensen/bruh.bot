@@ -1,17 +1,16 @@
+import path from 'node:path'
 import { defineConfig } from 'vite'
 import { devtools } from '@tanstack/devtools-vite'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import viteTsConfigPaths from 'vite-tsconfig-paths'
-import path from "path";
-
 
 import tailwindcss from '@tailwindcss/vite'
 
 const config = defineConfig({
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      '@': path.resolve(__dirname, './src'),
     },
   },
   plugins: [
@@ -21,9 +20,9 @@ const config = defineConfig({
     }),
     tailwindcss(),
     tanstackRouter({
-      target: "react",
+      target: 'react',
       autoCodeSplitting: true,
-      routesDirectory: "src/app/routes",
+      routesDirectory: 'src/app/routes',
     }),
     viteReact({
       babel: {

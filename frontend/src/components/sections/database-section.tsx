@@ -1,11 +1,16 @@
-"use client"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import type { DynamicConfig } from "@/lib/api-client"
-import { Database, FileText, FolderOpen, Save } from "lucide-react"
-import { useState, useEffect } from "react"
+import { Database, FileText, FolderOpen, Save } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import type { DynamicConfig } from '@/lib/api-client'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 interface DatabaseSectionProps {
   config: DynamicConfig
@@ -14,10 +19,18 @@ interface DatabaseSectionProps {
 
 export function DatabaseSection({ config, onUpdate }: DatabaseSectionProps) {
   const [localPromptsPath, setLocalPromptsPath] = useState(config.promptsPath)
-  const [localMessagesDb, setLocalMessagesDb] = useState(config.mongoMessagesDbName)
-  const [localMessagesCollection, setLocalMessagesCollection] = useState(config.mongoMessagesCollectionName)
-  const [localMorningCollection, setLocalMorningCollection] = useState(config.mongoMorningConfigsCollectionName)
-  const [localImageLimitsCollection, setLocalImageLimitsCollection] = useState(config.mongoImageLimitsCollectionName)
+  const [localMessagesDb, setLocalMessagesDb] = useState(
+    config.mongoMessagesDbName,
+  )
+  const [localMessagesCollection, setLocalMessagesCollection] = useState(
+    config.mongoMessagesCollectionName,
+  )
+  const [localMorningCollection, setLocalMorningCollection] = useState(
+    config.mongoMorningConfigsCollectionName,
+  )
+  const [localImageLimitsCollection, setLocalImageLimitsCollection] = useState(
+    config.mongoImageLimitsCollectionName,
+  )
 
   useEffect(() => {
     setLocalPromptsPath(config.promptsPath)
@@ -27,7 +40,7 @@ export function DatabaseSection({ config, onUpdate }: DatabaseSectionProps) {
     setLocalImageLimitsCollection(config.mongoImageLimitsCollectionName)
   }, [config])
 
-  const hasChanges = 
+  const hasChanges =
     localPromptsPath !== config.promptsPath ||
     localMessagesDb !== config.mongoMessagesDbName ||
     localMessagesCollection !== config.mongoMessagesCollectionName ||
@@ -59,9 +72,7 @@ export function DatabaseSection({ config, onUpdate }: DatabaseSectionProps) {
             <Database className="h-5 w-5 text-primary" />
             MongoDB Database
           </CardTitle>
-          <CardDescription>
-            Database name for storing bot data.
-          </CardDescription>
+          <CardDescription>Database name for storing bot data.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -102,7 +113,9 @@ export function DatabaseSection({ config, onUpdate }: DatabaseSectionProps) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="morningCollection">Morning Configs Collection</Label>
+            <Label htmlFor="morningCollection">
+              Morning Configs Collection
+            </Label>
             <Input
               id="morningCollection"
               value={localMorningCollection}
@@ -112,7 +125,9 @@ export function DatabaseSection({ config, onUpdate }: DatabaseSectionProps) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="imageLimitsCollection">Image Limits Collection</Label>
+            <Label htmlFor="imageLimitsCollection">
+              Image Limits Collection
+            </Label>
             <Input
               id="imageLimitsCollection"
               value={localImageLimitsCollection}

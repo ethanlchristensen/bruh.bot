@@ -122,7 +122,9 @@ async def get_config(guild_id: str = Depends(get_guild_id), authorized: bool = D
                     if isinstance(p_data, dict):
                         key = p_data.get("apiKey", "")
                         if key:
-                            data["aiConfig"][provider]["apiKey"] = ("*" * (len(key) - 4)) + key[-4:] if len(key) > 4 else "***"
+                            # Convert to string if it's a SecretStr
+                            actual_key = key.get_secret_value() if hasattr(key, "get_secret_value") else str(key)
+                            data["aiConfig"][provider]["apiKey"] = ("*" * (len(actual_key) - 4)) + actual_key[-4:] if len(actual_key) > 4 else "***"
 
         return ConfigResponse(success=True, version=config_obj.configVersion, config=data)
 

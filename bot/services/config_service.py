@@ -53,8 +53,8 @@ class DeleteUserMessagesConfig(BaseModel):
 
 
 class DiscordScrapeBotConfig(BaseModel):
-    databaseName: str
-    collectionName: str
+    databaseName: str = ""
+    collectionName: str = ""
 
 
 class BaseConfig(BaseModel):
@@ -75,14 +75,6 @@ class BaseConfig(BaseModel):
     mongoMorningConfigsCollectionName: str = "Morningconfigs"
     mongoCooldownCollectionName: str = "Cooldowns"
     mongoDiscordScrapeBot: DiscordScrapeBotConfig = Field(default_factory=DiscordScrapeBotConfig)
-
-    @property
-    def api_admin_key(self) -> str:
-        """Logic moved inside the model"""
-        env = (os.getenv("ENVIRONMENT") or "dev").lower()
-        if env in ["prod", "production"]:
-            return self.adminApiKeyProd
-        return self.adminApiKey
 
 
 class DynamicConfig(BaseModel):

@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { ThemeSettings } from "@/components/theme/theme-settings";
+import { createFileRoute } from '@tanstack/react-router';
+import { ThemeSettings } from '@/components/theme/theme-settings';
 
-export const Route = createFileRoute("/_main/profile")({
+export const Route = createFileRoute('/_main/profile')({
   component: RouteComponent,
 });
 

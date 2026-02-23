@@ -37,7 +37,7 @@ const config = defineConfig({
         changeOrigin: true,
         secure: false,
         ws: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
+        rewrite: (p) => p.replace(/^\/api/, ''),
       },
     },
   },

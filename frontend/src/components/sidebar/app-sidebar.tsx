@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Shield, Code } from 'lucide-react';
+import { Code, Shield } from 'lucide-react';
 import { Link, useLocation } from '@tanstack/react-router';
 import { useAuth } from '@/hooks/use-auth';
 
@@ -28,8 +28,8 @@ const data = {
       title: 'User Management',
       url: '/user-management',
       icon: Shield,
-      isActive: false
-    }
+      isActive: false,
+    },
   ],
 };
 
@@ -41,9 +41,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     const firstSegment = location.pathname.split('/')[1];
     const matchPath = firstSegment ? `/${firstSegment}` : '/';
 
-    return (
-      data.navMain.find((item) => item.url === matchPath)
-    );
+    return data.navMain.find((item) => item.url === matchPath);
   }, [location.pathname]);
 
   return (

@@ -10,9 +10,9 @@ import {
   oneDark,
   oneLight,
 } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { useTheme } from '../theme/theme-provider';
 import type { Components } from 'react-markdown';
 import 'katex/dist/katex.min.css';
-import { useTheme } from '../theme/theme-provider';
 
 interface MarkdownProps {
   content: string;
@@ -48,7 +48,7 @@ const CodeBlockWithCopy = ({
             borderTopLeftRadius: 0,
             borderTopRightRadius: 0,
             fontSize: '0.75rem',
-            background: 'var(--card)'
+            background: 'var(--card)',
           }}
         >
           {code}

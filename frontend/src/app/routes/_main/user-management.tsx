@@ -1,106 +1,116 @@
-import { useState, useEffect, useMemo } from 'react' // Added useMemo
-import { createFileRoute } from '@tanstack/react-router'
-import { Plus, Trash2, Loader2, Check, RotateCcw } from 'lucide-react' // Added RotateCcw
-import { z } from 'zod'
+import { useEffect, useMemo, useState } from 'react'; // Added useMemo
+import { createFileRoute } from '@tanstack/react-router';
+import { Check, Loader2, Plus, RotateCcw, Trash2 } from 'lucide-react'; // Added RotateCcw
+import { z } from 'zod';
 
-import { useConfig, useUpdateConfig } from '@/hooks/use-config'
-import { useConfigChanges } from '@/contexts/config-changes-context'
-import { Spinner } from '@/components/ui/spinner'
-import { Card, CardTitle, CardContent, CardFooter, CardHeader, CardDescription } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { toast } from 'sonner'
+import { toast } from 'sonner';
+import { useConfig, useUpdateConfig } from '@/hooks/use-config';
+import { useConfigChanges } from '@/contexts/config-changes-context';
+import { Spinner } from '@/components/ui/spinner';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export const Route = createFileRoute('/_main/user-management')({
   component: UserManagementComponent,
-})
+});
 
 const AdminIdSchema = z
   .string()
   .length(18, 'Admin ID must be exactly 18 characters')
-  .regex(/^\d+$/, 'Admin ID must contain only numbers')
+  .regex(/^\d+$/, 'Admin ID must contain only numbers');
 
 function UserManagementComponent() {
-  const { data, isLoading } = useConfig()
-  const { addConfigChange } = useConfigChanges()
-  const updateConfig = useUpdateConfig()
+  const { data, isLoading } = useConfig();
+  const { addConfigChange } = useConfigChanges();
+  const updateConfig = useUpdateConfig();
 
-  const [admins, setAdmins] = useState<string[]>([])
-  const [addAdminId, setAddAdminId] = useState<string>('')
-  const [errors, setErrors] = useState<string[] | null>(null)
+  const [admins, setAdmins] = useState<Array<string>>([]);
+  const [addAdminId, setAddAdminId] = useState<string>('');
+  const [errors, setErrors] = useState<Array<string> | null>(null);
 
   // Initialize admins from data
   useEffect(() => {
-    if (!data?.config?.adminIds) return
-    setAdmins(data.config.adminIds)
-  }, [data])
+    if (!data?.config?.adminIds) return;
+    setAdmins(data.config.adminIds);
+  }, [data]);
 
   // 1. Logic to clear the "Checkmark" success state after 3 seconds
   useEffect(() => {
     if (updateConfig.isSuccess) {
       const timer = setTimeout(() => {
-        updateConfig.reset()
-      }, 3000)
-      return () => clearTimeout(timer)
+        updateConfig.reset();
+      }, 3000);
+      return () => clearTimeout(timer);
     }
-  }, [updateConfig.isSuccess, updateConfig.reset])
+  }, [updateConfig.isSuccess, updateConfig.reset]);
 
   // 2. Logic to detect if there are unsaved changes
   const hasChanges = useMemo(() => {
-    const original = data?.config?.adminIds || []
-    if (original.length !== admins.length) return true
-    return JSON.stringify([...original].sort()) !== JSON.stringify([...admins].sort())
-  }, [data, admins])
+    const original = data?.config?.adminIds || [];
+    if (original.length !== admins.length) return true;
+    return (
+      JSON.stringify([...original].sort()) !==
+      JSON.stringify([...admins].sort())
+    );
+  }, [data, admins]);
 
   async function handleSaveChanges() {
-    setErrors(null)
-    updateConfig.mutate(
+    setErrors(null);
+    await updateConfig.mutateAsync(
       { adminIds: admins },
       {
         onSuccess: () => {
-          toast.success('Admins have been updated successfully')
+          toast.success('Admins have been updated successfully');
         },
         onError: (err) => {
-          setErrors([err.message])
-          toast.error('Failed to update Admins.')
+          setErrors([err.message]);
+          toast.error('Failed to update Admins.');
         },
       },
-    )
+    );
   }
 
   // 3. Logic to undo changes
   function handleUndo() {
-    const original = data?.config?.adminIds || []
-    setAdmins(original)
-    addConfigChange({ adminIds: original })
-    setErrors(null)
-    toast.info('Changes discarded')
+    const original = data?.config?.adminIds || [];
+    setAdmins(original);
+    addConfigChange({ adminIds: original });
+    setErrors(null);
+    toast.info('Changes discarded');
   }
 
   function handleAddAdmin() {
-    setErrors(null)
-    const result = AdminIdSchema.safeParse(addAdminId)
+    setErrors(null);
+    const result = AdminIdSchema.safeParse(addAdminId);
 
     if (!result.success) {
-      setErrors(result.error.issues.map((issue) => issue.message))
-      return
+      setErrors(result.error.issues.map((issue) => issue.message));
+      return;
     }
 
     if (admins.includes(addAdminId)) {
-      setErrors(['This ID is already an admin'])
-      return
+      setErrors(['This ID is already an admin']);
+      return;
     }
 
-    const newAdmins = [...admins, addAdminId]
-    setAdmins(newAdmins)
-    addConfigChange({ adminIds: newAdmins })
-    setAddAdminId('')
+    const newAdmins = [...admins, addAdminId];
+    setAdmins(newAdmins);
+    addConfigChange({ adminIds: newAdmins });
+    setAddAdminId('');
   }
 
   function handleRemoveAdmin(idToRemove: string) {
-    const newAdmins = admins.filter((id) => id !== idToRemove)
-    setAdmins(newAdmins)
-    addConfigChange({ adminIds: newAdmins })
+    const newAdmins = admins.filter((id) => id !== idToRemove);
+    setAdmins(newAdmins);
+    addConfigChange({ adminIds: newAdmins });
   }
 
   if (isLoading) {
@@ -111,7 +121,7 @@ function UserManagementComponent() {
           Loading configuration data
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -129,7 +139,7 @@ function UserManagementComponent() {
                     Undo
                   </Button>
                 )}
-                
+
                 <Button
                   onClick={handleSaveChanges}
                   disabled={updateConfig.isPending || !hasChanges}
@@ -142,7 +152,11 @@ function UserManagementComponent() {
                   ) : updateConfig.isSuccess ? (
                     <Check className="h-4 w-4 mr-2 text-green-500" />
                   ) : null}
-                  {updateConfig.isPending ? 'Saving...' : updateConfig.isSuccess ? 'Saved' : 'Save Changes'}
+                  {updateConfig.isPending
+                    ? 'Saving...'
+                    : updateConfig.isSuccess
+                      ? 'Saved'
+                      : 'Save Changes'}
                 </Button>
               </div>
             </div>
@@ -194,10 +208,12 @@ function UserManagementComponent() {
           </div>
           {errors &&
             errors.map((msg, i) => (
-              <p key={i} className="text-destructive text-sm font-medium">{msg}</p>
+              <p key={i} className="text-destructive text-sm font-medium">
+                {msg}
+              </p>
             ))}
         </CardFooter>
       </Card>
     </div>
-  )
+  );
 }

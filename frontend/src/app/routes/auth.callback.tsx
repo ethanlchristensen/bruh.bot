@@ -45,7 +45,7 @@ function AuthCallback() {
         toast.success(`Welcome back, ${user.global_name || user.username}!`);
 
         // Redirect to dashboard
-        navigate({ to: '/general' });
+        navigate({ to: '/config' });
       } catch (error) {
         console.error('Authentication error:', error);
         toast.error('Failed to authenticate. Please try again.');

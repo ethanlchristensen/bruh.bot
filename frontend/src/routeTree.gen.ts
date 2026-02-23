@@ -8,93 +8,93 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './app/routes/__root';
-import { Route as LoginRouteImport } from './app/routes/login';
-import { Route as MainRouteImport } from './app/routes/_main';
-import { Route as IndexRouteImport } from './app/routes/index';
-import { Route as AuthCallbackRouteImport } from './app/routes/auth.callback';
-import { Route as MainUserManagementRouteImport } from './app/routes/_main/user-management';
-import { Route as MainProfileRouteImport } from './app/routes/_main/profile';
-import { Route as MainConfigRouteImport } from './app/routes/_main/config';
+import { Route as rootRouteImport } from './app/routes/__root'
+import { Route as LoginRouteImport } from './app/routes/login'
+import { Route as MainRouteImport } from './app/routes/_main'
+import { Route as IndexRouteImport } from './app/routes/index'
+import { Route as AuthCallbackRouteImport } from './app/routes/auth.callback'
+import { Route as MainUserManagementRouteImport } from './app/routes/_main/user-management'
+import { Route as MainProfileRouteImport } from './app/routes/_main/profile'
+import { Route as MainConfigRouteImport } from './app/routes/_main/config'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const MainRoute = MainRouteImport.update({
   id: '/_main',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const AuthCallbackRoute = AuthCallbackRouteImport.update({
   id: '/auth/callback',
   path: '/auth/callback',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const MainUserManagementRoute = MainUserManagementRouteImport.update({
   id: '/user-management',
   path: '/user-management',
   getParentRoute: () => MainRoute,
-} as any);
+} as any)
 const MainProfileRoute = MainProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
   getParentRoute: () => MainRoute,
-} as any);
+} as any)
 const MainConfigRoute = MainConfigRouteImport.update({
   id: '/config',
   path: '/config',
   getParentRoute: () => MainRoute,
-} as any);
+} as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute;
-  '/login': typeof LoginRoute;
-  '/config': typeof MainConfigRoute;
-  '/profile': typeof MainProfileRoute;
-  '/user-management': typeof MainUserManagementRoute;
-  '/auth/callback': typeof AuthCallbackRoute;
+  '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/config': typeof MainConfigRoute
+  '/profile': typeof MainProfileRoute
+  '/user-management': typeof MainUserManagementRoute
+  '/auth/callback': typeof AuthCallbackRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute;
-  '/login': typeof LoginRoute;
-  '/config': typeof MainConfigRoute;
-  '/profile': typeof MainProfileRoute;
-  '/user-management': typeof MainUserManagementRoute;
-  '/auth/callback': typeof AuthCallbackRoute;
+  '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/config': typeof MainConfigRoute
+  '/profile': typeof MainProfileRoute
+  '/user-management': typeof MainUserManagementRoute
+  '/auth/callback': typeof AuthCallbackRoute
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport;
-  '/': typeof IndexRoute;
-  '/_main': typeof MainRouteWithChildren;
-  '/login': typeof LoginRoute;
-  '/_main/config': typeof MainConfigRoute;
-  '/_main/profile': typeof MainProfileRoute;
-  '/_main/user-management': typeof MainUserManagementRoute;
-  '/auth/callback': typeof AuthCallbackRoute;
+  __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
+  '/_main': typeof MainRouteWithChildren
+  '/login': typeof LoginRoute
+  '/_main/config': typeof MainConfigRoute
+  '/_main/profile': typeof MainProfileRoute
+  '/_main/user-management': typeof MainUserManagementRoute
+  '/auth/callback': typeof AuthCallbackRoute
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath;
+  fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/login'
     | '/config'
     | '/profile'
     | '/user-management'
-    | '/auth/callback';
-  fileRoutesByTo: FileRoutesByTo;
+    | '/auth/callback'
+  fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
     | '/config'
     | '/profile'
     | '/user-management'
-    | '/auth/callback';
+    | '/auth/callback'
   id:
     | '__root__'
     | '/'
@@ -103,90 +103,90 @@ export interface FileRouteTypes {
     | '/_main/config'
     | '/_main/profile'
     | '/_main/user-management'
-    | '/auth/callback';
-  fileRoutesById: FileRoutesById;
+    | '/auth/callback'
+  fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute;
-  MainRoute: typeof MainRouteWithChildren;
-  LoginRoute: typeof LoginRoute;
-  AuthCallbackRoute: typeof AuthCallbackRoute;
+  IndexRoute: typeof IndexRoute
+  MainRoute: typeof MainRouteWithChildren
+  LoginRoute: typeof LoginRoute
+  AuthCallbackRoute: typeof AuthCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
     '/login': {
-      id: '/login';
-      path: '/login';
-      fullPath: '/login';
-      preLoaderRoute: typeof LoginRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_main': {
-      id: '/_main';
-      path: '';
-      fullPath: '/';
-      preLoaderRoute: typeof MainRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/_main'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof MainRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
-      id: '/';
-      path: '/';
-      fullPath: '/';
-      preLoaderRoute: typeof IndexRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth/callback': {
-      id: '/auth/callback';
-      path: '/auth/callback';
-      fullPath: '/auth/callback';
-      preLoaderRoute: typeof AuthCallbackRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/auth/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_main/user-management': {
-      id: '/_main/user-management';
-      path: '/user-management';
-      fullPath: '/user-management';
-      preLoaderRoute: typeof MainUserManagementRouteImport;
-      parentRoute: typeof MainRoute;
-    };
+      id: '/_main/user-management'
+      path: '/user-management'
+      fullPath: '/user-management'
+      preLoaderRoute: typeof MainUserManagementRouteImport
+      parentRoute: typeof MainRoute
+    }
     '/_main/profile': {
-      id: '/_main/profile';
-      path: '/profile';
-      fullPath: '/profile';
-      preLoaderRoute: typeof MainProfileRouteImport;
-      parentRoute: typeof MainRoute;
-    };
+      id: '/_main/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof MainProfileRouteImport
+      parentRoute: typeof MainRoute
+    }
     '/_main/config': {
-      id: '/_main/config';
-      path: '/config';
-      fullPath: '/config';
-      preLoaderRoute: typeof MainConfigRouteImport;
-      parentRoute: typeof MainRoute;
-    };
+      id: '/_main/config'
+      path: '/config'
+      fullPath: '/config'
+      preLoaderRoute: typeof MainConfigRouteImport
+      parentRoute: typeof MainRoute
+    }
   }
 }
 
 interface MainRouteChildren {
-  MainConfigRoute: typeof MainConfigRoute;
-  MainProfileRoute: typeof MainProfileRoute;
-  MainUserManagementRoute: typeof MainUserManagementRoute;
+  MainConfigRoute: typeof MainConfigRoute
+  MainProfileRoute: typeof MainProfileRoute
+  MainUserManagementRoute: typeof MainUserManagementRoute
 }
 
 const MainRouteChildren: MainRouteChildren = {
   MainConfigRoute: MainConfigRoute,
   MainProfileRoute: MainProfileRoute,
   MainUserManagementRoute: MainUserManagementRoute,
-};
+}
 
-const MainRouteWithChildren = MainRoute._addFileChildren(MainRouteChildren);
+const MainRouteWithChildren = MainRoute._addFileChildren(MainRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   MainRoute: MainRouteWithChildren,
   LoginRoute: LoginRoute,
   AuthCallbackRoute: AuthCallbackRoute,
-};
+}
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>();
+  ._addFileTypes<FileRouteTypes>()

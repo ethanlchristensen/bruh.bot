@@ -8,6 +8,7 @@ const createEnv = () => {
     DISCORD_CLIENT_ID: z.string(),
     DISCORD_CLIENT_SECRET: z.string(),
     DISCORD_REDIRECT_URI: z.string(),
+    DEFAULT_GUILD_ID: z.string(),
   });
 
   const envVars = Object.entries(import.meta.env).reduce<

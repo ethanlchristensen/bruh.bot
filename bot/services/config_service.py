@@ -76,6 +76,14 @@ class BaseConfig(BaseModel):
     mongoCooldownCollectionName: str = "Cooldowns"
     mongoDiscordScrapeBot: DiscordScrapeBotConfig = Field(default_factory=DiscordScrapeBotConfig)
 
+    @property
+    def api_admin_key(self) -> str:
+        """Logic moved inside the model"""
+        env = (os.getenv("ENVIRONMENT") or "dev").lower()
+        if env in ["prod", "production"]:
+            return self.adminApiKeyProd
+        return self.adminApiKey
+
 
 class DynamicConfig(BaseModel):
     """Dynamic config stored in MongoDB."""

@@ -98,13 +98,16 @@ export interface HealthResponse {
 export class ConfigAPIClient {
   private baseUrl: string;
   private adminKey: string;
+  private defaultGuildId: string;
 
-  constructor(baseUrl?: string, adminKey?: string) {
+  constructor(baseUrl?: string, adminKey?: string, defaultGuildId?: string) {
     this.baseUrl =
       baseUrl ||
       import.meta.env.VITE_BACKEND_API_URL ||
       'http://localhost:5000';
     this.adminKey = adminKey || import.meta.env.VITE_API_ADMIN_KEY || '';
+    this.defaultGuildId =
+      defaultGuildId || import.meta.env.VITE_DEFAULT_GUILD_ID || '';
   }
 
   private async fetch<T>(
@@ -116,6 +119,7 @@ export class ConfigAPIClient {
     const headers = {
       'Content-Type': 'application/json',
       'X-Admin-Key': this.adminKey,
+      'X-Guild-ID': this.defaultGuildId,
       ...options.headers,
     };
 
@@ -260,7 +264,11 @@ let apiClient: ConfigAPIClient | null = null;
 
 export function getAPIClient(): ConfigAPIClient {
   if (!apiClient) {
-    apiClient = new ConfigAPIClient('/api', env.ADMIN_API_KEY);
+    apiClient = new ConfigAPIClient(
+      '/api',
+      env.ADMIN_API_KEY,
+      env.DEFAULT_GUILD_ID,
+    );
   }
   return apiClient;
 }

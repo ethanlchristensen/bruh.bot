@@ -1,37 +1,34 @@
 import logging
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
-import anthropic
+from anthropic import AsyncAnthropic
 from pydantic import BaseModel
 
-from ..config_service import DynamicConfig
 from .base_service import BaseService
 from .types import AIChatResponse, Message
 
 T = TypeVar("T", bound=BaseModel)
 
+if TYPE_CHECKING:
+    from bot.juno import Juno
+
 
 class AnthropicService(BaseService):
-    def __init__(self, config: DynamicConfig):
+    def __init__(self, bot: "Juno"):
+        self.bot = bot
         self.logger = logging.getLogger(__name__)
-        self.client = anthropic.Anthropic(api_key=config.aiConfig.anthropic.apiKey)
-        self.default_model = config.aiConfig.anthropic.preferredModel
-        self.logger.info(f"Initializing AnthropicService with default_model={self.default_model}")
+        self.logger.info("Initialized AnthropicService")
 
-    async def chat(
-        self,
-        messages: list[Message],
-        model: str | None = None,
-        max_tokens: int = 1024,
-    ) -> AIChatResponse:
+    async def chat(self, guild_id: int, messages: list[Message], model: str | None = None, max_tokens: int = 1024) -> AIChatResponse:
+        anthropic_config = (await self.bot.config_service.get_config(str(guild_id))).aiConfig.antropic
+        model_to_use = model or anthropic_config.preferredModel
+
         try:
-            model_to_use = model or self.default_model
-
             anthropic_messages = [self.map_message_to_provider(message, "anthropic") for message in messages]
-
             self.logger.info(f"Calling AnthropicService.chat() with model={model_to_use}")
 
-            raw_response = self.client.messages.create(model=model_to_use, max_tokens=max_tokens, messages=anthropic_messages)
+            async with AsyncAnthropic(api_key=anthropic_config.apiKey.get_secret_value()) as client:
+                raw_response = await client.messages.create(model=model_to_use, max_tokens=max_tokens, messages=anthropic_messages)
 
             return AIChatResponse(
                 model=model_to_use,
@@ -45,39 +42,32 @@ class AnthropicService(BaseService):
             )
         except Exception as e:
             self.logger.error(f"Error in AnthropicService.chat(): {e}")
-            return {}
+            return AIChatResponse(model=model_to_use, content=f"Error: {e}", raw_response=None, usage={})
 
-    async def chat_with_schema(self, messages: list[Message], schema: type[T], model: str | None = None) -> T:
-        """
-        Anthropic structured output using tool use pattern.
-        Note: This uses Anthropic's tool calling feature to enforce schema.
-        """
+    async def chat_with_schema(self, guild_id: int, messages: list[Message], schema: type[T], model: str | None = None) -> T:
+        anthropic_config = (await self.bot.config_service.get_config(str(guild_id))).aiConfig.antropic
+        model_to_use = model or anthropic_config.preferredModel
+
         try:
-            model_to_use = model or self.default_model
-
             anthropic_messages = [self.map_message_to_provider(message, "anthropic") for message in messages]
+            self.logger.info(f"Calling AnthropicService.chat_with_schema() with model={model_to_use}")
 
-            self.logger.info(f"Calling AnthropicService.chat_with_schema() with model={model_to_use} and schema={schema.__name__}")
-
-            # Convert Pydantic schema to Anthropic tool format
             tool = {
                 "name": "structured_output",
                 "description": f"Provide structured output matching the {schema.__name__} schema",
                 "input_schema": schema.model_json_schema(),
             }
 
-            raw_response = self.client.messages.create(
-                model=model_to_use,
-                max_tokens=1024,
-                tools=[tool],
-                tool_choice={"type": "tool", "name": "structured_output"},
-                messages=anthropic_messages,
-            )
+            async with AsyncAnthropic(api_key=anthropic_config.apiKey.get_secret_value()) as client:
+                raw_response = await client.messages.create(
+                    model=model_to_use,
+                    max_tokens=1024,
+                    tools=[tool],
+                    tool_choice={"type": "tool", "name": "structured_output"},
+                    messages=anthropic_messages,
+                )
 
-            tool_use = next(
-                (block for block in raw_response.content if block.type == "tool_use"),
-                None,
-            )
+            tool_use = next((block for block in raw_response.content if block.type == "tool_use"), None)
 
             if not tool_use:
                 raise ValueError("No tool use found in response")

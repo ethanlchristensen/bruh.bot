@@ -1,21 +1,21 @@
-import { Ban, MessageSquareX, Plus, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import type { DynamicConfig } from '@/lib/api-client'
-import { Button } from '@/components/ui/button'
+import { Ban, MessageSquareX, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import type { DynamicConfig } from '@/lib/api-client';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 
 interface ModerationSectionProps {
-  config: DynamicConfig
-  onUpdate: (updates: Partial<DynamicConfig>) => void
+  config: DynamicConfig;
+  onUpdate: (updates: Partial<DynamicConfig>) => void;
 }
 
 export function ModerationSection({
@@ -24,36 +24,36 @@ export function ModerationSection({
 }: ModerationSectionProps) {
   const [localDeleteUserIds, setLocalDeleteUserIds] = useState<Array<number>>(
     config.deleteUserMessages.userIds,
-  )
+  );
   const [localBlockList, setLocalBlockList] = useState<Array<number>>(
     config.globalBlockList,
-  )
+  );
 
   useEffect(() => {
-    setLocalDeleteUserIds(config.deleteUserMessages.userIds)
-    setLocalBlockList(config.globalBlockList)
-  }, [config.deleteUserMessages.userIds, config.globalBlockList])
+    setLocalDeleteUserIds(config.deleteUserMessages.userIds);
+    setLocalBlockList(config.globalBlockList);
+  }, [config.deleteUserMessages.userIds, config.globalBlockList]);
 
   const handleDeleteUserIdChange = (index: number, value: string) => {
-    const newIds = [...localDeleteUserIds]
-    newIds[index] = parseInt(value) || 0
-    setLocalDeleteUserIds(newIds)
-  }
+    const newIds = [...localDeleteUserIds];
+    newIds[index] = parseInt(value) || 0;
+    setLocalDeleteUserIds(newIds);
+  };
 
   const handleAddDeleteUserId = () => {
-    setLocalDeleteUserIds([...localDeleteUserIds, 0])
-  }
+    setLocalDeleteUserIds([...localDeleteUserIds, 0]);
+  };
 
   const handleRemoveDeleteUserId = (index: number) => {
-    const newIds = localDeleteUserIds.filter((_, i) => i !== index)
-    setLocalDeleteUserIds(newIds)
+    const newIds = localDeleteUserIds.filter((_, i) => i !== index);
+    setLocalDeleteUserIds(newIds);
     onUpdate({
       deleteUserMessages: {
         enabled: config.deleteUserMessages.enabled,
         userIds: newIds,
       },
-    })
-  }
+    });
+  };
 
   const handleSaveDeleteUserIds = () => {
     onUpdate({
@@ -61,28 +61,28 @@ export function ModerationSection({
         enabled: config.deleteUserMessages.enabled,
         userIds: localDeleteUserIds,
       },
-    })
-  }
+    });
+  };
 
   const handleBlockListChange = (index: number, value: string) => {
-    const newList = [...localBlockList]
-    newList[index] = parseInt(value) || 0
-    setLocalBlockList(newList)
-  }
+    const newList = [...localBlockList];
+    newList[index] = parseInt(value) || 0;
+    setLocalBlockList(newList);
+  };
 
   const handleAddToBlockList = () => {
-    setLocalBlockList([...localBlockList, 0])
-  }
+    setLocalBlockList([...localBlockList, 0]);
+  };
 
   const handleRemoveFromBlockList = (index: number) => {
-    const newList = localBlockList.filter((_, i) => i !== index)
-    setLocalBlockList(newList)
-    onUpdate({ globalBlockList: newList })
-  }
+    const newList = localBlockList.filter((_, i) => i !== index);
+    setLocalBlockList(newList);
+    onUpdate({ globalBlockList: newList });
+  };
 
   const handleSaveBlockList = () => {
-    onUpdate({ globalBlockList: localBlockList })
-  }
+    onUpdate({ globalBlockList: localBlockList });
+  };
 
   return (
     <div className="space-y-6">
@@ -223,5 +223,5 @@ export function ModerationSection({
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

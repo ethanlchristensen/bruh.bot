@@ -11,15 +11,11 @@
 import { Route as rootRouteImport } from './app/routes/__root'
 import { Route as LoginRouteImport } from './app/routes/login'
 import { Route as MainRouteImport } from './app/routes/_main'
-import { Route as MainIndexRouteImport } from './app/routes/_main/index'
+import { Route as IndexRouteImport } from './app/routes/index'
 import { Route as AuthCallbackRouteImport } from './app/routes/auth.callback'
-import { Route as MainUsersRouteImport } from './app/routes/_main/users'
-import { Route as MainModerationRouteImport } from './app/routes/_main/moderation'
-import { Route as MainGeneralRouteImport } from './app/routes/_main/general'
-import { Route as MainDatabaseRouteImport } from './app/routes/_main/database'
-import { Route as MainCooldownsRouteImport } from './app/routes/_main/cooldowns'
-import { Route as MainBotsRouteImport } from './app/routes/_main/bots'
-import { Route as MainAiRouteImport } from './app/routes/_main/ai'
+import { Route as MainUserManagementRouteImport } from './app/routes/_main/user-management'
+import { Route as MainProfileRouteImport } from './app/routes/_main/profile'
+import { Route as MainConfigRouteImport } from './app/routes/_main/config'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -30,131 +26,88 @@ const MainRoute = MainRouteImport.update({
   id: '/_main',
   getParentRoute: () => rootRouteImport,
 } as any)
-const MainIndexRoute = MainIndexRouteImport.update({
+const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => MainRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthCallbackRoute = AuthCallbackRouteImport.update({
   id: '/auth/callback',
   path: '/auth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
-const MainUsersRoute = MainUsersRouteImport.update({
-  id: '/users',
-  path: '/users',
+const MainUserManagementRoute = MainUserManagementRouteImport.update({
+  id: '/user-management',
+  path: '/user-management',
   getParentRoute: () => MainRoute,
 } as any)
-const MainModerationRoute = MainModerationRouteImport.update({
-  id: '/moderation',
-  path: '/moderation',
+const MainProfileRoute = MainProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
   getParentRoute: () => MainRoute,
 } as any)
-const MainGeneralRoute = MainGeneralRouteImport.update({
-  id: '/general',
-  path: '/general',
-  getParentRoute: () => MainRoute,
-} as any)
-const MainDatabaseRoute = MainDatabaseRouteImport.update({
-  id: '/database',
-  path: '/database',
-  getParentRoute: () => MainRoute,
-} as any)
-const MainCooldownsRoute = MainCooldownsRouteImport.update({
-  id: '/cooldowns',
-  path: '/cooldowns',
-  getParentRoute: () => MainRoute,
-} as any)
-const MainBotsRoute = MainBotsRouteImport.update({
-  id: '/bots',
-  path: '/bots',
-  getParentRoute: () => MainRoute,
-} as any)
-const MainAiRoute = MainAiRouteImport.update({
-  id: '/ai',
-  path: '/ai',
+const MainConfigRoute = MainConfigRouteImport.update({
+  id: '/config',
+  path: '/config',
   getParentRoute: () => MainRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof MainIndexRoute
+  '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/ai': typeof MainAiRoute
-  '/bots': typeof MainBotsRoute
-  '/cooldowns': typeof MainCooldownsRoute
-  '/database': typeof MainDatabaseRoute
-  '/general': typeof MainGeneralRoute
-  '/moderation': typeof MainModerationRoute
-  '/users': typeof MainUsersRoute
+  '/config': typeof MainConfigRoute
+  '/profile': typeof MainProfileRoute
+  '/user-management': typeof MainUserManagementRoute
   '/auth/callback': typeof AuthCallbackRoute
 }
 export interface FileRoutesByTo {
+  '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/ai': typeof MainAiRoute
-  '/bots': typeof MainBotsRoute
-  '/cooldowns': typeof MainCooldownsRoute
-  '/database': typeof MainDatabaseRoute
-  '/general': typeof MainGeneralRoute
-  '/moderation': typeof MainModerationRoute
-  '/users': typeof MainUsersRoute
+  '/config': typeof MainConfigRoute
+  '/profile': typeof MainProfileRoute
+  '/user-management': typeof MainUserManagementRoute
   '/auth/callback': typeof AuthCallbackRoute
-  '/': typeof MainIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
   '/_main': typeof MainRouteWithChildren
   '/login': typeof LoginRoute
-  '/_main/ai': typeof MainAiRoute
-  '/_main/bots': typeof MainBotsRoute
-  '/_main/cooldowns': typeof MainCooldownsRoute
-  '/_main/database': typeof MainDatabaseRoute
-  '/_main/general': typeof MainGeneralRoute
-  '/_main/moderation': typeof MainModerationRoute
-  '/_main/users': typeof MainUsersRoute
+  '/_main/config': typeof MainConfigRoute
+  '/_main/profile': typeof MainProfileRoute
+  '/_main/user-management': typeof MainUserManagementRoute
   '/auth/callback': typeof AuthCallbackRoute
-  '/_main/': typeof MainIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/login'
-    | '/ai'
-    | '/bots'
-    | '/cooldowns'
-    | '/database'
-    | '/general'
-    | '/moderation'
-    | '/users'
+    | '/config'
+    | '/profile'
+    | '/user-management'
     | '/auth/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/login'
-    | '/ai'
-    | '/bots'
-    | '/cooldowns'
-    | '/database'
-    | '/general'
-    | '/moderation'
-    | '/users'
-    | '/auth/callback'
     | '/'
+    | '/login'
+    | '/config'
+    | '/profile'
+    | '/user-management'
+    | '/auth/callback'
   id:
     | '__root__'
+    | '/'
     | '/_main'
     | '/login'
-    | '/_main/ai'
-    | '/_main/bots'
-    | '/_main/cooldowns'
-    | '/_main/database'
-    | '/_main/general'
-    | '/_main/moderation'
-    | '/_main/users'
+    | '/_main/config'
+    | '/_main/profile'
+    | '/_main/user-management'
     | '/auth/callback'
-    | '/_main/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  IndexRoute: typeof IndexRoute
   MainRoute: typeof MainRouteWithChildren
   LoginRoute: typeof LoginRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
@@ -176,12 +129,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MainRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_main/': {
-      id: '/_main/'
+    '/': {
+      id: '/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof MainIndexRouteImport
-      parentRoute: typeof MainRoute
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/auth/callback': {
       id: '/auth/callback'
@@ -190,83 +143,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_main/users': {
-      id: '/_main/users'
-      path: '/users'
-      fullPath: '/users'
-      preLoaderRoute: typeof MainUsersRouteImport
+    '/_main/user-management': {
+      id: '/_main/user-management'
+      path: '/user-management'
+      fullPath: '/user-management'
+      preLoaderRoute: typeof MainUserManagementRouteImport
       parentRoute: typeof MainRoute
     }
-    '/_main/moderation': {
-      id: '/_main/moderation'
-      path: '/moderation'
-      fullPath: '/moderation'
-      preLoaderRoute: typeof MainModerationRouteImport
+    '/_main/profile': {
+      id: '/_main/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof MainProfileRouteImport
       parentRoute: typeof MainRoute
     }
-    '/_main/general': {
-      id: '/_main/general'
-      path: '/general'
-      fullPath: '/general'
-      preLoaderRoute: typeof MainGeneralRouteImport
-      parentRoute: typeof MainRoute
-    }
-    '/_main/database': {
-      id: '/_main/database'
-      path: '/database'
-      fullPath: '/database'
-      preLoaderRoute: typeof MainDatabaseRouteImport
-      parentRoute: typeof MainRoute
-    }
-    '/_main/cooldowns': {
-      id: '/_main/cooldowns'
-      path: '/cooldowns'
-      fullPath: '/cooldowns'
-      preLoaderRoute: typeof MainCooldownsRouteImport
-      parentRoute: typeof MainRoute
-    }
-    '/_main/bots': {
-      id: '/_main/bots'
-      path: '/bots'
-      fullPath: '/bots'
-      preLoaderRoute: typeof MainBotsRouteImport
-      parentRoute: typeof MainRoute
-    }
-    '/_main/ai': {
-      id: '/_main/ai'
-      path: '/ai'
-      fullPath: '/ai'
-      preLoaderRoute: typeof MainAiRouteImport
+    '/_main/config': {
+      id: '/_main/config'
+      path: '/config'
+      fullPath: '/config'
+      preLoaderRoute: typeof MainConfigRouteImport
       parentRoute: typeof MainRoute
     }
   }
 }
 
 interface MainRouteChildren {
-  MainAiRoute: typeof MainAiRoute
-  MainBotsRoute: typeof MainBotsRoute
-  MainCooldownsRoute: typeof MainCooldownsRoute
-  MainDatabaseRoute: typeof MainDatabaseRoute
-  MainGeneralRoute: typeof MainGeneralRoute
-  MainModerationRoute: typeof MainModerationRoute
-  MainUsersRoute: typeof MainUsersRoute
-  MainIndexRoute: typeof MainIndexRoute
+  MainConfigRoute: typeof MainConfigRoute
+  MainProfileRoute: typeof MainProfileRoute
+  MainUserManagementRoute: typeof MainUserManagementRoute
 }
 
 const MainRouteChildren: MainRouteChildren = {
-  MainAiRoute: MainAiRoute,
-  MainBotsRoute: MainBotsRoute,
-  MainCooldownsRoute: MainCooldownsRoute,
-  MainDatabaseRoute: MainDatabaseRoute,
-  MainGeneralRoute: MainGeneralRoute,
-  MainModerationRoute: MainModerationRoute,
-  MainUsersRoute: MainUsersRoute,
-  MainIndexRoute: MainIndexRoute,
+  MainConfigRoute: MainConfigRoute,
+  MainProfileRoute: MainProfileRoute,
+  MainUserManagementRoute: MainUserManagementRoute,
 }
 
 const MainRouteWithChildren = MainRoute._addFileChildren(MainRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
+  IndexRoute: IndexRoute,
   MainRoute: MainRouteWithChildren,
   LoginRoute: LoginRoute,
   AuthCallbackRoute: AuthCallbackRoute,

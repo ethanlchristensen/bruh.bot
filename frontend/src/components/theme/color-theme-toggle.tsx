@@ -1,6 +1,6 @@
-import { Check, Palette } from 'lucide-react'
-import { useTheme } from './theme-provider'
-import { Button } from '@/components/ui/button'
+import { Check, Palette } from 'lucide-react';
+import { useTheme } from './theme-provider';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,7 +8,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@/components/ui/dropdown-menu';
 
 const accentColors = [
   { value: 'red', label: 'Red', color: 'bg-red-500' },
@@ -28,10 +28,10 @@ const accentColors = [
   { value: 'purple', label: 'Purple', color: 'bg-purple-500' },
   { value: 'fuchsia', label: 'Fuchsia', color: 'bg-fuchsia-500' },
   { value: 'pink', label: 'Pink', color: 'bg-pink-500' },
-] as const
+] as const;
 
 export function ColorThemeToggle() {
-  const { setAccentColor, accentColor } = useTheme()
+  const { setAccentColor, accentColor } = useTheme();
 
   return (
     <DropdownMenu>
@@ -67,5 +67,5 @@ export function ColorThemeToggle() {
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
-  )
+  );
 }

@@ -1,49 +1,49 @@
-import { Bot, Plus, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import type { DynamicConfig } from '@/lib/api-client'
-import { Button } from '@/components/ui/button'
+import { Bot, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import type { DynamicConfig } from '@/lib/api-client';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 
 interface BotsSectionProps {
-  config: DynamicConfig
-  onUpdate: (updates: Partial<DynamicConfig>) => void
+  config: DynamicConfig;
+  onUpdate: (updates: Partial<DynamicConfig>) => void;
 }
 
 export function BotsSection({ config, onUpdate }: BotsSectionProps) {
   const [localBotList, setLocalBotList] = useState<Array<number>>(
     config.allowedBotsToRespondTo,
-  )
+  );
 
   useEffect(() => {
-    setLocalBotList(config.allowedBotsToRespondTo)
-  }, [config.allowedBotsToRespondTo])
+    setLocalBotList(config.allowedBotsToRespondTo);
+  }, [config.allowedBotsToRespondTo]);
 
   const handleBotIdChange = (index: number, value: string) => {
-    const newList = [...localBotList]
-    newList[index] = parseInt(value) || 0
-    setLocalBotList(newList)
-  }
+    const newList = [...localBotList];
+    newList[index] = parseInt(value) || 0;
+    setLocalBotList(newList);
+  };
 
   const handleAddBot = () => {
-    setLocalBotList([...localBotList, 0])
-  }
+    setLocalBotList([...localBotList, 0]);
+  };
 
   const handleRemoveBot = (index: number) => {
-    const newList = localBotList.filter((_, i) => i !== index)
-    setLocalBotList(newList)
-    onUpdate({ allowedBotsToRespondTo: newList })
-  }
+    const newList = localBotList.filter((_, i) => i !== index);
+    setLocalBotList(newList);
+    onUpdate({ allowedBotsToRespondTo: newList });
+  };
 
   const handleSave = () => {
-    onUpdate({ allowedBotsToRespondTo: localBotList })
-  }
+    onUpdate({ allowedBotsToRespondTo: localBotList });
+  };
   return (
     <div className="space-y-6">
       <div>
@@ -115,5 +115,5 @@ export function BotsSection({ config, onUpdate }: BotsSectionProps) {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

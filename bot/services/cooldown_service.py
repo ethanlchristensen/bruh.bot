@@ -1,31 +1,65 @@
 import logging
-import time
-from collections import defaultdict
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
+
+from bson import Int64
+
+if TYPE_CHECKING:
+    from bot.juno import Juno
 
 
 class CooldownService:
-    def __init__(self, cooldown_duration: float, bypass_ids: set[int]):
-        self.cooldown_duration = cooldown_duration
-        self.bypass_ids = bypass_ids
-        self.user_cooldowns = defaultdict(float)
+    def __init__(self, bot: "Juno"):
+        self.bot = bot
+        self.collection_name = self.bot.config_service.base.mongoCooldownCollectionName
+        self.collection = self.bot.config_service.db[self.collection_name]
         self.logger = logging.getLogger(__name__)
 
-    def check_cooldown(self, user_id: int, username: str) -> bool:
+    async def initialize(self):
+        """Initialize collection with indexes."""
+        await self._ensure_indexes()
+
+    async def _ensure_indexes(self):
+        """Create indexes for faster lookups and automatic cleanup."""
+        try:
+            await self.collection.create_index([("guild_id", 1), ("user_id", 1)], unique=True)
+
+            await self.collection.create_index("last_interaction", expireAfterSeconds=86400)
+
+            self.logger.info(f"Created indexes on {self.collection_name} collection")
+        except Exception as e:
+            self.logger.warning(f"Could not create indexes for {self.collection_name}: {e}")
+
+    async def check_cooldown(self, user_id: int, guild_id: int, username: str) -> bool:
         """Check if user is on cooldown. Returns True if can proceed."""
-        if user_id in self.bypass_ids:
+        config = await self.bot.config_service.get_config(str(guild_id))
+
+        if str(user_id) in config.cooldownBypassList:
             return True
 
-        current_time = time.time()
-        last_interaction = self.user_cooldowns[user_id]
-        time_since_last = current_time - last_interaction
+        user_data = await self.collection.find_one({"guild_id": Int64(guild_id), "user_id": Int64(user_id)})
 
-        if time_since_last < self.cooldown_duration:
-            remaining_time = int(self.cooldown_duration - time_since_last)
-            self.logger.info(f"⏰ Slow down! {username} is on cooldown for {remaining_time} seconds.")
+        if not user_data:
+            return True
+
+        last_interaction = user_data["last_interaction"]
+        if last_interaction.tzinfo is None:
+            last_interaction = last_interaction.replace(tzinfo=UTC)
+
+        current_time = datetime.now(UTC)
+        time_since_last = (current_time - last_interaction).total_seconds()
+
+        if time_since_last < config.mentionCooldown:
+            remaining_time = int(config.mentionCooldown - time_since_last)
+            self.logger.info(f"⏰ Slow down! {username} is on cooldown for {remaining_time}s in guild {guild_id}.")
             return False
 
         return True
 
-    def update_cooldown(self, user_id: int):
-        """Update the last interaction time for a user."""
-        self.user_cooldowns[user_id] = time.time()
+    async def update_cooldown(self, user_id: int, guild_id: int):
+        """Update the last interaction time for a user in MongoDB."""
+        await self.collection.update_one(
+            {"guild_id": Int64(guild_id), "user_id": Int64(user_id)},
+            {"$set": {"last_interaction": datetime.now(UTC)}},
+            upsert=True,
+        )

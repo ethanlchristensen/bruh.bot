@@ -1,6 +1,6 @@
 import functools
 from collections.abc import Awaitable, Callable
-from typing import ParamSpec, TypeVar, cast
+from typing import TYPE_CHECKING, ParamSpec, TypeVar, cast
 
 import discord
 
@@ -8,6 +8,9 @@ from bot.services.config_service import DynamicConfig
 
 P = ParamSpec("P")
 T = TypeVar("T")
+
+if TYPE_CHECKING:
+    from bot.juno import Juno
 
 
 def require_voice_channel(ephemeral: bool = True, allow_admin_bypass: bool = False) -> Callable[[Callable[P, Awaitable[T]]], Callable[P, Awaitable[T]]]:
@@ -30,6 +33,10 @@ def require_voice_channel(ephemeral: bool = True, allow_admin_bypass: bool = Fal
             if not interaction:
                 # If there's no interaction, just call the original function
                 return await func(*args, **kwargs)
+
+            bot: Juno = interaction.client
+
+            config = await bot.config_service.get_config(str(interaction.guild.id))
 
             # Check if admin bypass is enabled and user is an admin
             if allow_admin_bypass:

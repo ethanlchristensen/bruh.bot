@@ -13,11 +13,11 @@ logger = logging.getLogger(__name__)
 
 class BaseService(ABC):
     @abstractmethod
-    async def chat(self, model: str, messages: list[dict[str, str]], **kwargs) -> AIChatResponse:
+    async def chat(self, guild_id: int, model: str, messages: list[dict[str, str]], **kwargs) -> AIChatResponse:
         pass
 
     @abstractmethod
-    async def chat_with_schema(self, messages: list[Message], schema: type[T], model: str | None = None) -> T:
+    async def chat_with_schema(self, guild_id: int, messages: list[Message], schema: type[T], model: str | None = None) -> T:
         """
         Sends a chat request with structured output based on a Pydantic schema.
 

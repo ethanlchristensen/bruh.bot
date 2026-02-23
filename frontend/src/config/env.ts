@@ -1,4 +1,4 @@
-import * as z from 'zod'
+import * as z from 'zod';
 
 const createEnv = () => {
   const EnvSchema = z.object({
@@ -8,19 +8,19 @@ const createEnv = () => {
     DISCORD_CLIENT_ID: z.string(),
     DISCORD_CLIENT_SECRET: z.string(),
     DISCORD_REDIRECT_URI: z.string(),
-  })
+  });
 
   const envVars = Object.entries(import.meta.env).reduce<
     Record<string, string>
   >((acc, curr) => {
-    const [key, value] = curr
+    const [key, value] = curr;
     if (key.startsWith('VITE_')) {
-      acc[key.replace('VITE_', '')] = value
+      acc[key.replace('VITE_', '')] = value;
     }
-    return acc
-  }, {})
+    return acc;
+  }, {});
 
-  const parsedEnv = EnvSchema.safeParse(envVars)
+  const parsedEnv = EnvSchema.safeParse(envVars);
 
   if (!parsedEnv.success) {
     throw new Error(
@@ -29,10 +29,10 @@ ${Object.entries(parsedEnv.error.flatten().fieldErrors)
   .map(([k, v]) => `- ${k}: ${v}`)
   .join('\n')}
 `,
-    )
+    );
   }
 
-  return parsedEnv.data
-}
+  return parsedEnv.data;
+};
 
-export const env = createEnv()
+export const env = createEnv();

@@ -1,28 +1,32 @@
 import logging
 import re
+from typing import TYPE_CHECKING
 
 import discord
 
+if TYPE_CHECKING:
+    from bot.juno import Juno
+
 
 class ResponseService:
-    def __init__(self, names_to_ats: dict):
-        self.names_to_ats = names_to_ats
+    def __init__(self, bot: "Juno"):
+        self.bot = bot
         self.logger = logging.getLogger(__name__)
 
-    def process_mentions(self, content: str) -> str:
+    async def process_mentions(self, guild_id: int, content: str) -> str:
         """Replace name mentions with Discord user IDs."""
+        usersToIds = (await self.bot.config_service.get_config(str(guild_id))).usersToId
 
-        for name in self.names_to_ats.keys():
-            # Remove backticks around the username
+        for name in usersToIds:
             backtick_pattern = r"`\b(" + re.escape(name) + r")\b`"
             content = re.sub(backtick_pattern, r"\1", content, flags=re.IGNORECASE)
 
-        for name, user_id in self.names_to_ats.items():
+        for name, user_id in usersToIds.items():
             pattern = re.compile(r"\b" + re.escape(name) + r"\b", re.IGNORECASE)
-            content = pattern.sub(f"{user_id}", content)
+            content = pattern.sub(f"<@{user_id}>", content)
         return content
 
-    def split_long_message(self, content: str, max_length: int = 2000) -> list[str]:
+    async def split_long_message(self, content: str, max_length: int = 2000) -> list[str]:
         """Split messages longer than max_length characters."""
         if len(content) <= max_length:
             return [content]
@@ -44,10 +48,10 @@ class ResponseService:
 
         return chunks
 
-    async def send_response(self, message: discord.Message, content: str, image_file: discord.File | None = None, reply: bool = True, ephemral: bool = False):
+    async def send_response(self, message: discord.Message, content: str, image_file: discord.File | None = None, reply: bool = True, ephemeral: bool = False):
         """Send the AI response, splitting if necessary."""
-        processed_content = self.process_mentions(content)
-        chunks = self.split_long_message(processed_content)
+        processed_content = await self.process_mentions(message.guild.id, content)
+        chunks = await self.split_long_message(processed_content)
 
         try:
             if image_file:

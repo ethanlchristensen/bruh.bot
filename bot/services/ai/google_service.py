@@ -1,57 +1,35 @@
 import logging
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 from google.genai import Client
 from pydantic import BaseModel
 
-from ..config_service import DynamicConfig
 from .base_service import BaseService
 from .types import AIChatResponse, Message
 
 T = TypeVar("T", bound=BaseModel)
 
+if TYPE_CHECKING:
+    from bot.juno import Juno
+
 
 class GoogleAIService(BaseService):
-    """
-    A service class for interacting with Google's AI API.
-    """
-
-    def __init__(self, config: DynamicConfig):
-        """
-        Initializes the GoogleAIService with the necessary API key for authentication.
-
-        Args:
-            api_key (str): The Google AI API key.
-        """
-
+    def __init__(self, bot: "Juno"):
+        self.bot = bot
         self.logger = logging.getLogger(__name__)
+        self.logger.info("Initialized GoogleAIService")
 
-        self.client = Client(api_key=config.aiConfig.google.apiKey)
-        self.default_model = config.aiConfig.google.preferredModel
-        self.logger.info(f"Intializing GoogleAIService with default_model={self.default_model}")
-
-    async def chat(self, messages: list[Message], model: str | None = None) -> dict:
-        """
-        Sends a chat request to the Google AI API.
-
-        Args:
-            model (str): The name of the model to use.
-            messages (List[Dict[str, str]]): Messages for the conversation.
-                Each message should include 'role' and 'content'.
-
-        Returns:
-            Dict: API response containing chat completion data.
-        """
-        if not self.client:
-            return {"error": "GoogleAI Service is not initialized. Please set the GEMINI_API_KEY."}
+    async def chat(self, guild_id: int, messages: list[Message], model: str | None = None) -> AIChatResponse:
+        google_ai_config = (await self.bot.config_service.get_config(str(guild_id))).aiConfig.google
+        model_to_use = model or google_ai_config.preferredModel
 
         try:
-            model_to_use = model or self.default_model
-
             gemini_messages = [self.map_message_to_provider(message, "google") for message in messages]
             self.logger.info(f"Calling GoogleAIService.chat() with model={model_to_use}")
 
-            raw_response = self.client.models.generate_content(model=model_to_use, contents=gemini_messages)
+            client = Client(api_key=google_ai_config.apiKey.get_secret_value())
+
+            raw_response = await client.aio.models.generate_content(model=model_to_use, contents=gemini_messages)
 
             return AIChatResponse(
                 model=model_to_use,
@@ -59,6 +37,7 @@ class GoogleAIService(BaseService):
                 raw_response=raw_response,
                 usage={},
             )
+
         except Exception as e:
             self.logger.error(f"Error in GoogleAIService: {e}")
             return AIChatResponse(
@@ -68,18 +47,17 @@ class GoogleAIService(BaseService):
                 usage={},
             )
 
-    async def chat_with_schema(self, messages: list[Message], schema: type[T], model: str | None = None) -> T:
-        if not self.client:
-            return {"error": "GoogleAI Service is not initialized. Please set the GEMINI_API_KEY."}
+    async def chat_with_schema(self, guild_id: int, messages: list[Message], schema: type[T], model: str | None = None) -> T:
+        google_ai_config = (await self.bot.config_service.get_config(str(guild_id))).aiConfig.google
+        model_to_use = model or google_ai_config.preferredModel
 
         try:
-            model_to_use = model or self.default_model
-
             gemini_messages = [self.map_message_to_provider(message, "google") for message in messages]
+            self.logger.info(f"Calling GoogleAIService.chat_with_schema() with model={model_to_use}")
 
-            self.logger.info(f"Calling GoogleAIService.chat_with_schema() with model={model_to_use} and schema={schema.__name__}")
+            client = Client(api_key=google_ai_config.apiKey.get_secret_value())
 
-            raw_response = self.client.models.generate_content(
+            raw_response = await client.aio.models.generate_content(
                 model=model_to_use,
                 contents=gemini_messages,
                 config={

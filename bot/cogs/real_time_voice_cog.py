@@ -282,8 +282,11 @@ class RealTimeVoiceCog(commands.Cog):
             return
 
         try:
+            # Get guild config
+            config = await self.bot.config_service.get_config(str(interaction.guild.id))
+
             # Create RealTimeAudioService
-            service = RealTimeAudioService(self.bot)
+            service = RealTimeAudioService(self.bot, config)
 
             # Connect to OpenAI
             await service.connect()

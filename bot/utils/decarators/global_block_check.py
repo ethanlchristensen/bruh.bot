@@ -1,11 +1,10 @@
 import logging
 from collections.abc import Awaitable, Callable
 from functools import wraps
-from typing import ParamSpec, TypeVar, cast
+from typing import TYPE_CHECKING, ParamSpec, TypeVar, cast
 
 import discord
 
-from bot.services.config_service import DynamicConfig
 from bot.services.embed_service import EmbedService
 
 P = ParamSpec("P")
@@ -13,6 +12,9 @@ T = TypeVar("T")
 
 logger = logging.getLogger(__name__)
 embed_service = EmbedService()
+
+if TYPE_CHECKING:
+    from bot.juno import Juno
 
 
 def is_globally_blocked() -> Callable[[Callable[P, Awaitable[T]]], Callable[P, Awaitable[T]]]:
@@ -33,7 +35,9 @@ def is_globally_blocked() -> Callable[[Callable[P, Awaitable[T]]], Callable[P, A
                 # If there's no interaction, just call the original function
                 return await func(*args, **kwargs)
 
-            config: DynamicConfig = interaction.client.config
+            bot: Juno = interaction.client
+
+            config = await bot.config_service.get_config(str(interaction.guild.id))
 
             if str(interaction.user.id) not in config.globalBlockList:
                 return await func(*args, **kwargs)

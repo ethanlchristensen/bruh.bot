@@ -1,10 +1,10 @@
-import { BadgeCheck, ChevronsUpDown, LogOut } from 'lucide-react'
+import { BadgeCheck, ChevronsUpDown, LogOut } from 'lucide-react';
 
-import { Link, useNavigate } from '@tanstack/react-router'
-import { useAuth } from '@/hooks/use-auth'
-import { getAvatarUrl } from '@/lib/auth'
+import { Link, useNavigate } from '@tanstack/react-router';
+import { useAuth } from '@/hooks/use-auth';
+import { getAvatarUrl } from '@/lib/auth';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,31 +13,31 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@/components/ui/dropdown-menu';
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from '@/components/ui/sidebar'
+} from '@/components/ui/sidebar';
 
 export function NavUser() {
-  const { isMobile } = useSidebar()
-  const { user, logout } = useAuth()
-  const navigate = useNavigate()
+  const { isMobile } = useSidebar();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   const handleLogout = async () => {
-    await logout()
-    navigate({ to: '/login' })
-  }
+    await logout();
+    navigate({ to: '/login' });
+  };
 
-  if (!user) return null
+  if (!user) return null;
 
-  const displayName = user.global_name || user.username
-  const avatarUrl = getAvatarUrl(user)
+  const displayName = user.global_name || user.username;
+  const avatarUrl = getAvatarUrl(user);
   const initials = (user.global_name || user.username)
     .substring(0, 2)
-    .toUpperCase()
+    .toUpperCase();
 
   return (
     <SidebarMenu>
@@ -87,7 +87,7 @@ export function NavUser() {
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem asChild>
-                <Link to="/" className="flex items-center gap-2">
+                <Link to="/profile" className="flex items-center gap-2">
                   <BadgeCheck />
                   Account
                 </Link>
@@ -102,5 +102,5 @@ export function NavUser() {
         </DropdownMenu>
       </SidebarMenuItem>
     </SidebarMenu>
-  )
+  );
 }

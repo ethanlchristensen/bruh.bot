@@ -35,14 +35,16 @@ class DeleteUserMessagesConfig(BaseModel):
 class UpdateConfigRequest(BaseModel):
     invisible: bool | None = None
     mentionCooldown: int | None = None
-    adminIds: list[int] | None = None
-    cooldownBypassList: list[int] | None = None
-    globalBlockList: list[int] | None = None
+    adminIds: list[str] | None = None
+    cooldownBypassList: list[str] | None = None
+    globalBlockList: list[str] | None = None
     promptsPath: str | None = None
     mongoMessagesDbName: str | None = None
     mongoMessagesCollectionName: str | None = None
-    allowedBotsToRespondTo: list[int] | None = None
+    allowedBotsToRespondTo: list[str] | None = None
     deleteUserMessages: DeleteUserMessagesConfig | None = None
+    usersToId: dict[str, str] | None = None
+    idToUsers: dict[str, str] | None = None
 
 
 class UpdateAIProviderRequest(BaseModel):
@@ -125,6 +127,8 @@ async def get_config(authorized: bool = Depends(verify_admin)):
 async def update_config(updates: UpdateConfigRequest, authorized: bool = Depends(verify_admin)):
     """Update dynamic config."""
     try:
+        logger.info(f"Updating config with updates: {updates}")
+
         config = get_config_service()
 
         if not config.dynamic:

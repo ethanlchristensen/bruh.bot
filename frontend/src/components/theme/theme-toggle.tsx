@@ -1,17 +1,17 @@
-import { Monitor, Moon, Sun } from 'lucide-react'
+import { Monitor, Moon, Sun } from 'lucide-react';
 
-import { useTheme } from './theme-provider'
-import { Button } from '@/components/ui/button'
+import { useTheme } from './theme-provider';
+import { Button } from '@/components/ui/button';
 
 export function ThemeToggle() {
-  const { setTheme, theme } = useTheme()
+  const { setTheme, theme } = useTheme();
 
   const cycleTheme = () => {
-    const themes = ['light', 'dark', 'system'] as const
-    const currentIndex = themes.indexOf(theme)
-    const nextIndex = (currentIndex + 1) % themes.length
-    setTheme(themes[nextIndex])
-  }
+    const themes = ['light', 'dark', 'system'] as const;
+    const currentIndex = themes.indexOf(theme);
+    const nextIndex = (currentIndex + 1) % themes.length;
+    setTheme(themes[nextIndex]);
+  };
 
   return (
     <Button variant="ghost" size="sm" onClick={cycleTheme}>
@@ -32,5 +32,5 @@ export function ThemeToggle() {
       />
       <span className="sr-only">Toggle theme (current: {theme})</span>
     </Button>
-  )
+  );
 }

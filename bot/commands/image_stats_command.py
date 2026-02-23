@@ -1,8 +1,13 @@
+from typing import TYPE_CHECKING
+
 import discord
 from discord import app_commands
 
 from bot.utils.decarators.command_logging import log_command_usage
 from bot.utils.decarators.global_block_check import is_globally_blocked
+
+if TYPE_CHECKING:
+    from bot.juno import Juno
 
 
 class ImageStatsCommand:
@@ -18,8 +23,8 @@ class ImageStatsCommand:
             await interaction.response.defer(ephemeral=True)
 
             try:
-                bot = interaction.client
-                stats = bot.image_limit_service.get_user_stats(user_id=interaction.user.id, guild_id=interaction.guild.id)
+                bot: Juno = interaction.client
+                stats = await bot.image_limit_service.get_user_stats(user_id=interaction.user.id, guild_id=interaction.guild.id)
 
                 embed = discord.Embed(
                     title="📊 Image Generation Stats",

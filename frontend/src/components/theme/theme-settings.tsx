@@ -1,21 +1,21 @@
 // src/components/theme/theme-settings.tsx
-import { Ban, Check, Monitor, Moon, Sun } from 'lucide-react'
+import { Ban, Check, Monitor, Moon, Sun } from 'lucide-react';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { useTheme } from '@/components/theme/theme-provider'
-import { cn } from '@/lib/utils'
+} from '@/components/ui/card';
+import { useTheme } from '@/components/theme/theme-provider';
+import { cn } from '@/lib/utils';
 
 const baseThemes = [
   { value: 'neutral', label: 'Neutral', color: 'bg-neutral-500' },
   { value: 'stone', label: 'Stone', color: 'bg-stone-500' },
   { value: 'zinc', label: 'Zinc', color: 'bg-zinc-500' },
   { value: 'gray', label: 'Gray', color: 'bg-gray-500' },
-] as const
+] as const;
 
 const accentColors = [
   {
@@ -40,7 +40,7 @@ const accentColors = [
   { value: 'purple', label: 'Purple', color: 'bg-purple-500' },
   { value: 'fuchsia', label: 'Fuchsia', color: 'bg-fuchsia-500' },
   { value: 'pink', label: 'Pink', color: 'bg-pink-500' },
-] as const
+] as const;
 
 export function ThemeSettings() {
   const {
@@ -50,7 +50,7 @@ export function ThemeSettings() {
     setBaseTheme,
     accentColor,
     setAccentColor,
-  } = useTheme()
+  } = useTheme();
 
   return (
     <Card>
@@ -193,5 +193,5 @@ export function ThemeSettings() {
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }

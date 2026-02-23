@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from io import BytesIO
 from typing import TYPE_CHECKING
@@ -6,6 +5,8 @@ from typing import TYPE_CHECKING
 import aiohttp
 from google.genai import Client
 from PIL import Image
+
+from bot.services.ai.ai_service_factory import AiServiceFactory
 
 from .types import ImageGenerationResponse, Message, Role
 
@@ -18,29 +19,11 @@ logger = logging.getLogger(__name__)
 class ImageGenerationService:
     """Service for generating and editing images using Gemini AI."""
 
-    def __init__(self, bot: "Juno", model: str = "gemini-2.5-flash-image"):
-        """
-        Initialize the image generation service.
-
-        Args:
-            model: The Gemini model to use for image generation
-        """
+    def __init__(self, bot: "Juno"):
         self.bot = bot
-        self.client = Client(api_key=bot.config.aiConfig.google.apiKey)
-        self.model = model
         self.base_prompt = "You must generate an image with the following user prompt. Do not ask follow questions to get the user to refine the prompt."
 
-    async def boost_prompt(self, user_prompt: str, image_description: str | None = None) -> str:
-        """
-        Enhance the user's prompt using AI to create more detailed image generation instructions.
-
-        Args:
-            user_prompt: The original user prompt
-            image_description: Optional description of an existing image for context
-
-        Returns:
-            Enhanced prompt string
-        """
+    async def boost_prompt(self, guild_id: int, user_prompt: str, image_description: str | None = None) -> str:
         try:
             logger.info(f"Boosting prompt: {user_prompt}")
 
@@ -68,7 +51,10 @@ Please enhance this edit request with specific details while maintaining the con
                     content=f"User prompt: {user_prompt}\n\nPlease enhance this prompt with specific details for image generation.",
                 )
 
-            response = await self.bot.ai_service.chat(messages=[system_message, user_message])
+            config = (await self.bot.config_service.get_config(str(guild_id))).aiConfig
+            ai_service = AiServiceFactory.get_service(self.bot, config.preferredAiProvider)
+
+            response = await ai_service.chat(guild_id, messages=[system_message, user_message])
             boosted_prompt = response.content.strip()
 
             logger.info(f"Boosted prompt: {boosted_prompt}")
@@ -76,23 +62,12 @@ Please enhance this edit request with specific details while maintaining the con
 
         except Exception as e:
             logger.error(f"Error boosting prompt: {e}", exc_info=True)
-            # Return original prompt if boosting fails
             return user_prompt
 
-    async def describe_image(self, image: Image.Image) -> str:
-        """
-        Generate a detailed description of an image using AI.
-
-        Args:
-            image: The PIL Image to describe
-
-        Returns:
-            Description string
-        """
+    async def describe_image(self, guild_id: int, image: Image.Image) -> str:
         try:
             logger.info("Generating image description")
 
-            # Convert image to base64 for sending to AI
             buffered = BytesIO()
             image.save(buffered, format="PNG")
             import base64
@@ -112,7 +87,10 @@ Be specific and thorough as this description will be used for image editing cont
                 images=[{"type": "image/png", "data": img_str}],
             )
 
-            response = await self.bot.ai_service.chat(messages=[system_message, user_message])
+            config = (await self.bot.config_service.get_config(str(guild_id))).aiConfig
+            ai_service = AiServiceFactory.get_service(self.bot, config.preferredAiProvider)
+
+            response = await ai_service.chat(guild_id, messages=[system_message, user_message])
             description = response.content.strip()
 
             logger.info(f"Generated description: {description[:100]}...")
@@ -123,15 +101,6 @@ Be specific and thorough as this description will be used for image editing cont
             return "Unable to describe image"
 
     async def download_image_from_url(self, url: str) -> Image.Image | None:
-        """
-        Download an image from a URL.
-
-        Args:
-            url: The URL of the image to download
-
-        Returns:
-            PIL Image object if successful, None otherwise
-        """
         try:
             logger.info(f"Downloading image from: {url}")
             async with aiohttp.ClientSession() as session:
@@ -149,15 +118,6 @@ Be specific and thorough as this description will be used for image editing cont
             return None
 
     async def download_images_from_urls(self, urls: list[str]) -> list[Image.Image]:
-        """
-        Download multiple images from URLs.
-
-        Args:
-            urls: List of image URLs to download
-
-        Returns:
-            List of PIL Image objects (excluding failed downloads)
-        """
         images = []
         for url in urls:
             image = await self.download_image_from_url(url)
@@ -165,42 +125,34 @@ Be specific and thorough as this description will be used for image editing cont
                 images.append(image)
         return images
 
-    async def generate_image(self, prompt: str) -> ImageGenerationResponse:
-        """
-        Generate an image from a text prompt.
-
-        Args:
-            prompt: The text description of the image to generate
-
-        Returns:
-            ImageGenerationResponse with generated image and optional text
-        """
+    async def generate_image(self, guild_id: int, prompt: str) -> ImageGenerationResponse | None:
         try:
-            # Boost the prompt for better results
+            config = (await self.bot.config_service.get_config(str(guild_id))).aiConfig
+
             boosted_prompt = prompt
-            if self.bot.config.aiConfig.boostImagePrompts:
-                boosted_prompt = await self.boost_prompt(prompt)
+            if config.imageGeneration.boostImagePrompts:
+                boosted_prompt = await self.boost_prompt(guild_id, prompt)
 
-            logger.info(f"Generating image with {'boosted ' if self.bot.config.aiConfig.boostImagePrompts else ''}prompt: {boosted_prompt}")
+            logger.info(f"Generating image with {'boosted ' if config.imageGeneration.boostImagePrompts else ''}prompt: {boosted_prompt}")
 
-            # Use asyncio.to_thread to avoid blocking
-            response = await asyncio.to_thread(
-                self.client.models.generate_content,
-                model=self.model,
+            client = Client(api_key=config.google.apiKey.get_secret_value())
+
+            response = await client.aio.models.generate_content(
+                model=config.imageGeneration.preferredModel,
                 contents=[self.base_prompt, boosted_prompt],
             )
 
             image_generation_response = ImageGenerationResponse()
 
-            # Extract image from response
-            for part in response.candidates[0].content.parts:
-                if part.inline_data is not None:
-                    image = Image.open(BytesIO(part.inline_data.data))
-                    image_generation_response.generated_image = image
-                    logger.info("Image generated successfully")
-                elif part.text is not None:
-                    image_generation_response.text_response = part.text
-                    logger.info(f"Received text response: {part.text}")
+            if response.candidates and response.candidates[0].content:
+                for part in response.candidates[0].content.parts:
+                    if part.inline_data is not None:
+                        image = Image.open(BytesIO(part.inline_data.data))
+                        image_generation_response.generated_image = image
+                        logger.info("Image generated successfully")
+                    elif part.text is not None:
+                        image_generation_response.text_response = part.text
+                        logger.info(f"Received text response: {part.text}")
 
             return image_generation_response
 
@@ -208,44 +160,34 @@ Be specific and thorough as this description will be used for image editing cont
             logger.error(f"Error generating image: {e}", exc_info=True)
             return None
 
-    async def edit_image(self, prompt: str, source_images: list[Image.Image]) -> ImageGenerationResponse:
-        """
-        Edit or generate from existing images based on a text prompt.
-
-        Args:
-            prompt: The text description of how to modify/combine the images
-            source_images: List of PIL Images to use as source material
-
-        Returns:
-            ImageGenerationResponse with edited image and optional text
-        """
+    async def edit_image(self, guild_id: int, prompt: str, source_images: list[Image.Image]) -> ImageGenerationResponse | None:
         try:
-            # Describe the images if boost is enabled
-            if self.bot.config.aiConfig.boostImagePrompts and source_images:
-                # For multiple images, describe each
+            config = (await self.bot.config_service.get_config(str(guild_id))).aiConfig
+
+            if config.boostImagePrompts and source_images:
                 descriptions = []
                 for idx, img in enumerate(source_images, 1):
-                    desc = await self.describe_image(img)
+                    desc = await self.describe_image(guild_id, img)
                     descriptions.append(f"Image {idx}: {desc}")
 
                 combined_description = "\n\n".join(descriptions)
-                boosted_prompt = await self.boost_prompt(prompt, combined_description)
+                boosted_prompt = await self.boost_prompt(guild_id, prompt, combined_description)
                 logger.info(f"Editing {len(source_images)} image(s) with boosted prompt: {boosted_prompt}")
             else:
                 boosted_prompt = prompt
 
-            # Build contents list: base prompt, boosted prompt, then all images
             contents = [self.base_prompt, boosted_prompt]
             contents.extend(source_images)
 
-            # Use asyncio.to_thread to avoid blocking
-            response = await asyncio.to_thread(
-                self.client.models.generate_content,
-                model=self.model,
+            google_config = config.google
+            client = Client(api_key=google_config.apiKey.get_secret_value())
+
+            response = await client.aio.models.generate_content(
+                model=google_config.preferredModel,
                 contents=contents,
             )
 
-            if response.candidates[0].finish_reason.name == "IMAGE_SAFETY":
+            if response.candidates[0].finish_reason and response.candidates[0].finish_reason.name == "IMAGE_SAFETY":
                 logger.warning(f"Image generation blocked by IMAGE_SAFETY for prompt: {boosted_prompt}")
                 image_generation_response = ImageGenerationResponse()
                 image_generation_response.text_response = "Image generation was blocked due to safety filters. Please try a different prompt."
@@ -253,7 +195,6 @@ Be specific and thorough as this description will be used for image editing cont
 
             image_generation_response = ImageGenerationResponse()
 
-            # Extract edited image from response
             for part in response.candidates[0].content.parts:
                 if part.inline_data is not None:
                     image = Image.open(BytesIO(part.inline_data.data))
@@ -269,69 +210,29 @@ Be specific and thorough as this description will be used for image editing cont
             logger.error(f"Error editing image: {e}", exc_info=True)
             return None
 
-    async def edit_image_from_url(self, prompt: str, image_url: str) -> ImageGenerationResponse:
-        """
-        Download and edit an image from a URL.
-
-        Args:
-            prompt: The text description of how to modify the image
-            image_url: The URL of the image to download and edit
-
-        Returns:
-            ImageGenerationResponse with edited image and optional text
-        """
+    async def edit_image_from_url(self, guild_id: int, prompt: str, image_url: str) -> ImageGenerationResponse | None:
         source_image = await self.download_image_from_url(image_url)
         if source_image is None:
             return None
 
-        return await self.edit_image(prompt, source_image)
+        return await self.edit_image(guild_id, prompt, [source_image])
 
-    async def edit_images_from_urls(self, prompt: str, image_urls: list[str]) -> ImageGenerationResponse:
-        """
-        Download and edit multiple images from URLs.
-
-        Args:
-            prompt: The text description of how to modify/combine the images
-            image_urls: List of image URLs to download and edit
-
-        Returns:
-            ImageGenerationResponse with edited image and optional text
-        """
+    async def edit_images_from_urls(self, guild_id: int, prompt: str, image_urls: list[str]) -> ImageGenerationResponse | None:
         source_images = await self.download_images_from_urls(image_urls)
         if not source_images:
             logger.error("No images could be downloaded")
             return None
 
         logger.info(f"Successfully downloaded {len(source_images)}/{len(image_urls)} images")
-        return await self.edit_image(prompt, source_images)
+        return await self.edit_image(guild_id, prompt, source_images)
 
     def image_to_bytes(self, image: Image.Image, format: str = "PNG") -> BytesIO:
-        """
-        Convert a PIL Image to BytesIO for sending via Discord.
-
-        Args:
-            image: The PIL Image to convert
-            format: The image format (PNG, JPEG, etc.)
-
-        Returns:
-            BytesIO object containing the image data
-        """
         output = BytesIO()
         image.save(output, format=format)
         output.seek(0)
         return output
 
     async def save_image(self, image: Image.Image, filepath: str) -> bool:
-        """
-        Save a PIL Image to a file.
-
-        Args:
-            image: The PIL Image to save
-            filepath: The path where to save the image
-
-        Returns:
-            True if successful, False otherwise
-        """
         try:
             image.save(filepath)
             logger.info(f"Image saved to {filepath}")

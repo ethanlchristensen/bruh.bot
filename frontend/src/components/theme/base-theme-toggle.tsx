@@ -1,6 +1,6 @@
-import { Check, Layers } from 'lucide-react'
-import { useTheme } from './theme-provider'
-import { Button } from '@/components/ui/button'
+import { Check, Layers } from 'lucide-react';
+import { useTheme } from './theme-provider';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,17 +8,17 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@/components/ui/dropdown-menu';
 
 const baseThemes = [
   { value: 'neutral', label: 'Neutral', color: 'bg-neutral-500' },
   { value: 'stone', label: 'Stone', color: 'bg-stone-500' },
   { value: 'zinc', label: 'Zinc', color: 'bg-zinc-500' },
   { value: 'gray', label: 'Gray', color: 'bg-gray-500' },
-] as const
+] as const;
 
 export function BaseThemeToggle() {
-  const { setBaseTheme, baseTheme } = useTheme()
+  const { setBaseTheme, baseTheme } = useTheme();
 
   return (
     <DropdownMenu>
@@ -54,5 +54,5 @@ export function BaseThemeToggle() {
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
-  )
+  );
 }

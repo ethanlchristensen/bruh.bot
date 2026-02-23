@@ -1,4 +1,4 @@
-import type { BotConfig } from '@/lib/types'
+import type { BotConfig } from '@/lib/types';
 
 export const defaultConfig: BotConfig = {
   devDiscordToken: '',
@@ -62,4 +62,4 @@ export const defaultConfig: BotConfig = {
     userIds: ['100000000000000000'],
   },
   globalBlockList: ['100000000000000000'],
-}
+};

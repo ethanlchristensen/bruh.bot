@@ -1,60 +1,60 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useEffect } from 'react'
-import { toast } from 'sonner'
-import { exchangeCodeForTokens, getDiscordUser } from '@/lib/auth'
-import { useAuth } from '@/hooks/use-auth'
-import { Spinner } from '@/components/ui/spinner'
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useEffect } from 'react';
+import { toast } from 'sonner';
+import { exchangeCodeForTokens, getDiscordUser } from '@/lib/auth';
+import { useAuth } from '@/hooks/use-auth';
+import { Spinner } from '@/components/ui/spinner';
 
 export const Route = createFileRoute('/auth/callback')({
   component: AuthCallback,
-})
+});
 
 function AuthCallback() {
-  const navigate = useNavigate()
-  const { login } = useAuth()
+  const navigate = useNavigate();
+  const { login } = useAuth();
 
   useEffect(() => {
     const handleCallback = async () => {
       try {
         // Get code from URL
-        const params = new URLSearchParams(window.location.search)
-        const code = params.get('code')
-        const error = params.get('error')
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        const error = params.get('error');
 
         if (error) {
-          toast.error(`Authentication failed: ${error}`)
-          navigate({ to: '/login' })
-          return
+          toast.error(`Authentication failed: ${error}`);
+          navigate({ to: '/login' });
+          return;
         }
 
         if (!code) {
-          toast.error('No authorization code received')
-          navigate({ to: '/login' })
-          return
+          toast.error('No authorization code received');
+          navigate({ to: '/login' });
+          return;
         }
 
         // Exchange code for tokens
-        const tokens = await exchangeCodeForTokens(code)
+        const tokens = await exchangeCodeForTokens(code);
 
         // Get user info
-        const user = await getDiscordUser(tokens.access_token)
+        const user = await getDiscordUser(tokens.access_token);
 
         // Update auth context
-        login(tokens, user)
+        login(tokens, user);
 
-        toast.success(`Welcome back, ${user.global_name || user.username}!`)
+        toast.success(`Welcome back, ${user.global_name || user.username}!`);
 
         // Redirect to dashboard
-        navigate({ to: '/general' })
+        navigate({ to: '/general' });
       } catch (error) {
-        console.error('Authentication error:', error)
-        toast.error('Failed to authenticate. Please try again.')
-        navigate({ to: '/login' })
+        console.error('Authentication error:', error);
+        toast.error('Failed to authenticate. Please try again.');
+        navigate({ to: '/login' });
       }
-    }
+    };
 
-    handleCallback()
-  }, [navigate, login])
+    handleCallback();
+  }, [navigate, login]);
 
   return (
     <div className="flex h-screen w-screen items-center justify-center">
@@ -68,5 +68,5 @@ function AuthCallback() {
         </div>
       </div>
     </div>
-  )
+  );
 }

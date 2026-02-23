@@ -12,11 +12,9 @@ if TYPE_CHECKING:
 
 
 class MessageService:
-    def __init__(self, bot: "Juno", prompts: dict, ids_to_users: dict):
+    def __init__(self, bot: "Juno", prompts: dict):
         self.bot = bot
         self.prompts = prompts
-        self.ids_to_users = ids_to_users
-        self.delete_user_message_config = self.bot.config.deleteUserMessages
         self.logger = logging.getLogger(__name__)
 
     async def get_reference_message(self, message: discord.Message) -> discord.Message | None:
@@ -29,7 +27,7 @@ class MessageService:
         except discord.NotFound:
             return None
 
-    def should_respond_to_message(self, message: discord.Message, reference_message: discord.Message | None) -> bool:
+    async def should_respond_to_message(self, message: discord.Message, reference_message: discord.Message | None) -> bool:
         """Check if the bot should respond to this message."""
         if not self.bot.user:
             return False
@@ -38,8 +36,9 @@ class MessageService:
         should_respond = bot_string in message.content or (reference_message and reference_message.author.id == self.bot.user.id)
         return should_respond
 
-    def should_delete_message(self, message: discord.Message) -> bool:
-        if self.delete_user_message_config.enabled and message.author.id in self.delete_user_message_config.userIds:
+    async def should_delete_message(self, guild_id: int, message: discord.Message) -> bool:
+        config = (await self.bot.config_service.get_config(str(guild_id))).deleteUserMessages
+        if config.enabled and message.author.id in config.userIds:
             return True
         return False
 
@@ -83,12 +82,14 @@ class MessageService:
             messages.append(Message(role="system", content=multi_user_prompt))
 
         # Get historical messages and format as transcript
-        historical_msgs = self.bot.discord_messages_service.get_last_n_messages_within_n_minutes(message=message, n=10, minutes=30)
+        historical_msgs = await self.bot.discord_messages_service.get_last_n_messages_within_n_minutes(message=message, n=10, minutes=30)
+
+        config = await self.bot.config_service.get_config(str(message.guild.id))
 
         if historical_msgs:
             transcript_lines = []
             for msg in historical_msgs:
-                author_name = self.ids_to_users.get(str(msg["author_id"]), msg["author_name"])
+                author_name = config.idToUsers.get(str(msg["author_id"]), msg["author_name"])
                 content = self.replace_mentions(msg["content"]).strip()
 
                 # Mark bot's own messages clearly
@@ -103,7 +104,7 @@ class MessageService:
 
         # Add reference message context if replying
         if reference_message:
-            ref_username = self.ids_to_users.get(str(reference_message.author.id), reference_message.author.name)
+            ref_username = self.config.idToUsers.get(str(reference_message.author.id), reference_message.author.name)
             ref_content = self.replace_mentions(reference_message.content).strip()
 
             # Format as part of the conversation flow
@@ -135,12 +136,8 @@ class MessageService:
 
         return result
 
-    def get_image_attachment(self, message: discord.Message, reference_message: discord.Message | None = None) -> discord.Attachment | None:
-        """Get image attachment from message or referenced message.
-        Checks in order:
-        1. Current message attachments
-        2. Referenced message attachments (from any user)
-        """
+    async def get_image_attachment(self, message: discord.Message, reference_message: discord.Message | None = None) -> discord.Attachment | None:
+        """Get image attachment from message or referenced message."""
         # Check current message for images
         image_attachment = next(
             (att for att in message.attachments if att.content_type and att.content_type.startswith("image/")),
@@ -159,21 +156,14 @@ class MessageService:
             )
 
             if image_attachment:
-                author_name = self.ids_to_users.get(str(reference_message.author.id), reference_message.author.name)
+                author_name = self.config.idToUsers.get(str(reference_message.author.id), reference_message.author.name)
                 self.logger.info(f"Found image in referenced message from {author_name}: {image_attachment.filename}")
                 return image_attachment
 
         return None
 
-    def get_image_attachments(self, message: discord.Message, reference_message: discord.Message | None = None) -> list[discord.Attachment]:
-        """Get all image attachments from message or referenced message.
-        Checks in order:
-        1. Current message attachments
-        2. Referenced message attachments (from any user)
-
-        Returns:
-            List of image attachments
-        """
+    async def get_image_attachments(self, message: discord.Message, reference_message: discord.Message | None = None) -> list[discord.Attachment]:
+        """Get all image attachments from message or referenced message."""
         images = []
 
         # Check current message for images
@@ -188,13 +178,13 @@ class MessageService:
             ref_images = [att for att in reference_message.attachments if att.content_type and att.content_type.startswith("image/")]
 
             if ref_images:
-                author_name = self.ids_to_users.get(str(reference_message.author.id), reference_message.author.name)
+                author_name = self.config.idToUsers.get(str(reference_message.author.id), reference_message.author.name)
                 self.logger.info(f"Found {len(ref_images)} image(s) in referenced message from {author_name}")
                 images.extend(ref_images)
 
         return images
 
-    def is_replying_to_bot_image(self, reference_message: discord.Message | None) -> bool:
+    async def is_replying_to_bot_image(self, reference_message: discord.Message | None) -> bool:
         """Check if the user is replying to a bot message with an image."""
         if not reference_message or not self.bot.user:
             return False

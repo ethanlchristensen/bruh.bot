@@ -1,38 +1,25 @@
 import logging
+from typing import TYPE_CHECKING
 
-from ..config_service import DynamicConfig
-from .anthropic_service import AnthropicService
 from .base_service import BaseService
-from .google_service import GoogleAIService
-from .ollama_service import OllamaService
-from .openai_service import OpenAIService
 
 logger = logging.getLogger(__name__)
 
 
+if TYPE_CHECKING:
+    from bot.juno import Juno
+
+
 class AiServiceFactory:
-    _service_cache = {}
-
     @staticmethod
-    def get_service(provider: str, config: DynamicConfig) -> BaseService:
-        logger.info(f"Getting AI Service for provider={provider}")
-
-        if provider in AiServiceFactory._service_cache:
-            logger.debug(f"Returning cached service for provider={provider}")
-            return AiServiceFactory._service_cache[provider]
-
+    def get_service(bot: "Juno", provider: str) -> BaseService:
         if provider == "ollama":
-            service = OllamaService(config)
+            return bot.ollama_service
         elif provider == "openai":
-            service = OpenAIService(config)
+            return bot.openai_service
         elif provider == "google":
-            service = GoogleAIService(config)
+            return bot.google_service
         elif provider == "anthropic":
-            service = AnthropicService(config)
+            return bot.anthropic_service
         else:
             raise ValueError(f"Invalid provider: {provider}")
-
-        AiServiceFactory._service_cache[provider] = service
-        logger.debug(f"Cached new service for provider={provider}")
-
-        return service

@@ -1,51 +1,51 @@
-import { Database, FileText, FolderOpen, Save } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import type { DynamicConfig } from '@/lib/api-client'
-import { Button } from '@/components/ui/button'
+import { Database, FileText, FolderOpen, Save } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import type { DynamicConfig } from '@/lib/api-client';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface DatabaseSectionProps {
-  config: DynamicConfig
-  onUpdate: (updates: Partial<DynamicConfig>) => void
+  config: DynamicConfig;
+  onUpdate: (updates: Partial<DynamicConfig>) => void;
 }
 
 export function DatabaseSection({ config, onUpdate }: DatabaseSectionProps) {
-  const [localPromptsPath, setLocalPromptsPath] = useState(config.promptsPath)
+  const [localPromptsPath, setLocalPromptsPath] = useState(config.promptsPath);
   const [localMessagesDb, setLocalMessagesDb] = useState(
     config.mongoMessagesDbName,
-  )
+  );
   const [localMessagesCollection, setLocalMessagesCollection] = useState(
     config.mongoMessagesCollectionName,
-  )
+  );
   const [localMorningCollection, setLocalMorningCollection] = useState(
     config.mongoMorningConfigsCollectionName,
-  )
+  );
   const [localImageLimitsCollection, setLocalImageLimitsCollection] = useState(
     config.mongoImageLimitsCollectionName,
-  )
+  );
 
   useEffect(() => {
-    setLocalPromptsPath(config.promptsPath)
-    setLocalMessagesDb(config.mongoMessagesDbName)
-    setLocalMessagesCollection(config.mongoMessagesCollectionName)
-    setLocalMorningCollection(config.mongoMorningConfigsCollectionName)
-    setLocalImageLimitsCollection(config.mongoImageLimitsCollectionName)
-  }, [config])
+    setLocalPromptsPath(config.promptsPath);
+    setLocalMessagesDb(config.mongoMessagesDbName);
+    setLocalMessagesCollection(config.mongoMessagesCollectionName);
+    setLocalMorningCollection(config.mongoMorningConfigsCollectionName);
+    setLocalImageLimitsCollection(config.mongoImageLimitsCollectionName);
+  }, [config]);
 
   const hasChanges =
     localPromptsPath !== config.promptsPath ||
     localMessagesDb !== config.mongoMessagesDbName ||
     localMessagesCollection !== config.mongoMessagesCollectionName ||
     localMorningCollection !== config.mongoMorningConfigsCollectionName ||
-    localImageLimitsCollection !== config.mongoImageLimitsCollectionName
+    localImageLimitsCollection !== config.mongoImageLimitsCollectionName;
 
   const handleSave = () => {
     onUpdate({
@@ -54,8 +54,8 @@ export function DatabaseSection({ config, onUpdate }: DatabaseSectionProps) {
       mongoMessagesCollectionName: localMessagesCollection,
       mongoMorningConfigsCollectionName: localMorningCollection,
       mongoImageLimitsCollectionName: localImageLimitsCollection,
-    })
-  }
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -174,5 +174,5 @@ export function DatabaseSection({ config, onUpdate }: DatabaseSectionProps) {
         </Button>
       </div>
     </div>
-  )
+  );
 }

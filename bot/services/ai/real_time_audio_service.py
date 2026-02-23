@@ -9,24 +9,31 @@ import numpy as np
 import websockets
 from discord.ext import voice_recv
 
+from ..config_service import DynamicConfig
+
 if TYPE_CHECKING:
     from bot.juno import Juno
 
 
 class RealTimeAudioService:
-    def __init__(self, bot: "Juno"):
+    def __init__(self, bot: "Juno", config: DynamicConfig):
         self.bot = bot
-        self.model = self.bot.config.aiConfig.realTimeConfig.realTimeModel
-        self.voice = self.bot.config.aiConfig.realTimeConfig.voice
-        self.apiKey = self.bot.config.aiConfig.realTimeConfig.apiKey
+        self.config = config
+        self.model = config.aiConfig.realTimeConfig.realTimeModel
+        self.voice = config.aiConfig.realTimeConfig.voice
+        self.apiKey = config.aiConfig.realTimeConfig.apiKey
         self.ws: websockets.ClientConnection | None = None
         self.is_running = False
         self.ws_url = f"wss://api.openai.com/v1/realtime?model={self.model}"
         self.logger = logging.getLogger(__name__)
-        self.logger.info(f"Initialized RealTimeAudioService with model {self.model}")
+        self.logger.info(f"Initialized RealTimeAudioService with model {self.model} for guild {config.guildId}")
 
     async def connect(self):
         """Establish WebSocket connection to OpenAI Realtime API."""
+        if not self.apiKey:
+            self.logger.error(f"No API key configured for RealTimeAudioService in guild {self.config.guildId}")
+            return False
+
         headers = {"Authorization": f"Bearer {self.apiKey}"}
 
         self.ws = await websockets.connect(self.ws_url, additional_headers=headers)
@@ -44,7 +51,9 @@ class RealTimeAudioService:
         instructions: str = "Speak clearly and briefly. Confirm understanding before taking actions.",
     ):
         """Configure the session parameters."""
-        if erm := self.bot.prompts.get("realtime"):
+        # Get prompts for this specific guild
+        prompts = self.bot.get_prompts(self.config.promptsPath)
+        if erm := prompts.get("realtime"):
             instructions = erm
 
         self.logger.info(f"Using model: {self.model} and voice: {self.voice}")
@@ -202,14 +211,14 @@ class AudioProcessor:
 
         # Convert stereo to mono
         if from_channels == 2 and to_channels == 1 and len(audio_np) > 0:
-            audio_np = audio_np.reshape(-1, 2).mean(axis=1).astype(np.int16)  # Fixed backslash
+            audio_np = audio_np.reshape(-1, 2).mean(axis=1).astype(np.int16)
 
         # Resample
         if len(audio_np) > 0:
             ratio = to_rate / from_rate
             new_length = int(len(audio_np) * ratio)
             if new_length > 0:
-                indices = np.linspace(0, len(audio_np) - 1, new_length)  # Fixed typo
+                indices = np.linspace(0, len(audio_np) - 1, new_length)
                 resampled = np.interp(indices, np.arange(len(audio_np)), audio_np)
                 return resampled.astype(np.int16).tobytes()
 

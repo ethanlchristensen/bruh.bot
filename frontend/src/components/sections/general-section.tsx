@@ -1,45 +1,47 @@
-import { Shield } from 'lucide-react'
-import { useState } from 'react'
-import type { DynamicConfig } from '@/lib/api-client'
-import { Button } from '@/components/ui/button'
+import { Shield } from 'lucide-react';
+import { useState } from 'react';
+import type { DynamicConfig } from '@/lib/api-client';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 
 interface GeneralSectionProps {
-  config: DynamicConfig
-  onUpdate: (updates: Partial<DynamicConfig>) => void
+  config: DynamicConfig;
+  onUpdate: (updates: Partial<DynamicConfig>) => void;
 }
 
 export function GeneralSection({ config, onUpdate }: GeneralSectionProps) {
-  const [localAdmins, setLocalAdmins] = useState<Array<number>>(config.adminIds)
+  const [localAdmins, setLocalAdmins] = useState<Array<number>>(
+    config.adminIds,
+  );
 
   const handleAdminChange = (index: number, value: string) => {
-    const newAdmins = [...localAdmins]
-    newAdmins[index] = parseInt(value) || 0
-    setLocalAdmins(newAdmins)
-  }
+    const newAdmins = [...localAdmins];
+    newAdmins[index] = parseInt(value) || 0;
+    setLocalAdmins(newAdmins);
+  };
 
   const handleAddAdmin = () => {
-    setLocalAdmins([...localAdmins, 0])
-  }
+    setLocalAdmins([...localAdmins, 0]);
+  };
 
   const handleRemoveAdmin = (index: number) => {
-    const newAdmins = localAdmins.filter((_, i) => i !== index)
-    setLocalAdmins(newAdmins)
-    onUpdate({ adminIds: newAdmins })
-  }
+    const newAdmins = localAdmins.filter((_, i) => i !== index);
+    setLocalAdmins(newAdmins);
+    onUpdate({ adminIds: newAdmins });
+  };
 
   const handleSaveAdmins = () => {
-    onUpdate({ adminIds: localAdmins })
-  }
+    onUpdate({ adminIds: localAdmins });
+  };
 
   return (
     <div className="space-y-6">
@@ -121,5 +123,5 @@ export function GeneralSection({ config, onUpdate }: GeneralSectionProps) {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

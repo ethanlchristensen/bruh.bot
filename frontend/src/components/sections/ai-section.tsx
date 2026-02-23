@@ -1,35 +1,29 @@
-'use client'
-import { Bot, Eye, EyeOff, Mic, Sparkles, Zap } from 'lucide-react'
-import { useState } from 'react'
-import type {
-  AIConfig,
-  AIProvider,
-  UpdateAIProviderRequest,
-} from '@/lib/api-client'
-import { Button } from '@/components/ui/button'
+import { Bot, Eye, EyeOff, Mic, Sparkles, Zap } from 'lucide-react';
+import { useState } from 'react';
+import type { AIConfig, AIProvider } from '@/lib/api-client';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+} from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface AISectionProps {
-  config: AIConfig
-  onUpdate: (updates: Partial<AIConfig>) => void
-  onUpdateProvider: (updates: UpdateAIProviderRequest) => void
+  config: AIConfig;
+  onUpdate: (updates: Partial<AIConfig>) => void;
 }
 
 const aiProviders: Array<{ value: AIProvider; label: string }> = [
@@ -37,22 +31,14 @@ const aiProviders: Array<{ value: AIProvider; label: string }> = [
   { value: 'openai', label: 'OpenAI' },
   { value: 'antropic', label: 'Anthropic' },
   { value: 'google', label: 'Google (Gemini)' },
-]
+];
 
-export function AISection({
-  config,
-  onUpdate,
-  onUpdateProvider,
-}: AISectionProps) {
-  const [showKeys, setShowKeys] = useState<Record<string, boolean>>({})
+export function AISection({ config, onUpdate }: AISectionProps) {
+  const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
 
   const toggleShowKey = (key: string) => {
-    setShowKeys((prev) => ({ ...prev, [key]: !prev[key] }))
-  }
-
-  const updateAIConfig = (updates: Partial<AIConfig>) => {
-    onUpdate({ ...config, ...updates })
-  }
+    setShowKeys((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   return (
     <div className="space-y-6">
@@ -65,6 +51,7 @@ export function AISection({
         </p>
       </div>
 
+      {/* --- General Settings --- */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -82,7 +69,7 @@ export function AISection({
               <Select
                 value={config.preferredAiProvider}
                 onValueChange={(value: AIProvider) =>
-                  updateAIConfig({ preferredAiProvider: value })
+                  onUpdate({ preferredAiProvider: value })
                 }
               >
                 <SelectTrigger id="preferredProvider">
@@ -105,7 +92,7 @@ export function AISection({
                 min={0}
                 value={config.maxDailyImages}
                 onChange={(e) =>
-                  updateAIConfig({
+                  onUpdate({
                     maxDailyImages: parseInt(e.target.value) || 0,
                   })
                 }
@@ -124,13 +111,14 @@ export function AISection({
               id="boostPrompts"
               checked={config.boostImagePrompts}
               onCheckedChange={(checked) =>
-                updateAIConfig({ boostImagePrompts: checked })
+                onUpdate({ boostImagePrompts: checked })
               }
             />
           </div>
         </CardContent>
       </Card>
 
+      {/* --- Provider Settings --- */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -157,9 +145,8 @@ export function AISection({
                   id="ollamaEndpoint"
                   value={config.ollama.endpoint}
                   onChange={(e) =>
-                    onUpdateProvider({
-                      provider: 'ollama',
-                      endpoint: e.target.value,
+                    onUpdate({
+                      ollama: { ...config.ollama, endpoint: e.target.value },
                     })
                   }
                   placeholder="localhost:11434"
@@ -172,9 +159,11 @@ export function AISection({
                   id="ollamaModel"
                   value={config.ollama.preferredModel}
                   onChange={(e) =>
-                    onUpdateProvider({
-                      provider: 'ollama',
-                      preferredModel: e.target.value,
+                    onUpdate({
+                      ollama: {
+                        ...config.ollama,
+                        preferredModel: e.target.value,
+                      },
                     })
                   }
                   placeholder="llama3.1"
@@ -191,9 +180,8 @@ export function AISection({
                     type={showKeys.openai ? 'text' : 'password'}
                     value={config.openai.apiKey}
                     onChange={(e) =>
-                      onUpdateProvider({
-                        provider: 'openai',
-                        apiKey: e.target.value,
+                      onUpdate({
+                        openai: { ...config.openai, apiKey: e.target.value },
                       })
                     }
                     placeholder="sk-..."
@@ -220,9 +208,11 @@ export function AISection({
                   id="openaiModel"
                   value={config.openai.preferredModel}
                   onChange={(e) =>
-                    onUpdateProvider({
-                      provider: 'openai',
-                      preferredModel: e.target.value,
+                    onUpdate({
+                      openai: {
+                        ...config.openai,
+                        preferredModel: e.target.value,
+                      },
                     })
                   }
                   placeholder="gpt-5-nano"
@@ -239,9 +229,11 @@ export function AISection({
                     type={showKeys.anthropic ? 'text' : 'password'}
                     value={config.antropic.apiKey}
                     onChange={(e) =>
-                      onUpdateProvider({
-                        provider: 'antropic',
-                        apiKey: e.target.value,
+                      onUpdate({
+                        antropic: {
+                          ...config.antropic,
+                          apiKey: e.target.value,
+                        },
                       })
                     }
                     placeholder="sk-ant-..."
@@ -268,9 +260,11 @@ export function AISection({
                   id="anthropicModel"
                   value={config.antropic.preferredModel}
                   onChange={(e) =>
-                    onUpdateProvider({
-                      provider: 'antropic',
-                      preferredModel: e.target.value,
+                    onUpdate({
+                      antropic: {
+                        ...config.antropic,
+                        preferredModel: e.target.value,
+                      },
                     })
                   }
                   placeholder="claude-4-5-sonnet"
@@ -287,9 +281,8 @@ export function AISection({
                     type={showKeys.gemini ? 'text' : 'password'}
                     value={config.google.apiKey}
                     onChange={(e) =>
-                      onUpdateProvider({
-                        provider: 'google',
-                        apiKey: e.target.value,
+                      onUpdate({
+                        google: { ...config.google, apiKey: e.target.value },
                       })
                     }
                     placeholder="API Key"
@@ -316,9 +309,11 @@ export function AISection({
                   id="geminiModel"
                   value={config.google.preferredModel}
                   onChange={(e) =>
-                    onUpdateProvider({
-                      provider: 'google',
-                      preferredModel: e.target.value,
+                    onUpdate({
+                      google: {
+                        ...config.google,
+                        preferredModel: e.target.value,
+                      },
                     })
                   }
                   placeholder="gemini-2.5-flash"
@@ -329,6 +324,7 @@ export function AISection({
         </CardContent>
       </Card>
 
+      {/* --- ElevenLabs --- */}
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -347,7 +343,7 @@ export function AISection({
                   type={showKeys.elevenlabs ? 'text' : 'password'}
                   value={config.elevenlabs.apiKey}
                   onChange={(e) =>
-                    updateAIConfig({
+                    onUpdate({
                       elevenlabs: {
                         ...config.elevenlabs,
                         apiKey: e.target.value,
@@ -375,6 +371,7 @@ export function AISection({
           </CardContent>
         </Card>
 
+        {/* --- Orchestrator --- */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -389,7 +386,7 @@ export function AISection({
               <Select
                 value={config.orchestrator.preferredAiProvider}
                 onValueChange={(value: AIProvider) =>
-                  updateAIConfig({
+                  onUpdate({
                     orchestrator: {
                       ...config.orchestrator,
                       preferredAiProvider: value,
@@ -415,7 +412,7 @@ export function AISection({
                 id="orchModel"
                 value={config.orchestrator.preferredModel}
                 onChange={(e) =>
-                  updateAIConfig({
+                  onUpdate({
                     orchestrator: {
                       ...config.orchestrator,
                       preferredModel: e.target.value,
@@ -429,6 +426,7 @@ export function AISection({
         </Card>
       </div>
 
+      {/* --- Real-Time --- */}
       <Card>
         <CardHeader>
           <CardTitle>Real-Time Configuration</CardTitle>
@@ -444,7 +442,7 @@ export function AISection({
                 id="rtModel"
                 value={config.realTimeConfig.realTimeModel}
                 onChange={(e) =>
-                  updateAIConfig({
+                  onUpdate({
                     realTimeConfig: {
                       ...config.realTimeConfig,
                       realTimeModel: e.target.value,
@@ -462,7 +460,7 @@ export function AISection({
                   type={showKeys.realtime ? 'text' : 'password'}
                   value={config.realTimeConfig.apiKey}
                   onChange={(e) =>
-                    updateAIConfig({
+                    onUpdate({
                       realTimeConfig: {
                         ...config.realTimeConfig,
                         apiKey: e.target.value,
@@ -493,7 +491,7 @@ export function AISection({
                 id="rtVoice"
                 value={config.realTimeConfig.voice}
                 onChange={(e) =>
-                  updateAIConfig({
+                  onUpdate({
                     realTimeConfig: {
                       ...config.realTimeConfig,
                       voice: e.target.value,
@@ -507,5 +505,5 @@ export function AISection({
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

@@ -1,54 +1,54 @@
 import logging
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 import ollama
 from pydantic import BaseModel
 
-from ..config_service import DynamicConfig
 from .base_service import BaseService
 from .types import AIChatResponse, Message
 
 T = TypeVar("T", bound=BaseModel)
 
+if TYPE_CHECKING:
+    from bot.juno import Juno
+
 
 class OllamaService(BaseService):
-    def __init__(self, config: DynamicConfig):
+    def __init__(self, bot: "Juno"):
         self.logger = logging.getLogger(__name__)
-        self.client = ollama.Client(host=config.aiConfig.ollama.endpoint)
-        self.default_model = config.aiConfig.ollama.preferredModel
-        self.logger.info(f"Intializing OllamaService with host={config.aiConfig.ollama.endpoint} and default_model={self.default_model}")
+        self.bot = bot
+        self.client = ollama.AsyncClient(host=self.bot.config_service.base.ollamaEndpoint)
+        self.logger.info(f"Initialized OllamaService with host={self.bot.config_service.base.ollamaEndpoint}")
 
-    async def chat(self, messages: list[Message], model: str | None = None) -> AIChatResponse:
+    async def chat(self, guild_id: int, messages: list[Message], model: str | None = None) -> AIChatResponse:
+        ollama_config = (await self.bot.config_service.get_config(str(guild_id))).aiConfig.ollama
+        model_to_use = model or ollama_config.preferredModel
+
         try:
-            model_to_use = model or self.default_model
-
             ollama_messages = [self.map_message_to_provider(message, "ollama") for message in messages]
-
             self.logger.info(f"Calling OllamaService.chat() with model={model_to_use}")
 
-            raw_response = self.client.chat(model=model_to_use, messages=ollama_messages)
+            raw_response = await self.client.chat(model=model_to_use, messages=ollama_messages)
 
-            response = AIChatResponse(
+            return AIChatResponse(
                 model=model_to_use,
                 content=raw_response.get("message", {}).get("content", ""),
                 raw_response=raw_response,
-                usage=raw_response.get("usage", None),
+                usage=raw_response.get("usage", {}),
             )
-
-            return response
         except Exception as e:
             self.logger.error(f"Error in OllamaService.chat(): {e}")
-            return {}
+            return AIChatResponse(model=model_to_use, content=f"Error: {e}", raw_response=None, usage={})
 
-    async def chat_with_schema(self, messages: list[Message], schema: type[T], model: str | None = None) -> T:
+    async def chat_with_schema(self, guild_id: int, messages: list[Message], schema: type[T], model: str | None = None) -> T:
+        ollama_config = (await self.bot.config_service.get_config(str(guild_id))).aiConfig.ollama
+        model_to_use = model or ollama_config.preferredModel
+
         try:
-            model_to_use = model or self.default_model
-
             ollama_messages = [self.map_message_to_provider(message, "ollama") for message in messages]
+            self.logger.info(f"Calling OllamaService.chat_with_schema() with model={model_to_use}")
 
-            self.logger.info(f"Calling OllamaService.chat_with_schema() with model={model_to_use} and schema={schema.__name__}")
-
-            raw_response = self.client.chat(
+            raw_response = await self.client.chat(
                 model=model_to_use,
                 messages=ollama_messages,
                 format=schema.model_json_schema(),

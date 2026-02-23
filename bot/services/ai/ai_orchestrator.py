@@ -1,19 +1,19 @@
 import logging
+from typing import TYPE_CHECKING
 
-from ..ai.ai_service_factory import AiServiceFactory
-from ..config_service import DynamicConfig
-from .types import Message, UserIntent
+from .ai_service_factory import AiServiceFactory
+from .types import Message, Role, UserIntent
 
-logger = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from bot.juno import Juno
 
 
 class AiOrchestrator:
-    def __init__(self, config: DynamicConfig):
-        self.ai_service = AiServiceFactory.get_service(provider=config.aiConfig.orchestrator.preferredAiProvider, config=config)
-        self.model = config.aiConfig.orchestrator.preferredModel
-        logger.info(f"Initialized AiOrchestrator with provider={config.aiConfig.orchestrator.preferredAiProvider}, model={self.model}")
+    def __init__(self, bot: "Juno"):
+        self.bot = bot
+        self.logger = logging.getLogger(__name__)
 
-    async def detect_intent(self, user_message: str, is_replying_to_bot_image: bool = False) -> UserIntent:
+    async def detect_intent(self, guild_id: int, user_message: str, is_replying_to_bot_image: bool = False) -> UserIntent:
         """
         Detect if the user wants to chat or generate an image.
 
@@ -44,17 +44,20 @@ Examples of image_generation:
 Everything else is chat.{context_note}"""
 
         messages = [
-            Message(role="system", content=system_prompt),
-            Message(role="user", content=user_message),
+            Message(role=Role.SYSTEM, content=system_prompt),
+            Message(role=Role.USER, content=user_message),
         ]
 
-        try:
-            intent = await self.ai_service.chat_with_schema(messages=messages, schema=UserIntent, model=self.model)
+        orchestrator_config = (await self.bot.config_service.get_config(str(guild_id))).aiConfig.orchestrator
 
-            logger.info(f"Detected intent: {intent.intent} (replying_to_image={is_replying_to_bot_image})")
+        ai_service = AiServiceFactory.get_service(self.bot, orchestrator_config.preferredAiProvider)
+
+        try:
+            intent = await ai_service.chat_with_schema(guild_id=guild_id, messages=messages, schema=UserIntent, model=orchestrator_config.preferredModel)
+
+            self.logger.info(f"Detected intent: {intent.intent} (replying_to_image={is_replying_to_bot_image})")
             return intent
 
         except Exception as e:
-            logger.error(f"Error detecting intent: {e}")
-            # Default to chat on error
+            self.logger.error(f"Error detecting intent: {e}")
             return UserIntent(intent="chat", reasoning="Fallback due to error in intent detection")

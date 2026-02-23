@@ -1,57 +1,57 @@
-import { ArrowLeftRight, Plus, Save, Trash2, UserCircle } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import type { DynamicConfig } from '@/lib/api-client'
-import { Button } from '@/components/ui/button'
+import { ArrowLeftRight, Plus, Save, Trash2, UserCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import type { DynamicConfig } from '@/lib/api-client';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface UsersSectionProps {
-  config: DynamicConfig
-  onUpdate: (updates: Partial<DynamicConfig>) => void
+  config: DynamicConfig;
+  onUpdate: (updates: Partial<DynamicConfig>) => void;
 }
 
 export function UsersSection({ config, onUpdate }: UsersSectionProps) {
-  const [usersToIdEntries, setUsersToIdEntries] = useState<Array<[string, string]>>(
-    Object.entries(config.usersToId),
-  )
-  const [idToUsersEntries, setIdToUsersEntries] = useState<Array<[string, string]>>(
-    Object.entries(config.idToUsers),
-  )
+  const [usersToIdEntries, setUsersToIdEntries] = useState<
+    Array<[string, string]>
+  >(Object.entries(config.usersToId));
+  const [idToUsersEntries, setIdToUsersEntries] = useState<
+    Array<[string, string]>
+  >(Object.entries(config.idToUsers));
 
   useEffect(() => {
-    setUsersToIdEntries(Object.entries(config.usersToId))
-    setIdToUsersEntries(Object.entries(config.idToUsers))
-  }, [config.usersToId, config.idToUsers])
+    setUsersToIdEntries(Object.entries(config.usersToId));
+    setIdToUsersEntries(Object.entries(config.idToUsers));
+  }, [config.usersToId, config.idToUsers]);
 
   const hasUsersToIdChanges =
     JSON.stringify(usersToIdEntries) !==
-    JSON.stringify(Object.entries(config.usersToId))
+    JSON.stringify(Object.entries(config.usersToId));
   const hasIdToUsersChanges =
     JSON.stringify(idToUsersEntries) !==
-    JSON.stringify(Object.entries(config.idToUsers))
+    JSON.stringify(Object.entries(config.idToUsers));
 
   const handleSaveUsersToId = () => {
-    const newMapping: Record<string, string> = {}
+    const newMapping: Record<string, string> = {};
     usersToIdEntries.forEach(([key, value]) => {
-      if (key && value) newMapping[key] = value
-    })
-    onUpdate({ usersToId: newMapping })
-  }
+      if (key && value) newMapping[key] = value;
+    });
+    onUpdate({ usersToId: newMapping });
+  };
 
   const handleSaveIdToUsers = () => {
-    const newMapping: Record<string, string> = {}
+    const newMapping: Record<string, string> = {};
     idToUsersEntries.forEach(([key, value]) => {
-      if (key && value) newMapping[key] = value
-    })
-    onUpdate({ idToUsers: newMapping })
-  }
+      if (key && value) newMapping[key] = value;
+    });
+    onUpdate({ idToUsers: newMapping });
+  };
 
   return (
     <div className="space-y-6">
@@ -80,9 +80,9 @@ export function UsersSection({ config, onUpdate }: UsersSectionProps) {
                 <Input
                   value={name}
                   onChange={(e) => {
-                    const newEntries = [...usersToIdEntries]
-                    newEntries[index] = [e.target.value, mention]
-                    setUsersToIdEntries(newEntries)
+                    const newEntries = [...usersToIdEntries];
+                    newEntries[index] = [e.target.value, mention];
+                    setUsersToIdEntries(newEntries);
                   }}
                   placeholder="username"
                 />
@@ -93,9 +93,9 @@ export function UsersSection({ config, onUpdate }: UsersSectionProps) {
                 <Input
                   value={mention}
                   onChange={(e) => {
-                    const newEntries = [...usersToIdEntries]
-                    newEntries[index] = [name, e.target.value]
-                    setUsersToIdEntries(newEntries)
+                    const newEntries = [...usersToIdEntries];
+                    newEntries[index] = [name, e.target.value];
+                    setUsersToIdEntries(newEntries);
                   }}
                   placeholder="<@000000000000000000>"
                   className="font-mono"
@@ -108,8 +108,8 @@ export function UsersSection({ config, onUpdate }: UsersSectionProps) {
                 onClick={() => {
                   const newEntries = usersToIdEntries.filter(
                     (_, i) => i !== index,
-                  )
-                  setUsersToIdEntries(newEntries)
+                  );
+                  setUsersToIdEntries(newEntries);
                 }}
               >
                 <Trash2 className="h-4 w-4" />
@@ -121,7 +121,7 @@ export function UsersSection({ config, onUpdate }: UsersSectionProps) {
               variant="outline"
               className="flex-1 bg-transparent"
               onClick={() => {
-                setUsersToIdEntries([...usersToIdEntries, ['', '']])
+                setUsersToIdEntries([...usersToIdEntries, ['', '']]);
               }}
             >
               <Plus className="h-4 w-4 mr-2" />
@@ -156,9 +156,9 @@ export function UsersSection({ config, onUpdate }: UsersSectionProps) {
                 <Input
                   value={id}
                   onChange={(e) => {
-                    const newEntries = [...idToUsersEntries]
-                    newEntries[index] = [e.target.value, name]
-                    setIdToUsersEntries(newEntries)
+                    const newEntries = [...idToUsersEntries];
+                    newEntries[index] = [e.target.value, name];
+                    setIdToUsersEntries(newEntries);
                   }}
                   placeholder="000000000000000000"
                   className="font-mono"
@@ -170,9 +170,9 @@ export function UsersSection({ config, onUpdate }: UsersSectionProps) {
                 <Input
                   value={name}
                   onChange={(e) => {
-                    const newEntries = [...idToUsersEntries]
-                    newEntries[index] = [id, e.target.value]
-                    setIdToUsersEntries(newEntries)
+                    const newEntries = [...idToUsersEntries];
+                    newEntries[index] = [id, e.target.value];
+                    setIdToUsersEntries(newEntries);
                   }}
                   placeholder="username"
                 />
@@ -184,8 +184,8 @@ export function UsersSection({ config, onUpdate }: UsersSectionProps) {
                 onClick={() => {
                   const newEntries = idToUsersEntries.filter(
                     (_, i) => i !== index,
-                  )
-                  setIdToUsersEntries(newEntries)
+                  );
+                  setIdToUsersEntries(newEntries);
                 }}
               >
                 <Trash2 className="h-4 w-4" />
@@ -197,7 +197,7 @@ export function UsersSection({ config, onUpdate }: UsersSectionProps) {
               variant="outline"
               className="flex-1 bg-transparent"
               onClick={() => {
-                setIdToUsersEntries([...idToUsersEntries, ['', '']])
+                setIdToUsersEntries([...idToUsersEntries, ['', '']]);
               }}
             >
               <Plus className="h-4 w-4 mr-2" />
@@ -214,5 +214,5 @@ export function UsersSection({ config, onUpdate }: UsersSectionProps) {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

@@ -1,55 +1,55 @@
-import { Clock, Plus, Shield, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import type { DynamicConfig } from '@/lib/api-client'
-import { Button } from '@/components/ui/button'
+import { Clock, Plus, Shield, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import type { DynamicConfig } from '@/lib/api-client';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Slider } from '@/components/ui/slider'
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
 
 interface CooldownsSectionProps {
-  config: DynamicConfig
-  onUpdate: (updates: Partial<DynamicConfig>) => void
+  config: DynamicConfig;
+  onUpdate: (updates: Partial<DynamicConfig>) => void;
 }
 
 export function CooldownsSection({ config, onUpdate }: CooldownsSectionProps) {
   const [localBypassList, setLocalBypassList] = useState<Array<number>>(
     config.cooldownBypassList,
-  )
+  );
 
   useEffect(() => {
-    setLocalBypassList(config.cooldownBypassList)
-  }, [config.cooldownBypassList])
+    setLocalBypassList(config.cooldownBypassList);
+  }, [config.cooldownBypassList]);
 
   const handleBypassChange = (index: number, value: string) => {
-    const newList = [...localBypassList]
-    newList[index] = parseInt(value) || 0
-    setLocalBypassList(newList)
-  }
+    const newList = [...localBypassList];
+    newList[index] = parseInt(value) || 0;
+    setLocalBypassList(newList);
+  };
 
   const handleAddBypass = () => {
-    setLocalBypassList([...localBypassList, 0])
-  }
+    setLocalBypassList([...localBypassList, 0]);
+  };
 
   const handleRemoveBypass = (index: number) => {
-    const newList = localBypassList.filter((_, i) => i !== index)
-    setLocalBypassList(newList)
-    onUpdate({ cooldownBypassList: newList })
-  }
+    const newList = localBypassList.filter((_, i) => i !== index);
+    setLocalBypassList(newList);
+    onUpdate({ cooldownBypassList: newList });
+  };
 
   const handleSaveBypassList = () => {
-    onUpdate({ cooldownBypassList: localBypassList })
-  }
+    onUpdate({ cooldownBypassList: localBypassList });
+  };
 
   const handleCooldownChange = (value: number) => {
-    onUpdate({ mentionCooldown: value })
-  }
+    onUpdate({ mentionCooldown: value });
+  };
 
   return (
     <div className="space-y-6">
@@ -146,5 +146,5 @@ export function CooldownsSection({ config, onUpdate }: CooldownsSectionProps) {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

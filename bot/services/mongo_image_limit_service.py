@@ -52,7 +52,7 @@ class MongoImageLimitService:
             await self.collection.insert_one(
                 {
                     "guild_id": Int64(message.guild.id),
-                    "user_id": Int64(message.user.id),
+                    "user_id": Int64(message.author.id),
                     "count": 0,
                     "max_daily_images": max_daily_images,
                     "reset_time": next_reset,
@@ -71,7 +71,7 @@ class MongoImageLimitService:
         if now >= reset_time:
             next_reset = self._get_next_reset_time()
             await self.collection.update_one(
-                {"guild_id": Int64(message.guild.id), "user_id": Int64(message.user.id)},
+                {"guild_id": Int64(message.guild.id), "user_id": Int64(message.author.id)},
                 {"$set": {"count": 0, "reset_time": next_reset}},
             )
             self.logger.info(f"Reset daily image count for {message.author.name} in guild {message.guild.name}")

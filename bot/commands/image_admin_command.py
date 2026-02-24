@@ -1,3 +1,8 @@
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from bot.juno import Juno
+
 import discord
 from discord import app_commands
 
@@ -24,8 +29,9 @@ class ImageAdminCommand:
             """Reset a specific user's image generation limit."""
             await interaction.response.defer(ephemeral=True)
 
+            bot: Juno = interaction.client
+
             try:
-                bot = interaction.client
                 bot.image_limit_service.reset_user(user_id=user.id, guild_id=interaction.guild.id)
 
                 embed = discord.Embed(
@@ -37,7 +43,6 @@ class ImageAdminCommand:
                 await interaction.followup.send(embed=embed, ephemeral=True)
 
             except Exception as e:
-                bot = interaction.client
                 bot.logger.error(f"Error resetting user image limit: {e}")
                 await interaction.followup.send("Failed to reset user image limit.", ephemeral=True)
 
@@ -51,8 +56,9 @@ class ImageAdminCommand:
             """Reset all users' image generation limits."""
             await interaction.response.defer(ephemeral=True)
 
+            bot: Juno = interaction.client
+
             try:
-                bot = interaction.client
                 count = bot.image_limit_service.reset_all_users(guild_id=interaction.guild.id)
 
                 embed = discord.Embed(
@@ -64,7 +70,6 @@ class ImageAdminCommand:
                 await interaction.followup.send(embed=embed, ephemeral=True)
 
             except Exception as e:
-                bot = interaction.client
                 bot.logger.error(f"Error resetting all image limits: {e}")
                 await interaction.followup.send("Failed to reset all image limits.", ephemeral=True)
 
@@ -79,12 +84,13 @@ class ImageAdminCommand:
             """Set the daily image generation limit for a specific user."""
             await interaction.response.defer(ephemeral=True)
 
+            bot: Juno = interaction.client
+
             try:
                 if limit < 1:
                     await interaction.followup.send("Limit must be at least 1.", ephemeral=True)
                     return
 
-                bot = interaction.client
                 success = bot.image_limit_service.set_user_limit(user.id, interaction.guild.id, limit)
 
                 if success:
@@ -103,7 +109,6 @@ class ImageAdminCommand:
                 await interaction.followup.send(embed=embed, ephemeral=True)
 
             except Exception as e:
-                bot = interaction.client
                 bot.logger.error(f"Error setting user image limit: {e}")
                 await interaction.followup.send("Failed to set user image limit.", ephemeral=True)
 
@@ -118,12 +123,13 @@ class ImageAdminCommand:
             """Set the daily image generation limit for all users in the guild."""
             await interaction.response.defer(ephemeral=True)
 
+            bot: Juno = interaction.client
+
             try:
                 if limit < 1:
                     await interaction.followup.send("Limit must be at least 1.", ephemeral=True)
                     return
 
-                bot = interaction.client
                 count = bot.image_limit_service.set_guild_limit(interaction.guild.id, limit)
 
                 embed = discord.Embed(
@@ -136,7 +142,6 @@ class ImageAdminCommand:
                 await interaction.followup.send(embed=embed, ephemeral=True)
 
             except Exception as e:
-                bot = interaction.client
                 bot.logger.error(f"Error setting guild image limit: {e}")
                 await interaction.followup.send("Failed to set guild image limit.", ephemeral=True)
 
@@ -151,8 +156,9 @@ class ImageAdminCommand:
             """View the daily image generation limit for a specific user."""
             await interaction.response.defer(ephemeral=True)
 
+            bot: Juno = interaction.client
+
             try:
-                bot = interaction.client
                 stats = bot.image_limit_service.get_user_stats(user.id, interaction.guild.id)
                 user_limit = stats["max_daily_images"]
                 count = stats["count"]
@@ -169,7 +175,6 @@ class ImageAdminCommand:
                 await interaction.followup.send(embed=embed, ephemeral=True)
 
             except Exception as e:
-                bot = interaction.client
                 bot.logger.error(f"Error viewing user image limit: {e}")
                 await interaction.followup.send("Failed to view user image limit.", ephemeral=True)
 

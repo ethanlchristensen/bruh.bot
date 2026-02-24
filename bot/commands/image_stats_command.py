@@ -22,8 +22,9 @@ class ImageStatsCommand:
             """Check the user's image generation stats."""
             await interaction.response.defer(ephemeral=True)
 
+            bot: Juno = interaction.client
+
             try:
-                bot: Juno = interaction.client
                 stats = await bot.image_limit_service.get_user_stats(user_id=interaction.user.id, guild_id=interaction.guild.id)
 
                 embed = discord.Embed(
@@ -39,7 +40,6 @@ class ImageStatsCommand:
 
                 embed.add_field(name="Remaining", value=f"{stats['remaining']} images", inline=True)
 
-                # Format reset time
                 if stats["reset_time"]:
                     reset_time = stats["reset_time"]
                     if hasattr(reset_time, "strftime"):
@@ -53,6 +53,5 @@ class ImageStatsCommand:
                 await interaction.followup.send(embed=embed, ephemeral=True)
 
             except Exception as e:
-                bot = interaction.client
                 bot.logger.error(f"Error fetching image stats: {e}")
                 await interaction.followup.send("Failed to retrieve image generation stats.", ephemeral=True)

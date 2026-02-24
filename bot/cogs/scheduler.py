@@ -7,8 +7,7 @@ import pytz
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from bot.services.ai.types import Message
-from bot.services.mongo_morning_config_service import MongoMorningConfigService
+from bot.services import AiServiceFactory, Message
 from bot.utils.decarators.admin_check import is_admin
 from bot.utils.decarators.command_logging import log_command_usage
 from bot.utils.decarators.global_block_check import is_globally_blocked
@@ -20,8 +19,6 @@ if TYPE_CHECKING:
 class SchedulerCog(commands.Cog):
     def __init__(self, bot: "Juno"):
         self.bot = bot
-        self.morning_config_service = MongoMorningConfigService(bot)
-        self.bot.loop.create_task(self.morning_config_service.initialize())
         self.check.start()
 
     def cog_unload(self):
@@ -30,7 +27,7 @@ class SchedulerCog(commands.Cog):
     @tasks.loop(seconds=30)
     async def check(self):
         """Check each guild's configured time and send messages when appropriate"""
-        morning_configs = await self.morning_config_service.get_all_configs()
+        morning_configs = await self.bot.morning_config_service.get_all_configs()
         if not morning_configs:
             return
 
@@ -74,10 +71,9 @@ class SchedulerCog(commands.Cog):
                         continue
 
                     # Get per-guild services and config
-                    services = await self.bot.get_guild_services(guild_id)
-                    ai_service = services["ai_service"]
-                    guild_dynamic_config = await self.bot.config_service.get_config(guild_id)
-                    prompts = self.bot.get_prompts(guild_dynamic_config.promptsPath)
+                    guild_dynamic_config = await self.bot.config_service.get_config(str(guild_id))
+                    ai_service = AiServiceFactory.get_service(self.bot, guild_dynamic_config.aiConfig.preferredAiProvider)
+                    prompts = self.bot.get_prompts()
 
                     # Generate motivational message
                     messages = [
@@ -92,7 +88,7 @@ class SchedulerCog(commands.Cog):
                         main_prompt = main_prompt.replace("{{BOTNAME}}", self.bot.user.name)
                         messages.insert(0, Message(role="system", content=main_prompt))
 
-                    response = await ai_service.chat(messages=messages)
+                    response = await ai_service.chat(guild_id=guild.id, messages=messages)
 
                     embed, emoji_file = self.bot.embed_service.create_morning_embed(message=response.content)
                     await channel.send(
@@ -101,7 +97,7 @@ class SchedulerCog(commands.Cog):
                     )
 
                     # Mark as sent today
-                    await self.morning_config_service.update_last_sent_date(guild_id, today)
+                    await self.bot.morning_config_service.update_last_sent_date(guild_id, today)
 
                     self.bot.logger.info(f"Sent morning message to {channel.name} in {guild.name}")
             except Exception as e:
@@ -125,7 +121,7 @@ class SchedulerCog(commands.Cog):
             channel = interaction.channel
 
         # Set channel using MongoDB service
-        config = await self.morning_config_service.set_channel(interaction.guild.id, channel.id)
+        config = await self.bot.morning_config_service.set_channel(interaction.guild.id, channel.id)
 
         timezone = config.get("timezone", "UTC")
         await interaction.followup.send(
@@ -175,7 +171,7 @@ class SchedulerCog(commands.Cog):
             return
 
         # Set time using MongoDB service
-        config = await self.morning_config_service.set_time(interaction.guild.id, hour, minute, timezone)
+        config = await self.bot.morning_config_service.set_time(interaction.guild.id, hour, minute, timezone)
 
         # Format response based on whether channel is set
         if "channel_id" in config and config["channel_id"]:
@@ -202,7 +198,7 @@ class SchedulerCog(commands.Cog):
     @is_globally_blocked()
     async def remove_morning_channel(self, interaction: discord.Interaction):
         """Remove morning messages for this guild"""
-        removed = await self.morning_config_service.remove_config(interaction.guild.id)
+        removed = await self.bot.morning_config_service.remove_config(interaction.guild.id)
         if removed:
             await interaction.followup.send(content="Morning messages disabled for this server.", ephemeral=True)
         else:
@@ -220,11 +216,9 @@ class SchedulerCog(commands.Cog):
         await interaction.followup.send(content="Sending test morning message...", ephemeral=True)
 
         try:
-            guild_id = str(interaction.guild.id)
-            services = await self.bot.get_guild_services(guild_id)
-            ai_service = services["ai_service"]
-            guild_dynamic_config = await self.bot.config_service.get_config(guild_id)
-            prompts = self.bot.get_prompts(guild_dynamic_config.promptsPath)
+            guild_dynamic_config = await self.bot.config_service.get_config(str(interaction.guild.id))
+            ai_service = AiServiceFactory.get_service(self.bot, guild_dynamic_config.aiConfig.preferredAiProvider)
+            prompts = self.bot.get_prompts()
 
             # Generate motivational message
             messages = [
@@ -238,7 +232,7 @@ class SchedulerCog(commands.Cog):
                 self.bot.logger.info("Using main prompt for morning message")
                 messages.insert(0, Message(role="system", content=main_prompt))
 
-            response = await ai_service.chat(messages=messages)
+            response = await ai_service.chat(guild_id=interaction.guild.id, messages=messages)
 
             embed, emoji_file = self.bot.embed_service.create_morning_embed(message=response.content)
 

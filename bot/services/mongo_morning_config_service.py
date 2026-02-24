@@ -14,6 +14,7 @@ class MongoMorningConfigService:
         self.bot = bot
         self.collection = self.bot.config_service.db[self.bot.config_service.base.mongoMorningConfigsCollectionName]
         self.logger = logging.getLogger(__name__)
+        self.initialize()
 
     async def initialize(self):
         """Initialize collection with indexes."""

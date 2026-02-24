@@ -65,8 +65,11 @@ class Juno(commands.Bot):
         self.ai_orchestrator = AiOrchestrator(self)
         self.image_generation_service = ImageGenerationService(self)
 
-    def get_prompts(self, prompts_path: str) -> dict:
+    def get_prompts(self, prompts_path: str | None = None) -> dict:
         """Get prompts from cache or load them."""
+        if not prompts_path:
+            prompts_path = self.config_service.base.promptsPath
+
         if prompts_path not in self._prompts_cache:
             self._prompts_cache[prompts_path] = self._load_prompts(prompts_path)
         return self._prompts_cache[prompts_path]

@@ -104,7 +104,7 @@ class MessageService:
 
         # Add reference message context if replying
         if reference_message:
-            ref_username = self.config.idToUsers.get(str(reference_message.author.id), reference_message.author.name)
+            ref_username = config.idToUsers.get(str(reference_message.author.id), reference_message.author.name)
             ref_content = self.replace_mentions(reference_message.content).strip()
 
             # Format as part of the conversation flow
@@ -138,6 +138,9 @@ class MessageService:
 
     async def get_image_attachment(self, message: discord.Message, reference_message: discord.Message | None = None) -> discord.Attachment | None:
         """Get image attachment from message or referenced message."""
+
+        config = await self.bot.config_service.get_config(str(message.guild.id))
+
         # Check current message for images
         image_attachment = next(
             (att for att in message.attachments if att.content_type and att.content_type.startswith("image/")),
@@ -156,7 +159,7 @@ class MessageService:
             )
 
             if image_attachment:
-                author_name = self.config.idToUsers.get(str(reference_message.author.id), reference_message.author.name)
+                author_name = config.idToUsers.get(str(reference_message.author.id), reference_message.author.name)
                 self.logger.info(f"Found image in referenced message from {author_name}: {image_attachment.filename}")
                 return image_attachment
 
@@ -164,6 +167,9 @@ class MessageService:
 
     async def get_image_attachments(self, message: discord.Message, reference_message: discord.Message | None = None) -> list[discord.Attachment]:
         """Get all image attachments from message or referenced message."""
+
+        config = await self.bot.config_service.get_config(str(message.guild.id))
+
         images = []
 
         # Check current message for images
@@ -178,7 +184,7 @@ class MessageService:
             ref_images = [att for att in reference_message.attachments if att.content_type and att.content_type.startswith("image/")]
 
             if ref_images:
-                author_name = self.config.idToUsers.get(str(reference_message.author.id), reference_message.author.name)
+                author_name = config.idToUsers.get(str(reference_message.author.id), reference_message.author.name)
                 self.logger.info(f"Found {len(ref_images)} image(s) in referenced message from {author_name}")
                 images.extend(ref_images)
 

@@ -144,7 +144,7 @@ Be specific and thorough as this description will be used for image editing cont
 
             image_generation_response = ImageGenerationResponse()
 
-            if response.candidates and response.candidates[0].content:
+            if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
                 for part in response.candidates[0].content.parts:
                     if part.inline_data is not None:
                         image = Image.open(BytesIO(part.inline_data.data))
@@ -179,30 +179,34 @@ Be specific and thorough as this description will be used for image editing cont
             contents = [self.base_prompt, boosted_prompt]
             contents.extend(source_images)
 
-            google_config = config.google
-            client = Client(api_key=google_config.apiKey.get_secret_value())
+            client = Client(api_key=config.google.apiKey.get_secret_value())
 
             response = await client.aio.models.generate_content(
-                model=google_config.preferredModel,
+                model=config.imageGeneration.preferredModel,
                 contents=contents,
             )
 
-            if response.candidates[0].finish_reason and response.candidates[0].finish_reason.name == "IMAGE_SAFETY":
+            image_generation_response = ImageGenerationResponse()
+
+            if not response.candidates:
+                return image_generation_response
+
+            candidate = response.candidates[0]
+
+            if candidate.finish_reason and candidate.finish_reason.name == "IMAGE_SAFETY":
                 logger.warning(f"Image generation blocked by IMAGE_SAFETY for prompt: {boosted_prompt}")
-                image_generation_response = ImageGenerationResponse()
                 image_generation_response.text_response = "Image generation was blocked due to safety filters. Please try a different prompt."
                 return image_generation_response
 
-            image_generation_response = ImageGenerationResponse()
-
-            for part in response.candidates[0].content.parts:
-                if part.inline_data is not None:
-                    image = Image.open(BytesIO(part.inline_data.data))
-                    image_generation_response.generated_image = image
-                    logger.info("Image edited successfully")
-                elif part.text is not None:
-                    image_generation_response.text_response = part.text
-                    logger.info(f"Received text response: {part.text}")
+            if candidate.content and candidate.content.parts:
+                for part in candidate.content.parts:
+                    if part.inline_data is not None:
+                        image = Image.open(BytesIO(part.inline_data.data))
+                        image_generation_response.generated_image = image
+                        logger.info("Image edited successfully")
+                    elif part.text is not None:
+                        image_generation_response.text_response = part.text
+                        logger.info(f"Received text response: {part.text}")
 
             return image_generation_response
 

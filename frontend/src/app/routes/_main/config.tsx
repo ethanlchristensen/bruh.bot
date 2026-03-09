@@ -4,7 +4,6 @@ import { MarkdownRenderer } from '@/components/markdown/markdown';
 import { useConfig } from '@/hooks/use-config';
 import { Spinner } from '@/components/ui/spinner';
 import { GuildSelector } from '@/components/guild-selector';
-import { useGuild } from '@/contexts/guild-context';
 
 export const Route = createFileRoute('/_main/config')({
   component: ConfigComponent,
@@ -12,7 +11,6 @@ export const Route = createFileRoute('/_main/config')({
 
 function ConfigComponent() {
   const { data, isLoading } = useConfig();
-  const { selectedGuildId } = useGuild();
   const [configDataString, setConfigDataString] = useState('');
 
   useEffect(() => {

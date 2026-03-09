@@ -271,6 +271,19 @@ async def get_version(guild_id: str = Depends(get_guild_id), authorized: bool = 
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+@app.get("/guilds")
+async def get_guilds(authorized: bool = Depends(verify_admin)):
+    """Get list of available guild IDs from MongoDB."""
+    try:
+        collection = config_service.db[config_service.base.mongoConfigCollectionName]
+        guilds = await collection.find({}, {"guildId": 1, "_id": 0}).to_list(length=None)
+        guild_ids = [g["guildId"] for g in guilds if "guildId" in g]
+        return {"success": True, "guilds": guild_ids}
+    except Exception as e:
+        logger.error(f"Error getting guilds: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 if __name__ == "__main__":
     import uvicorn
 

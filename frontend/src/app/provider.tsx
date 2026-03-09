@@ -11,6 +11,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { queryConfig } from '@/lib/react-query';
 import { AuthProvider } from '@/contexts/auth-context';
 import { ConfigChangesProvider } from '@/contexts/config-changes-context';
+import { GuildProvider } from '@/contexts/guild-context';
 
 type AppProviderProps = {
   children: React.ReactNode;
@@ -41,17 +42,19 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         <ErrorBoundary FallbackComponent={MainErrorFallback}>
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
-              <SidebarProvider
-                style={
-                  {
-                    '--sidebar-width': '350px',
-                  } as React.CSSProperties
-                }
-                defaultOpen={defaultOpen}
-              >
-                <ConfigChangesProvider>{children}</ConfigChangesProvider>
-              </SidebarProvider>
-              <ReactQueryDevtools />
+              <GuildProvider>
+                <SidebarProvider
+                  style={
+                    {
+                      '--sidebar-width': '350px',
+                    } as React.CSSProperties
+                  }
+                  defaultOpen={defaultOpen}
+                >
+                  <ConfigChangesProvider>{children}</ConfigChangesProvider>
+                </SidebarProvider>
+                <ReactQueryDevtools />
+              </GuildProvider>
             </AuthProvider>
           </QueryClientProvider>
         </ErrorBoundary>

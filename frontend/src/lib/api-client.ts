@@ -95,10 +95,15 @@ export interface HealthResponse {
   service: string;
 }
 
+export interface GuildsResponse {
+  success: boolean;
+  guilds: string[];
+}
+
 export class ConfigAPIClient {
   private baseUrl: string;
   private adminKey: string;
-  private defaultGuildId: string;
+  private currentGuildId: string;
 
   constructor(baseUrl?: string, adminKey?: string, defaultGuildId?: string) {
     this.baseUrl =
@@ -106,8 +111,16 @@ export class ConfigAPIClient {
       import.meta.env.VITE_BACKEND_API_URL ||
       'http://localhost:5000';
     this.adminKey = adminKey || import.meta.env.VITE_API_ADMIN_KEY || '';
-    this.defaultGuildId =
+    this.currentGuildId =
       defaultGuildId || import.meta.env.VITE_DEFAULT_GUILD_ID || '';
+  }
+
+  setGuildId(guildId: string) {
+    this.currentGuildId = guildId;
+  }
+
+  getGuildId(): string {
+    return this.currentGuildId;
   }
 
   private async fetch<T>(
@@ -119,7 +132,7 @@ export class ConfigAPIClient {
     const headers = {
       'Content-Type': 'application/json',
       'X-Admin-Key': this.adminKey,
-      'X-Guild-ID': this.defaultGuildId,
+      'X-Guild-ID': this.currentGuildId,
       ...options.headers,
     };
 
@@ -196,6 +209,13 @@ export class ConfigAPIClient {
   // Get config version
   async getVersion(): Promise<VersionResponse> {
     return this.fetch<VersionResponse>('/config/version', {
+      method: 'GET',
+    });
+  }
+
+  // Get available guilds
+  async getGuilds(): Promise<GuildsResponse> {
+    return this.fetch<GuildsResponse>('/guilds', {
       method: 'GET',
     });
   }

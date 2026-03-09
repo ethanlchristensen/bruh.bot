@@ -91,3 +91,11 @@ export function useReloadConfig() {
     },
   });
 }
+
+export function useGuilds() {
+  return useQuery({
+    queryKey: ['guilds'],
+    queryFn: () => apiClient.getGuilds(),
+    staleTime: 60000, // 1 minute
+  });
+}

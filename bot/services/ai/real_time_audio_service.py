@@ -21,7 +21,7 @@ class RealTimeAudioService:
         self.config = config
         self.model = config.aiConfig.realTimeConfig.realTimeModel
         self.voice = config.aiConfig.realTimeConfig.voice
-        self.apiKey = config.aiConfig.realTimeConfig.apiKey
+        self.apiKey = config.aiConfig.realTimeConfig.get_api_key()
         self.ws: websockets.ClientConnection | None = None
         self.is_running = False
         self.ws_url = f"wss://api.openai.com/v1/realtime?model={self.model}"

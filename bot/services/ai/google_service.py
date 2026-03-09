@@ -27,7 +27,7 @@ class GoogleAIService(BaseService):
             gemini_messages = [self.map_message_to_provider(message, "google") for message in messages]
             self.logger.info(f"Calling GoogleAIService.chat() with model={model_to_use}")
 
-            client = Client(api_key=google_ai_config.apiKey.get_secret_value())
+            client = Client(api_key=google_ai_config.get_api_key())
 
             raw_response = await client.aio.models.generate_content(model=model_to_use, contents=gemini_messages)
 
@@ -55,7 +55,7 @@ class GoogleAIService(BaseService):
             gemini_messages = [self.map_message_to_provider(message, "google") for message in messages]
             self.logger.info(f"Calling GoogleAIService.chat_with_schema() with model={model_to_use}")
 
-            client = Client(api_key=google_ai_config.apiKey.get_secret_value())
+            client = Client(api_key=google_ai_config.get_api_key())
 
             raw_response = await client.aio.models.generate_content(
                 model=model_to_use,

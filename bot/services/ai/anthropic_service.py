@@ -27,7 +27,7 @@ class AnthropicService(BaseService):
             anthropic_messages = [self.map_message_to_provider(message, "anthropic") for message in messages]
             self.logger.info(f"Calling AnthropicService.chat() with model={model_to_use}")
 
-            async with AsyncAnthropic(api_key=anthropic_config.apiKey.get_secret_value()) as client:
+            async with AsyncAnthropic(api_key=anthropic_config.get_api_key()) as client:
                 raw_response = await client.messages.create(model=model_to_use, max_tokens=max_tokens, messages=anthropic_messages)
 
             return AIChatResponse(
@@ -58,7 +58,7 @@ class AnthropicService(BaseService):
                 "input_schema": schema.model_json_schema(),
             }
 
-            async with AsyncAnthropic(api_key=anthropic_config.apiKey.get_secret_value()) as client:
+            async with AsyncAnthropic(api_key=anthropic_config.get_api_key()) as client:
                 raw_response = await client.messages.create(
                     model=model_to_use,
                     max_tokens=1024,

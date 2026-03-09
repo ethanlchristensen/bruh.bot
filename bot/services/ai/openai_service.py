@@ -27,7 +27,7 @@ class OpenAIService(BaseService):
             openai_messages = [self.map_message_to_provider(message, "openai") for message in messages]
             self.logger.info(f"Calling OpenAIService.chat() with model={model_to_use}")
 
-            async with AsyncClient(api_key=openai_config.apiKey.get_secret_value()) as client:
+            async with AsyncClient(api_key=openai_config.get_api_key()) as client:
                 raw_response = await client.chat.completions.create(model=model_to_use, messages=openai_messages)
 
             return AIChatResponse(
@@ -52,7 +52,7 @@ class OpenAIService(BaseService):
             openai_messages = [self.map_message_to_provider(message, "openai") for message in messages]
             self.logger.info(f"Calling OpenAIService.chat_with_schema() with model={model_to_use}")
 
-            async with AsyncClient(api_key=openai_config.apiKey.get_secret_value()) as client:
+            async with AsyncClient(api_key=openai_config.get_api_key()) as client:
                 raw_response = await client.beta.chat.completions.parse(
                     model=model_to_use,
                     messages=openai_messages,

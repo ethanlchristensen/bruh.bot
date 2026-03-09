@@ -15,11 +15,17 @@ logger = logging.getLogger("bot.config")
 class ProviderConfig(BaseModel):
     """Generic AI provider config."""
 
-    apiKey: SecretStr = ""
+    apiKey: SecretStr = Field(default=SecretStr(""))
     endpoint: str = ""
     preferredModel: str = ""
     voice: str = ""
     realTimeModel: str = ""
+
+    def get_api_key(self) -> str:
+        """Safely get API key value, handling both SecretStr and plain string."""
+        if isinstance(self.apiKey, SecretStr):
+            return self.apiKey.get_secret_value()
+        return str(self.apiKey)
 
 
 class OrchestratorConfig(BaseModel):

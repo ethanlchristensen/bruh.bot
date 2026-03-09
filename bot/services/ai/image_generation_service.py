@@ -135,7 +135,7 @@ Be specific and thorough as this description will be used for image editing cont
 
             logger.info(f"Generating image with {'boosted ' if config.imageGeneration.boostImagePrompts else ''}prompt: {boosted_prompt}")
 
-            client = Client(api_key=config.google.apiKey.get_secret_value())
+            client = Client(api_key=config.google.get_api_key())
 
             response = await client.aio.models.generate_content(
                 model=config.imageGeneration.preferredModel,
@@ -179,7 +179,7 @@ Be specific and thorough as this description will be used for image editing cont
             contents = [self.base_prompt, boosted_prompt]
             contents.extend(source_images)
 
-            client = Client(api_key=config.google.apiKey.get_secret_value())
+            client = Client(api_key=config.google.get_api_key())
 
             response = await client.aio.models.generate_content(
                 model=config.imageGeneration.preferredModel,

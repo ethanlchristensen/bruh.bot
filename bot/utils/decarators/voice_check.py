@@ -4,8 +4,6 @@ from typing import TYPE_CHECKING, ParamSpec, TypeVar, cast
 
 import discord
 
-from bot.services.config_service import DynamicConfig
-
 P = ParamSpec("P")
 T = TypeVar("T")
 

@@ -82,7 +82,7 @@ class AudioService:
         # We need to seek into the original file by scaling the target position
         seek_position = position
         if filter_preset and filter_preset.speed_multiplier != 1.0:
-             seek_position = position * filter_preset.speed_multiplier
+            seek_position = position * filter_preset.speed_multiplier
 
         if seek_position > 0:
             self.logger.info(f"Seeking to {seek_position} (scaled from {position})")

@@ -140,7 +140,12 @@ function MusicComponent() {
           <GuildSelector />
 
           {isConnected ? (
-            <Button variant="outline" size="sm" onClick={disconnect} className="gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={disconnect}
+              className="gap-2"
+            >
               <WifiOff className="h-4 w-4" /> Disconnect
             </Button>
           ) : (
@@ -186,7 +191,7 @@ function MusicComponent() {
               Now Playing
             </CardTitle>
             <CardDescription>
-              {!isConnected 
+              {!isConnected
                 ? 'Connect to a guild to view status'
                 : state?.is_playing
                   ? state.is_paused
@@ -200,29 +205,35 @@ function MusicComponent() {
               <div className="flex flex-col md:flex-row gap-6 w-full">
                 {currentSong.thumbnail_url && (
                   <div className="aspect-video w-full md:w-64 lg:w-80 shrink-0 overflow-hidden rounded-md border bg-muted/30 relative">
-                    <img 
-                      src={currentSong.thumbnail_url} 
-                      alt={currentSong.title} 
+                    <img
+                      src={currentSong.thumbnail_url}
+                      alt={currentSong.title}
                       className="w-full h-full object-cover"
                     />
-                    {currentSong.filter_preset && currentSong.filter_preset !== 'none' && (
-                      <div className="absolute top-2 right-2">
-                        <Badge variant="secondary" className="bg-black/50 backdrop-blur-md text-white border-none shadow-sm gap-1 hover:bg-black/60">
-                           <Filter className="h-3 w-3" />
-                           {FILTER_PRESETS.find(p => p.value === currentSong.filter_preset)?.label || currentSong.filter_preset}
-                        </Badge>
-                      </div>
-                    )}
+                    {currentSong.filter_preset &&
+                      currentSong.filter_preset !== 'none' && (
+                        <div className="absolute top-2 right-2">
+                          <Badge
+                            variant="secondary"
+                            className="bg-black/50 backdrop-blur-md text-white border-none shadow-sm gap-1 hover:bg-black/60"
+                          >
+                            <Filter className="h-3 w-3" />
+                            {FILTER_PRESETS.find(
+                              (p) => p.value === currentSong.filter_preset,
+                            )?.label || currentSong.filter_preset}
+                          </Badge>
+                        </div>
+                      )}
                   </div>
                 )}
-                
+
                 <div className="flex-1 flex flex-col justify-between gap-6">
                   <div className="space-y-2">
                     <h3 className="font-bold text-xl line-clamp-2">
                       {currentSong.webpage_url ? (
-                        <a 
-                          href={currentSong.webpage_url} 
-                          target="_blank" 
+                        <a
+                          href={currentSong.webpage_url}
+                          target="_blank"
                           rel="noopener noreferrer"
                           className="hover:text-primary transition-colors underline-offset-4 hover:underline"
                         >
@@ -235,9 +246,9 @@ function MusicComponent() {
                     <p className="text-muted-foreground flex items-center gap-1">
                       <User className="h-4 w-4" />
                       {currentSong.author_url ? (
-                        <a 
-                          href={currentSong.author_url} 
-                          target="_blank" 
+                        <a
+                          href={currentSong.author_url}
+                          target="_blank"
                           rel="noopener noreferrer"
                           className="hover:text-primary transition-colors"
                         >
@@ -276,7 +287,12 @@ function MusicComponent() {
 
                     <div className="flex justify-start gap-4">
                       {state.is_paused ? (
-                        <Button size="icon" variant="outline" onClick={resume} disabled={!isConnected}>
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          onClick={resume}
+                          disabled={!isConnected}
+                        >
                           <Play className="h-5 w-5 fill-current" />
                         </Button>
                       ) : (
@@ -326,8 +342,8 @@ function MusicComponent() {
                 </div>
 
                 <div className="flex gap-2">
-                  <Select 
-                    value={filterPreset} 
+                  <Select
+                    value={filterPreset}
                     onValueChange={setFilterPreset}
                     disabled={!isConnected}
                   >
@@ -343,7 +359,11 @@ function MusicComponent() {
                     </SelectContent>
                   </Select>
 
-                  <Button type="submit" size="icon" disabled={!isConnected || !query.trim()}>
+                  <Button
+                    type="submit"
+                    size="icon"
+                    disabled={!isConnected || !query.trim()}
+                  >
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
@@ -374,16 +394,17 @@ function MusicComponent() {
                     <div className="flex items-center gap-3 overflow-hidden">
                       {item.thumbnail_url ? (
                         <div className="h-10 w-16 flex-shrink-0 overflow-hidden rounded bg-muted/30 relative">
-                          <img 
-                            src={item.thumbnail_url} 
-                            alt="" 
+                          <img
+                            src={item.thumbnail_url}
+                            alt=""
                             className="h-full w-full object-cover"
                           />
-                          {item.filter_preset && item.filter_preset !== 'none' && (
-                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                          {item.filter_preset &&
+                            item.filter_preset !== 'none' && (
+                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                                 <Filter className="h-3 w-3 text-white" />
-                             </div>
-                          )}
+                              </div>
+                            )}
                         </div>
                       ) : (
                         <span className="text-sm text-muted-foreground w-4 text-center">
@@ -394,9 +415,9 @@ function MusicComponent() {
                         <div className="flex items-center gap-2">
                           <p className="font-medium truncate text-sm">
                             {item.webpage_url ? (
-                              <a 
-                                href={item.webpage_url} 
-                                target="_blank" 
+                              <a
+                                href={item.webpage_url}
+                                target="_blank"
                                 rel="noopener noreferrer"
                                 className="hover:text-primary transition-colors underline-offset-4 hover:underline"
                               >
@@ -406,18 +427,24 @@ function MusicComponent() {
                               item.title
                             )}
                           </p>
-                          {item.filter_preset && item.filter_preset !== 'none' && (
-                            <Badge variant="outline" className="text-[10px] h-4 px-1 py-0 border-primary/20 bg-primary/5">
-                              <Filter className="h-2 w-2 mr-1" />
-                              {FILTER_PRESETS.find(p => p.value === item.filter_preset)?.label || item.filter_preset}
-                            </Badge>
-                          )}
+                          {item.filter_preset &&
+                            item.filter_preset !== 'none' && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] h-4 px-1 py-0 border-primary/20 bg-primary/5"
+                              >
+                                <Filter className="h-2 w-2 mr-1" />
+                                {FILTER_PRESETS.find(
+                                  (p) => p.value === item.filter_preset,
+                                )?.label || item.filter_preset}
+                              </Badge>
+                            )}
                         </div>
                         <p className="text-xs text-muted-foreground truncate">
                           {item.author_url ? (
-                            <a 
-                              href={item.author_url} 
-                              target="_blank" 
+                            <a
+                              href={item.author_url}
+                              target="_blank"
                               rel="noopener noreferrer"
                               className="hover:text-primary transition-colors"
                             >
@@ -447,7 +474,11 @@ function MusicComponent() {
                 ))
               ) : (
                 <div className="py-20 text-center text-muted-foreground">
-                  <p>{isConnected ? 'Queue is empty' : 'Connect to a guild to view queue'}</p>
+                  <p>
+                    {isConnected
+                      ? 'Queue is empty'
+                      : 'Connect to a guild to view queue'}
+                  </p>
                 </div>
               )}
             </div>

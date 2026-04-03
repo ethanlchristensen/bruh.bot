@@ -27,10 +27,10 @@ const createEnv = () => {
     // We now route /ws/ through nginx (or Vite dev server)
     const isBrowser = typeof window !== 'undefined';
     if (isBrowser) {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        envVars.MUSIC_WS_URL = `${protocol}//${window.location.host}/ws`;
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      envVars.MUSIC_WS_URL = `${protocol}//${window.location.host}/ws`;
     } else {
-        envVars.MUSIC_WS_URL = 'ws://localhost:8003/ws';
+      envVars.MUSIC_WS_URL = 'ws://localhost:8003/ws';
     }
   }
 

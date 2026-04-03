@@ -99,12 +99,7 @@ function MusicComponent() {
           <GuildSelector />
 
           {isConnected ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={disconnect}
-              className="gap-2"
-            >
+            <Button variant="outline" size="sm" onClick={disconnect} className="gap-2">
               <WifiOff className="h-4 w-4" /> Disconnect
             </Button>
           ) : (
@@ -150,7 +145,7 @@ function MusicComponent() {
               Now Playing
             </CardTitle>
             <CardDescription>
-              {!isConnected
+              {!isConnected 
                 ? 'Connect to a guild to view status'
                 : state?.is_playing
                   ? state.is_paused
@@ -162,6 +157,15 @@ function MusicComponent() {
           <CardContent className="space-y-6">
             {currentSong ? (
               <>
+                {currentSong.thumbnail_url && (
+                  <div className="aspect-video w-full overflow-hidden rounded-md border bg-muted/30">
+                    <img 
+                      src={currentSong.thumbnail_url} 
+                      alt={currentSong.title} 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
                 <div className="space-y-2">
                   <h3 className="font-bold text-xl line-clamp-2">
                     {currentSong.title}
@@ -199,12 +203,7 @@ function MusicComponent() {
 
                   <div className="flex justify-center gap-4">
                     {state.is_paused ? (
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        onClick={resume}
-                        disabled={!isConnected}
-                      >
+                      <Button size="icon" variant="outline" onClick={resume} disabled={!isConnected}>
                         <Play className="h-5 w-5 fill-current" />
                       </Button>
                     ) : (
@@ -278,10 +277,20 @@ function MusicComponent() {
                     className="flex items-center justify-between p-3 rounded-md hover:bg-accent group transition-colors"
                   >
                     <div className="flex items-center gap-3 overflow-hidden">
-                      <span className="text-sm text-muted-foreground w-4">
-                        {i + 1}
-                      </span>
-                      <div className="overflow-hidden">
+                      {item.thumbnail_url ? (
+                        <div className="h-10 w-16 flex-shrink-0 overflow-hidden rounded bg-muted/30">
+                          <img 
+                            src={item.thumbnail_url} 
+                            alt="" 
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-sm text-muted-foreground w-4 text-center">
+                          {i + 1}
+                        </span>
+                      )}
+                      <div className="overflow-hidden ml-2">
                         <p className="font-medium truncate text-sm">
                           {item.title}
                         </p>
@@ -308,11 +317,7 @@ function MusicComponent() {
                 ))
               ) : (
                 <div className="py-20 text-center text-muted-foreground">
-                  <p>
-                    {isConnected
-                      ? 'Queue is empty'
-                      : 'Connect to a guild to view queue'}
-                  </p>
+                  <p>{isConnected ? 'Queue is empty' : 'Connect to a guild to view queue'}</p>
                 </div>
               )}
             </div>
@@ -322,3 +327,4 @@ function MusicComponent() {
     </div>
   );
 }
+

@@ -17,6 +17,7 @@ export interface Song {
   duration: number;
   requested_by: string;
   url?: string;
+  thumbnail_url?: string;
   index?: number;
 }
 

@@ -176,11 +176,16 @@ class AudioMetaData:
         )
 
     def to_dict(self) -> dict[str, Any]:
+        effective_duration = (
+            int(self.duration / self.filter_preset.speed_multiplier)
+            if self.filter_preset
+            else self.duration
+        )
         return {
             "title": self.title,
             "author": self.author,
             "author_url": self.author_url,
-            "duration": self.duration,
+            "duration": effective_duration,
             "url": self.url,
             "webpage_url": self.webpage_url,
             "thumbnail_url": self.thumbnail_url,

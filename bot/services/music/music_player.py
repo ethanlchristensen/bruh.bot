@@ -186,9 +186,11 @@ class MusicPlayer:
         if hours >= 0:
             position += hours * 60 * 60
 
-        duration = self.current.duration
-        if duration and position > duration:
-            minutes, seconds = divmod(duration, 60)
+        # Calculate effective duration for the duration check
+        effective_duration = int(self.current.duration / self.current.filter_preset.speed_multiplier) if self.current.filter_preset else self.current.duration
+
+        if effective_duration and position > effective_duration:
+            minutes, seconds = divmod(effective_duration, 60)
             hours, minutes = divmod(minutes, 60)
             hours, minutes, seconds = int(hours), int(minutes), int(seconds)
             time_format = f"{hours}h {minutes}m {seconds}s" if hours else f"{minutes}m {seconds}s" if minutes else f"{seconds}s"
@@ -197,6 +199,7 @@ class MusicPlayer:
         seeked_song = AudioMetaData.from_dict(self.current.to_dict())
         seeked_song.text_channel = self.current.text_channel
         seeked_song.filter_preset = self.current.filter_preset
+
         seeked_song.position = position
         seeked_song.should_pause = self.is_paused()
         seeked_song.to_front = True

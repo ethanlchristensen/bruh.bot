@@ -26,10 +26,15 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       }),
   );
 
-  const [defaultOpen] = React.useState(() => {
+  const [open, setOpen] = React.useState(() => {
     const saved = localStorage.getItem('sidebar-open');
     return saved ? JSON.parse(saved) : true;
   });
+
+  const handleOpenChange = (value: boolean) => {
+    setOpen(value);
+    localStorage.setItem('sidebar-open', JSON.stringify(value));
+  };
 
   return (
     <ThemeProvider defaultTheme="dark" storageKey="bruh-ui-theme">
@@ -51,7 +56,8 @@ export const AppProvider = ({ children }: AppProviderProps) => {
                         '--sidebar-width': '350px',
                       } as React.CSSProperties
                     }
-                    defaultOpen={defaultOpen}
+                    open={open}
+                    onOpenChange={handleOpenChange}
                   >
                     <ConfigChangesProvider>{children}</ConfigChangesProvider>
                   </SidebarProvider>

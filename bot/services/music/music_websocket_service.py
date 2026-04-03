@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
+from .types import FilterPreset
+
 if TYPE_CHECKING:
     from bot.juno import Juno
 
@@ -78,11 +80,27 @@ class MusicWebSocketService:
             try:
                 gid = int(guild_id)
             except ValueError:
-                return {"guild_id": str_guild_id, "is_playing": False, "is_paused": False, "current_song": None, "queue": [], "position": 0, "error": f"Invalid Guild ID: {str_guild_id}"}
+                return {
+                    "guild_id": str_guild_id,
+                    "is_playing": False,
+                    "is_paused": False,
+                    "current_song": None,
+                    "queue": [],
+                    "position": 0,
+                    "error": f"Invalid Guild ID: {str_guild_id}",
+                }
 
             guild = self.bot.get_guild(gid)
             if not guild:
-                return {"guild_id": str_guild_id, "is_playing": False, "is_paused": False, "current_song": None, "queue": [], "position": 0, "error": "Guild not found (bot may not be in this guild)"}
+                return {
+                    "guild_id": str_guild_id,
+                    "is_playing": False,
+                    "is_paused": False,
+                    "current_song": None,
+                    "queue": [],
+                    "position": 0,
+                    "error": "Guild not found (bot may not be in this guild)",
+                }
 
             player = self.bot.music_queue_service.get_player(guild)
 
@@ -116,11 +134,26 @@ class MusicWebSocketService:
                     else:
                         current_pos = int(time.time() - player.played_at)
 
-            return {"guild_id": str_guild_id, "is_playing": is_playing, "is_paused": is_paused, "current_song": current_song, "queue": queue_list, "position": current_pos}
+            return {
+                "guild_id": str_guild_id,
+                "is_playing": is_playing,
+                "is_paused": is_paused,
+                "current_song": current_song,
+                "queue": queue_list,
+                "position": current_pos,
+            }
         except Exception as e:
             logger.error(f"Error getting guild state for {str_guild_id}: {e}")
             logger.error(traceback.format_exc())
-            return {"guild_id": str_guild_id, "is_playing": False, "is_paused": False, "current_song": None, "queue": [], "position": 0, "error": f"Internal Server Error: {str(e)}"}
+            return {
+                "guild_id": str_guild_id,
+                "is_playing": False,
+                "is_paused": False,
+                "current_song": None,
+                "queue": [],
+                "position": 0,
+                "error": f"Internal Server Error: {str(e)}",
+            }
 
     async def handle_incoming_message(self, guild_id: str | int, message: dict[str, Any]):
         str_guild_id = str(guild_id)
@@ -156,6 +189,12 @@ class MusicWebSocketService:
                     info = await loop.run_in_executor(None, self.bot.audio_service.extract_info, query)
                     metadata = self.bot.audio_service.get_metadata(info)
                     metadata.requested_by = payload.get("requested_by", "Web API")
+
+                    # Handle filter preset
+                    filter_val = payload.get("filter_preset")
+                    if filter_val:
+                        metadata.filter_preset = FilterPreset.from_value(filter_val)
+
                     # If we have a text channel from the player's last song, use it
                     if player.current and player.current.text_channel:
                         metadata.text_channel = player.current.text_channel

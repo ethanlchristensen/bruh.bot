@@ -19,6 +19,7 @@ export interface Song {
   url?: string;
   thumbnail_url?: string;
   index?: number;
+  filter_preset?: string | null;
 }
 
 export interface MusicState {
@@ -41,7 +42,7 @@ interface MusicContextType {
   pause: () => void;
   resume: () => void;
   seek: (seconds: number) => void;
-  add: (query: string) => void;
+  add: (query: string, filterPreset?: string) => void;
   remove: (index: number) => void;
   connect: () => void;
   disconnect: () => void;
@@ -173,12 +174,15 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     [sendMessage],
   );
   const add = useCallback(
-    (query: string) => {
+    (query: string, filterPreset: string = 'none') => {
       sendMessage('add', {
         query,
         requested_by: user?.username || 'Web Dashboard',
+        filter_preset: filterPreset,
       });
-      setLastMessage(`Adding: ${query}`);
+      setLastMessage(
+        `Adding: ${query} ${filterPreset !== 'none' ? `(${filterPreset})` : ''}`,
+      );
     },
     [sendMessage, user],
   );

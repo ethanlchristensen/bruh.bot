@@ -12,6 +12,7 @@ import { queryConfig } from '@/lib/react-query';
 import { AuthProvider } from '@/contexts/auth-context';
 import { ConfigChangesProvider } from '@/contexts/config-changes-context';
 import { GuildProvider } from '@/contexts/guild-context';
+import { MusicProvider } from '@/contexts/music-context';
 
 type AppProviderProps = {
   children: React.ReactNode;
@@ -43,16 +44,18 @@ export const AppProvider = ({ children }: AppProviderProps) => {
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
               <GuildProvider>
-                <SidebarProvider
-                  style={
-                    {
-                      '--sidebar-width': '350px',
-                    } as React.CSSProperties
-                  }
-                  defaultOpen={defaultOpen}
-                >
-                  <ConfigChangesProvider>{children}</ConfigChangesProvider>
-                </SidebarProvider>
+                <MusicProvider>
+                  <SidebarProvider
+                    style={
+                      {
+                        '--sidebar-width': '350px',
+                      } as React.CSSProperties
+                    }
+                    defaultOpen={defaultOpen}
+                  >
+                    <ConfigChangesProvider>{children}</ConfigChangesProvider>
+                  </SidebarProvider>
+                </MusicProvider>
                 <ReactQueryDevtools />
               </GuildProvider>
             </AuthProvider>

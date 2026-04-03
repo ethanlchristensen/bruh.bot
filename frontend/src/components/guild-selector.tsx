@@ -1,4 +1,5 @@
-import { useGuilds } from '@/hooks/use-config';
+import { useQueryClient } from '@tanstack/react-query';
+import { configKeys, useGuilds } from '@/hooks/use-config';
 import { useGuild } from '@/contexts/guild-context';
 import {
   Select,
@@ -8,8 +9,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
-import { useQueryClient } from '@tanstack/react-query';
-import { configKeys } from '@/hooks/use-config';
 
 export function GuildSelector() {
   const { data, isLoading } = useGuilds();

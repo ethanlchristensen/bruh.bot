@@ -7,10 +7,15 @@ services:
       dockerfile: Dockerfile
     environment:
       - ENVIRONMENT=dev
+      - WS_PORT=8001
+    ports:
+      - "8001:8001"
     volumes:
       - ./prompts.json:/app/prompts.json:ro
       - ./config:/app/config
     restart: unless-stopped
+    networks:
+      - app-network
 
   bruh-bot-prod:
     container_name: bruh.bot.prod
@@ -19,10 +24,15 @@ services:
       dockerfile: Dockerfile
     environment:
       - ENVIRONMENT=prod
+      - WS_PORT=8001
+    ports:
+      - "8002:8001"
     volumes:
       - ./prompts.json:/app/prompts.json:ro
       - ./config:/app/config
     restart: unless-stopped
+    networks:
+      - app-network
   
   config-api-dev:
     container_name: bruh.api.dev

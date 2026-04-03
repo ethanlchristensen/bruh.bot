@@ -97,7 +97,7 @@ export interface HealthResponse {
 
 export interface GuildsResponse {
   success: boolean;
-  guilds: string[];
+  guilds: Array<string>;
 }
 
 export class ConfigAPIClient {

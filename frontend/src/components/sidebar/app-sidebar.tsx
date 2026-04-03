@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Code, Shield } from 'lucide-react';
+import { Code, Music, Shield } from 'lucide-react';
 import { Link, useLocation } from '@tanstack/react-router';
 import { useAuth } from '@/hooks/use-auth';
 
@@ -28,6 +28,12 @@ const data = {
       title: 'User Management',
       url: '/user-management',
       icon: Shield,
+      isActive: false,
+    },
+    {
+      title: 'Music Queue',
+      url: '/music',
+      icon: Music,
       isActive: false,
     },
   ],

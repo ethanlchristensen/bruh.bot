@@ -32,4 +32,6 @@ WORKDIR /app
 COPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
 COPY . .
 
+EXPOSE 8001
+
 CMD ["python", "main.py"]

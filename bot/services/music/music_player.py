@@ -23,15 +23,16 @@ class MusicPlayer:
         self.played_at = None
         self.paused_at = None
         self.current: AudioMetaData = None
+        self.last_text_channel: discord.TextChannel = None
         self.logger = logging.getLogger(__name__)
 
     def is_playing(self):
         """Check if the voice client is playing"""
-        return self.voice_client and self.voice_client.is_playing()
+        return self.voice_client is not None and self.voice_client.is_playing()
 
     def is_paused(self):
         """Check if the voice client is paused"""
-        return self.voice_client.is_paused()
+        return self.voice_client is not None and self.voice_client.is_paused()
 
     def is_blocked(self):
         """Check is the player is blocked from playing a new song"""
@@ -48,6 +49,7 @@ class MusicPlayer:
         try:
             user_channel = interaction.user.voice.channel
             self.voice_client = await user_channel.connect(self_deaf=True)
+            self.last_text_channel = interaction.channel
             return MusicPlayerActionResponse(is_success=True, message=f"Successfully joined the VC '{user_channel.name}'.")
         except Exception as e:
             self.logger.error(f"[JOIN] - Failed to join voice channel: {e}")
@@ -61,18 +63,39 @@ class MusicPlayer:
         self.queue = PriorityMusicQueue()
         self.voice_client = None
         self.current = None
+        self.played_at = None
+        self.paused_at = None
+        self.last_text_channel = None
+        await self._broadcast_state()
         return MusicPlayerActionResponse(is_success=True, message="Successfully disconnected from the VC.")
+
+    async def _broadcast_state(self):
+        """Broadcast the current state to all websocket clients for this guild."""
+        if hasattr(self.bot, "music_websocket_service"):
+            state = await self.bot.music_websocket_service.get_guild_state(self.guild.id)
+            await self.bot.music_websocket_service.broadcast(self.guild.id, {"type": "state_update", "data": state})
 
     async def add(self, song: AudioMetaData) -> MusicPlayerActionResponse:
         """Add a song to queue"""
+        if song.text_channel:
+            self.last_text_channel = song.text_channel
+        elif self.last_text_channel:
+            song.text_channel = self.last_text_channel
+
         if self.is_blocked():
             self.logger.info(f"[ADD] - Bot is currently playing audio or the queue has items, adding song '{song.title}' to the queue")
             if song.to_front:
                 await self.queue.put_front(song)
             else:
                 await self.queue.put(song)
+
+            await self._broadcast_state()
             return MusicPlayerActionResponse(is_success=True, message=f"Successfully added the song '{song.title}' to the queue.")
         else:
+            if not self.is_in_vc():
+                self.logger.warning(f"[ADD] - Cannot play '{song.title}' because bot is not in a voice channel.")
+                return MusicPlayerActionResponse(is_success=False, message="Bot is not in a voice channel. Use /join in Discord first.")
+
             self.logger.info(f"[ADD] - Bot is not playing audio and the queue is empty, playing song '{song.title}'")
             self.current = song
             self.played_at = time.time()
@@ -83,6 +106,7 @@ class MusicPlayer:
             if not song.skip_now_playing_embed:
                 await self._send_now_playing_embed(self.current)
 
+            await self._broadcast_state()
             return MusicPlayerActionResponse(is_success=True, message=f"Successfully started playing the song '{song.title}'.")
 
     async def skip(self) -> MusicPlayerActionResponse:
@@ -90,6 +114,7 @@ class MusicPlayer:
         if self.is_playing() or self.is_paused():
             self.logger.info(f"[SKIP] - Skipping current audio '{self.current.title}'")
             self._stop()
+            # Broadcast will happen in _on_track_end
             return MusicPlayerActionResponse(is_success=True, message="Successfully skipped the audio.")
         return MusicPlayerActionResponse(is_success=False, message="No audio is currently playing.")
 
@@ -100,6 +125,7 @@ class MusicPlayer:
         if self.is_playing():
             self._pause()
             self.paused_at = time.time()
+            await self._broadcast_state()
             return MusicPlayerActionResponse(is_success=True, message="Successfully paused the audio.")
 
         return MusicPlayerActionResponse(is_success=False, message="Failed to pause audio for unknown reason.")
@@ -110,6 +136,13 @@ class MusicPlayer:
 
         if self.is_paused():
             self._resume()
+            # If we resumed, we need to adjust played_at if we are tracking position
+            if self.paused_at and self.played_at:
+                pause_duration = time.time() - self.paused_at
+                self.played_at += pause_duration
+            self.paused_at = None
+
+            await self._broadcast_state()
             return MusicPlayerActionResponse(is_success=True, message="Successfully resumed the audio.")
 
         return MusicPlayerActionResponse(is_success=False, message="Failed to resume audio for unknown reason.")
@@ -221,8 +254,16 @@ class MusicPlayer:
                 self._pause()
             else:
                 await self._send_now_playing_embed(self.current)
+        else:
+            self.current = None
+            self.played_at = None
+
+        await self._broadcast_state()
 
     async def _send_now_playing_embed(self, song: AudioMetaData):
+        if not song.text_channel:
+            self.logger.warning(f"No text channel associated with song '{song.title}', skipping embed.")
+            return
         now_playing_embed, emoji_file = self.bot.embed_service.create_now_playing_embed(song)
         discord_file = None if not emoji_file else discord.File(os.path.join(os.getcwd(), "emojis", emoji_file), emoji_file)
         await song.text_channel.send(embed=now_playing_embed, file=discord_file)

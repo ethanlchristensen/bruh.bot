@@ -30,6 +30,7 @@ from bot.services.ai import (
     OpenAIService,
     UserIntent,
 )
+from bot.services.music.music_websocket_service import MusicWebSocketService
 from bot.utils import JunoSlash
 
 
@@ -64,6 +65,7 @@ class Juno(commands.Bot):
         self.google_service = GoogleAIService(self)
         self.ai_orchestrator = AiOrchestrator(self)
         self.image_generation_service = ImageGenerationService(self)
+        self.music_websocket_service = MusicWebSocketService(self)
 
     def get_prompts(self, prompts_path: str | None = None) -> dict:
         """Get prompts from cache or load them."""
@@ -92,6 +94,7 @@ class Juno(commands.Bot):
     async def setup_hook(self):
         await self.juno_slash.load_commands()
         await self.load_cogs()
+        await self.music_websocket_service.start_server(port=int(os.getenv("WS_PORT", 8001)))
 
     async def load_cogs(self):
         cogs_dir = os.path.join(os.getcwd(), "bot", "cogs")
@@ -169,6 +172,24 @@ class Juno(commands.Bot):
         # Process and respond
         async with message.channel.typing():
             await self._handle_message_intent(message, reference_message)
+
+    async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
+        """Handle voice state updates for bot disconnection and empty channel cleanup."""
+        if not member.guild:
+            return
+
+        if member.id == self.user.id and before.channel and not after.channel:
+            self.logger.info(f"Bot was disconnected from {before.channel.name} in '{member.guild.name}'")
+            self.music_queue_service.remove_player(member.guild)
+            return
+        if before.channel:
+            player = self.music_queue_service.players.get(member.guild.id)
+            if player and player.voice_client and player.voice_client.channel == before.channel:
+                # If only bots are left in the channel
+                if not any(not m.bot for m in before.channel.members):
+                    self.logger.info(f"No users left in {before.channel.name}, cleaning up.")
+                    await player.leave()
+                    self.music_queue_service.remove_player(member.guild)
 
     async def _handle_message_intent(self, message: discord.Message, reference_message):
         """Handle the user's message based on detected intent."""

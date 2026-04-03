@@ -89,6 +89,7 @@ services:
       - "8444:443"
     environment:
       - API_HOST=config-api-dev
+      - BOT_HOST=bruh-bot-dev
     depends_on:
       - config-api-dev
     volumes:
@@ -109,6 +110,7 @@ services:
       - "8445:443"
     environment:
       - API_HOST=config-api-prod
+      - BOT_HOST=bruh-bot-prod
     depends_on:
       - config-api-prod
     volumes:

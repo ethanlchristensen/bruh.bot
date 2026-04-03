@@ -24,17 +24,13 @@ const createEnv = () => {
 
   // Default music WS URL if not provided
   if (!envVars.MUSIC_WS_URL) {
-    // If BACKEND_API_URL is http://localhost:5000, we want ws://localhost:8003
-    // This is a bit of a guess, but common for local dev.
-    // For production, the user should provide VITE_MUSIC_WS_URL.
-    const apiUrl = envVars.BACKEND_API_URL || 'http://localhost:5000';
-    try {
-      const url = new URL(apiUrl);
-      const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-      // Default to port 8003 for music WS as seen in the bot code
-      envVars.MUSIC_WS_URL = `${wsProtocol}//${url.hostname}:8003/ws`;
-    } catch {
-      envVars.MUSIC_WS_URL = 'ws://localhost:8003/ws';
+    // We now route /ws/ through nginx (or Vite dev server)
+    const isBrowser = typeof window !== 'undefined';
+    if (isBrowser) {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        envVars.MUSIC_WS_URL = `${protocol}//${window.location.host}/ws`;
+    } else {
+        envVars.MUSIC_WS_URL = 'ws://localhost:8003/ws';
     }
   }
 

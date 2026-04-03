@@ -216,7 +216,7 @@ function MusicComponent() {
                   </div>
                 )}
                 
-                <div className="flex-1 flex flex-col justify-between space-y-6 md:space-y-0">
+                <div className="flex-1 flex flex-col justify-between gap-6">
                   <div className="space-y-2">
                     <h3 className="font-bold text-xl line-clamp-2">
                       {currentSong.webpage_url ? (

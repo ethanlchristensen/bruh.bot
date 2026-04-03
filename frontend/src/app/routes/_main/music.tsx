@@ -207,7 +207,7 @@ function MusicComponent() {
                     />
                     {currentSong.filter_preset && currentSong.filter_preset !== 'none' && (
                       <div className="absolute top-2 right-2">
-                        <Badge variant="secondary" className="bg-black/50 backdrop-blur-md text-white border-none shadow-sm gap-1">
+                        <Badge variant="secondary" className="bg-black/50 backdrop-blur-md text-white border-none shadow-sm gap-1 hover:bg-black/60">
                            <Filter className="h-3 w-3" />
                            {FILTER_PRESETS.find(p => p.value === currentSong.filter_preset)?.label || currentSong.filter_preset}
                         </Badge>
@@ -219,11 +219,33 @@ function MusicComponent() {
                 <div className="flex-1 flex flex-col justify-between space-y-6 md:space-y-0">
                   <div className="space-y-2">
                     <h3 className="font-bold text-xl line-clamp-2">
-                      {currentSong.title}
+                      {currentSong.webpage_url ? (
+                        <a 
+                          href={currentSong.webpage_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="hover:text-primary transition-colors underline-offset-4 hover:underline"
+                        >
+                          {currentSong.title}
+                        </a>
+                      ) : (
+                        currentSong.title
+                      )}
                     </h3>
                     <p className="text-muted-foreground flex items-center gap-1">
                       <User className="h-4 w-4" />
-                      {currentSong.author}
+                      {currentSong.author_url ? (
+                        <a 
+                          href={currentSong.author_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="hover:text-primary transition-colors"
+                        >
+                          {currentSong.author}
+                        </a>
+                      ) : (
+                        currentSong.author
+                      )}
                     </p>
                     <Badge variant="secondary" className="mt-2">
                       Requested by: {currentSong.requested_by}
@@ -370,18 +392,40 @@ function MusicComponent() {
                       )}
                       <div className="overflow-hidden ml-2">
                         <div className="flex items-center gap-2">
-                           <p className="font-medium truncate text-sm">
-                             {item.title}
-                           </p>
-                           {item.filter_preset && item.filter_preset !== 'none' && !item.thumbnail_url && (
-                             <Badge variant="outline" className="text-[10px] h-4 px-1 py-0 border-primary/20">
-                               <Filter className="h-2 w-2 mr-1" />
-                               {FILTER_PRESETS.find(p => p.value === item.filter_preset)?.label || item.filter_preset}
-                             </Badge>
-                           )}
+                          <p className="font-medium truncate text-sm">
+                            {item.webpage_url ? (
+                              <a 
+                                href={item.webpage_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="hover:text-primary transition-colors underline-offset-4 hover:underline"
+                              >
+                                {item.title}
+                              </a>
+                            ) : (
+                              item.title
+                            )}
+                          </p>
+                          {item.filter_preset && item.filter_preset !== 'none' && (
+                            <Badge variant="outline" className="text-[10px] h-4 px-1 py-0 border-primary/20 bg-primary/5">
+                              <Filter className="h-2 w-2 mr-1" />
+                              {FILTER_PRESETS.find(p => p.value === item.filter_preset)?.label || item.filter_preset}
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-xs text-muted-foreground truncate">
-                          {item.author}
+                          {item.author_url ? (
+                            <a 
+                              href={item.author_url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="hover:text-primary transition-colors"
+                            >
+                              {item.author}
+                            </a>
+                          ) : (
+                            item.author
+                          )}
                         </p>
                       </div>
                     </div>

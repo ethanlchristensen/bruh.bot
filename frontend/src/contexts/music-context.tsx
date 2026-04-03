@@ -14,9 +14,11 @@ import { useAuth } from '@/hooks/use-auth';
 export interface Song {
   title: string;
   author: string;
+  author_url?: string;
   duration: number;
   requested_by: string;
   url?: string;
+  webpage_url?: string;
   thumbnail_url?: string;
   index?: number;
   filter_preset?: string | null;

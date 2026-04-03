@@ -78,9 +78,15 @@ class AudioService:
         self.logger.info("[GETAUDIOSOURCE] - Getting the FFmpegPCMAudio source to play the song")
         before_options = '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -user_agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"'
 
-        if position > 0:
-            self.logger.info("Recieved position when getting audio source. Attempting to seek to position.")
-            options = f"-vn -ss {position}"
+        # Adjust position if a filter speed multiplier exists
+        # We need to seek into the original file by scaling the target position
+        seek_position = position
+        if filter_preset and filter_preset.speed_multiplier != 1.0:
+             seek_position = position * filter_preset.speed_multiplier
+
+        if seek_position > 0:
+            self.logger.info(f"Seeking to {seek_position} (scaled from {position})")
+            options = f"-vn -ss {seek_position}"
         else:
             options = "-vn"
 

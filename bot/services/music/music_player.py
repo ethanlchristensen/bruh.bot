@@ -186,8 +186,8 @@ class MusicPlayer:
         if hours >= 0:
             position += hours * 60 * 60
 
-        # Calculate effective duration for the duration check
-        effective_duration = int(self.current.duration / self.current.filter_preset.speed_multiplier) if self.current.filter_preset else self.current.duration
+        # Use the effective_duration property for the duration check
+        effective_duration = self.current.effective_duration
 
         if effective_duration and position > effective_duration:
             minutes, seconds = divmod(effective_duration, 60)

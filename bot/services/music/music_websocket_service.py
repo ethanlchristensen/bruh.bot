@@ -112,11 +112,11 @@ class MusicWebSocketService:
                 for i, item in enumerate(list(player.queue._queue)):
                     try:
                         # PriorityMusicQueue does not use tuples like PriorityQueue, it uses appendleft
-                        item_dict = item.to_dict()
+                        item_dict = item.to_ui_dict()
                         item_dict["index"] = i
                         queue_list.append(item_dict)
                     except AttributeError as e:
-                        logger.error(f"Error calling to_dict on queue item {type(item)}: {e}")
+                        logger.error(f"Error calling to_ui_dict on queue item {type(item)}: {e}")
 
             current_pos = 0
             is_playing = False
@@ -126,7 +126,7 @@ class MusicWebSocketService:
             if player:
                 is_playing = player.is_playing()
                 is_paused = player.is_paused()
-                current_song = player.current.to_dict() if player.current else None
+                current_song = player.current.to_ui_dict() if player.current else None
 
                 if player.played_at:
                     if player.is_paused() and player.paused_at:

@@ -57,7 +57,7 @@ class EmbedService:
             value=(metadata.author if not metadata.author_url else f"[{metadata.author}]({metadata.author_url})"),
             inline=True,
         )
-        embed.add_field(name="Duration", value=self.format_duration(metadata.duration), inline=True)
+        embed.add_field(name="Duration", value=self.format_duration(metadata.effective_duration), inline=True)
         embed.add_field(name="Position in Queue", value=f"#{position}", inline=True)
 
         if metadata.requested_by:
@@ -91,7 +91,7 @@ class EmbedService:
             value=(metadata.author if not metadata.author_url else f"[{metadata.author}]({metadata.author_url})"),
             inline=False,
         )
-        embed.add_field(name="Duration", value=self.format_duration(metadata.duration), inline=False)
+        embed.add_field(name="Duration", value=self.format_duration(metadata.effective_duration), inline=False)
 
         if metadata.likes is not None:
             embed.add_field(name="Likes :thumbsup:", value=metadata.likes, inline=False)

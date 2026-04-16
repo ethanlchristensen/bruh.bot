@@ -153,6 +153,13 @@ class AudioMetaData:
     should_pause: bool = False
     skip_now_playing_embed: bool = False
 
+    @property
+    def effective_duration(self) -> int:
+        """Calculate the duration adjusted for the filter speed multiplier."""
+        if self.filter_preset and self.filter_preset.speed_multiplier != 1.0:
+            return int(self.duration / self.filter_preset.speed_multiplier)
+        return self.duration
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "AudioMetaData":
         filter_preset = FilterPreset.from_value(data.get("filter_preset"))
@@ -176,12 +183,12 @@ class AudioMetaData:
         )
 
     def to_dict(self) -> dict[str, Any]:
-        effective_duration = int(self.duration / self.filter_preset.speed_multiplier) if self.filter_preset else self.duration
+        """Return a dictionary representation of the metadata with the RAW duration."""
         return {
             "title": self.title,
             "author": self.author,
             "author_url": self.author_url,
-            "duration": effective_duration,
+            "duration": self.duration,
             "url": self.url,
             "webpage_url": self.webpage_url,
             "thumbnail_url": self.thumbnail_url,
@@ -194,6 +201,12 @@ class AudioMetaData:
             "should_pause": self.should_pause or False,
             "skip_now_playing_embed": self.skip_now_playing_embed or False,
         }
+
+    def to_ui_dict(self) -> dict[str, Any]:
+        """Return a dictionary representation of the metadata with the EFFECTIVE duration for UI display."""
+        d = self.to_dict()
+        d["duration"] = self.effective_duration
+        return d
 
 
 @dataclass

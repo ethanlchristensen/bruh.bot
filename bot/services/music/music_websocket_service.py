@@ -180,6 +180,10 @@ class MusicWebSocketService:
         elif msg_type == "seek":
             seconds = payload.get("seconds", 0)
             await player.seek(seconds=seconds)
+        elif msg_type == "filter":
+            filter_val = payload.get("filter_preset")
+            if filter_val:
+                await player.filter(FilterPreset.from_value(filter_val))
         elif msg_type == "add":
             query = payload.get("query")
             if query:

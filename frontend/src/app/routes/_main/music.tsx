@@ -90,6 +90,7 @@ function MusicComponent() {
     seek,
     add,
     remove,
+    filter,
     connect,
     disconnect,
   } = useMusic();
@@ -285,7 +286,7 @@ function MusicComponent() {
                       </div>
                     </div>
 
-                    <div className="flex justify-start gap-4">
+                    <div className="flex flex-wrap justify-start gap-4">
                       {state.is_paused ? (
                         <Button
                           size="icon"
@@ -313,6 +314,24 @@ function MusicComponent() {
                       >
                         <SkipForward className="h-5 w-5 fill-current" />
                       </Button>
+
+                      <Select
+                        value={currentSong.filter_preset || 'none'}
+                        onValueChange={(val) => filter(val)}
+                        disabled={!isConnected || !state.is_playing}
+                      >
+                        <SelectTrigger className="w-[180px]">
+                          <Filter className="w-4 h-4 mr-2" />
+                          <SelectValue placeholder="Audio Filter" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {FILTER_PRESETS.map((preset) => (
+                            <SelectItem key={preset.value} value={preset.value}>
+                              {preset.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                 </div>

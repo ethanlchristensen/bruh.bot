@@ -46,6 +46,7 @@ interface MusicContextType {
   seek: (seconds: number) => void;
   add: (query: string, filterPreset?: string) => void;
   remove: (index: number) => void;
+  filter: (filterPreset: string) => void;
   connect: () => void;
   disconnect: () => void;
 }
@@ -195,6 +196,13 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     },
     [sendMessage],
   );
+  const filter = useCallback(
+    (filterPreset: string) => {
+      sendMessage('filter', { filter_preset: filterPreset });
+      setLastMessage(`Filter changed to ${filterPreset}`);
+    },
+    [sendMessage],
+  );
 
   return (
     <MusicContext.Provider
@@ -210,6 +218,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         seek,
         add,
         remove,
+        filter,
         connect,
         disconnect,
       }}

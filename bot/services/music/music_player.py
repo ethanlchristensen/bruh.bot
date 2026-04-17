@@ -255,7 +255,7 @@ class MusicPlayer:
             self._play(self.bot.audio_service.get_audio_source(self.current.url, self.current.filter_preset, self.current.position))
             if self.current.should_pause:
                 self._pause()
-            else:
+            elif not self.current.skip_now_playing_embed:
                 await self._send_now_playing_embed(self.current)
         else:
             self.current = None

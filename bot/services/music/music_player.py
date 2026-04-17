@@ -158,10 +158,15 @@ class MusicPlayer:
             else:
                 current_position = int(time.time() - self.played_at)
 
+        # Calculate the equivalent position for the new filter's speed multiplier
+        old_speed = self.current.filter_preset.speed_multiplier if self.current.filter_preset else 1.0
+        new_speed = filter_preset.speed_multiplier if filter_preset else 1.0
+        new_position = int((current_position * old_speed) / new_speed)
+
         filtered_song = AudioMetaData.from_dict(self.current.to_dict())
         filtered_song.text_channel = self.current.text_channel
         filtered_song.filter_preset = filter_preset
-        filtered_song.position = current_position
+        filtered_song.position = new_position
         filtered_song.should_pause = self.is_paused()
         filtered_song.to_front = True
         filtered_song.skip_now_playing_embed = True
@@ -170,7 +175,7 @@ class MusicPlayer:
 
         self._stop()
 
-        self.logger.info(f"[FILTER] - Applied filter '{filtered_song.filter_preset.value}' at position {current_position}")
+        self.logger.info(f"[FILTER] - Applied filter '{filtered_song.filter_preset.value}' at position {new_position} (was {current_position})")
 
         return MusicPlayerActionResponse(is_success=False, message="Successfully applied the new filter to the audio.")
 

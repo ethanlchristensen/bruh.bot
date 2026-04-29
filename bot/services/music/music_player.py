@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 import time
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import discord
 from discord import FFmpegPCMAudio, Interaction
@@ -19,11 +19,11 @@ class MusicPlayer:
         self.bot = bot
         self.guild = guild
         self.queue = PriorityMusicQueue()
-        self.voice_client: Optional[discord.VoiceClient] = None
-        self.played_at: Optional[float] = None
-        self.paused_at: Optional[float] = None
-        self.current: Optional[AudioMetaData] = None
-        self.last_text_channel: Optional[discord.TextChannel] = None
+        self.voice_client: discord.VoiceClient | None = None
+        self.played_at: float | None = None
+        self.paused_at: float | None = None
+        self.current: AudioMetaData | None = None
+        self.last_text_channel: discord.TextChannel | None = None
         self.logger = logging.getLogger(__name__)
 
     def is_playing(self) -> bool:
@@ -221,7 +221,7 @@ class MusicPlayer:
 
         return after_callback
 
-    async def _on_track_end(self, error: Optional[Exception] = None) -> None:
+    async def _on_track_end(self, error: Exception | None = None) -> None:
         if error:
             self.logger.error("Track ended with error: %s - %s", self.current.title if self.current else "Unknown", error)
         else:

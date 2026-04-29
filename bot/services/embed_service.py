@@ -62,15 +62,11 @@ class EmbedService:
         if thumbnail_url:
             embed.set_thumbnail(url=thumbnail_url)
         elif self.BRAND_IMAGES.get("SUCCESS" if is_success else "ERROR"):
-            embed.set_thumbnail(
-                url=self.BRAND_IMAGES["SUCCESS" if is_success else "ERROR"]
-            )
+            embed.set_thumbnail(url=self.BRAND_IMAGES["SUCCESS" if is_success else "ERROR"])
 
         return embed
 
-    def create_added_to_queue_embed(
-        self, metadata: AudioMetaData, position: int
-    ) -> discord.Embed:
+    def create_added_to_queue_embed(self, metadata: AudioMetaData, position: int) -> discord.Embed:
         """Create an embed for when a track is added to the queue"""
         embed = self._create_base_embed(
             title="✨ Added to Queue",
@@ -80,11 +76,7 @@ class EmbedService:
 
         embed.add_field(
             name=self.source_labels.get(metadata.source, "Source"),
-            value=(
-                metadata.author
-                if not metadata.author_url
-                else f"[{metadata.author}]({metadata.author_url})"
-            ),
+            value=(metadata.author if not metadata.author_url else f"[{metadata.author}]({metadata.author_url})"),
             inline=True,
         )
         embed.add_field(
@@ -95,9 +87,7 @@ class EmbedService:
         embed.add_field(name="Queue Position", value=f"`#{position}`", inline=True)
 
         if metadata.requested_by:
-            embed.set_footer(
-                text=f"Requested by: {metadata.requested_by} • Celestial Juno"
-            )
+            embed.set_footer(text=f"Requested by: {metadata.requested_by} • Celestial Juno")
 
         if metadata.thumbnail_url:
             embed.set_thumbnail(url=metadata.thumbnail_url)
@@ -119,11 +109,7 @@ class EmbedService:
             color=BrandColor.PRIMARY,
         )
 
-        author_val = (
-            metadata.author
-            if not metadata.author_url
-            else f"[{metadata.author}]({metadata.author_url})"
-        )
+        author_val = metadata.author if not metadata.author_url else f"[{metadata.author}]({metadata.author_url})"
         embed.add_field(
             name=self.source_labels.get(metadata.source, "Source"),
             value=author_val,
@@ -170,16 +156,10 @@ class EmbedService:
         items_per_page: int = 5,
     ) -> discord.Embed:
         """Create an embed displaying the music queue"""
-        embed = self._create_base_embed(
-            title="🌌 Starlight Queue", color=BrandColor.ACCENT
-        )
+        embed = self._create_base_embed(title="🌌 Starlight Queue", color=BrandColor.ACCENT)
 
         if current_track:
-            author_text = (
-                current_track.author
-                if not current_track.author_url
-                else f"[{current_track.author}]({current_track.author_url})"
-            )
+            author_text = current_track.author if not current_track.author_url else f"[{current_track.author}]({current_track.author_url})"
             embed.add_field(
                 name="Currently Pulsing",
                 value=f"▶️ **[{current_track.title}]({current_track.webpage_url})**\n└ {author_text}",
@@ -190,52 +170,31 @@ class EmbedService:
         end_idx = start_idx + items_per_page
 
         if not queue_items:
-            embed.description = (
-                "*The queue is currently a silent void. Use /play to bring it to life.*"
-            )
+            embed.description = "*The queue is currently a silent void. Use /play to bring it to life.*"
         else:
             queue_display = []
-            for i, item in enumerate(
-                queue_items[start_idx:end_idx], start=start_idx + 1
-            ):
-                author_text = (
-                    item.author
-                    if not item.author_url
-                    else f"[{item.author}]({item.author_url})"
-                )
-                queue_display.append(
-                    f"`{i}.` **[{item.title}]({item.webpage_url})**\n"
-                    f"└ {author_text} • {self.format_duration(item.duration)}"
-                )
+            for i, item in enumerate(queue_items[start_idx:end_idx], start=start_idx + 1):
+                author_text = item.author if not item.author_url else f"[{item.author}]({item.author_url})"
+                queue_display.append(f"`{i}.` **[{item.title}]({item.webpage_url})**\n└ {author_text} • {self.format_duration(item.duration)}")
 
             embed.description = "\n\n".join(queue_display)
 
             total_pages = (len(queue_items) + items_per_page - 1) // items_per_page
-            embed.set_footer(
-                text=f"Page {page} of {total_pages} • {len(queue_items)} tracks in orbit"
-            )
+            embed.set_footer(text=f"Page {page} of {total_pages} • {len(queue_items)} tracks in orbit")
 
         return embed
 
     def create_error_embed(self, error_message: str) -> discord.Embed:
         """Create an embed for displaying errors"""
-        return self.create_action_embed(
-            title="⚠️ System Error", message=error_message, is_success=False
-        )
+        return self.create_action_embed(title="⚠️ System Error", message=error_message, is_success=False)
 
-    def create_success_embed(
-        self, message: str, title: str = "✅ Success"
-    ) -> discord.Embed:
+    def create_success_embed(self, message: str, title: str = "✅ Success") -> discord.Embed:
         """Create an embed for displaying success messages"""
         return self.create_action_embed(title=title, message=message, is_success=True)
 
-    def create_morning_embed(
-        self, message: str, title: str = "🌅 Celestial Sunrise"
-    ) -> tuple[discord.Embed, str]:
+    def create_morning_embed(self, message: str, title: str = "🌅 Celestial Sunrise") -> tuple[discord.Embed, str]:
         """Create an embed for morning messages"""
-        embed = self._create_base_embed(
-            title=title, description=message, color=BrandColor.GOLD
-        )
+        embed = self._create_base_embed(title=title, description=message, color=BrandColor.GOLD)
 
         emoji_filename = None
         if self.BRAND_IMAGES.get("MORNING"):
@@ -282,9 +241,7 @@ class QueuePaginationView(discord.ui.View):
         self.embed_service = embed_service
         self.current_page = 1
         self.items_per_page = 5
-        self.total_pages = max(
-            1, (len(queue_items) + self.items_per_page - 1) // self.items_per_page
-        )
+        self.total_pages = max(1, (len(queue_items) + self.items_per_page - 1) // self.items_per_page)
 
         self.update_button_states()
 
@@ -293,9 +250,7 @@ class QueuePaginationView(discord.ui.View):
         self.next_button.disabled = self.current_page == self.total_pages
 
     @discord.ui.button(label="Previous", style=discord.ButtonStyle.secondary, emoji="⬅️")
-    async def previous_button(
-        self, interaction: discord.Interaction, button: discord.ui.Button
-    ):
+    async def previous_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.current_page = max(1, self.current_page - 1)
         self.update_button_states()
 
@@ -309,9 +264,7 @@ class QueuePaginationView(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label="Next", style=discord.ButtonStyle.secondary, emoji="➡️")
-    async def next_button(
-        self, interaction: discord.Interaction, button: discord.ui.Button
-    ):
+    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.current_page = min(self.total_pages, self.current_page + 1)
         self.update_button_states()
 

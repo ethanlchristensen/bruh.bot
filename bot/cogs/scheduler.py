@@ -125,7 +125,7 @@ class SchedulerCog(commands.Cog):
 
         timezone = config.get("timezone", "UTC")
         message = f"Morning messages will be sent to {channel.mention} at **{config['hour']}:{config['minute']:02d} {timezone}**"
-        
+
         embed = self.bot.embed_service.create_success_embed(message, title="🌅 Schedule Configured")
         await interaction.followup.send(embed=embed, ephemeral=True)
 
@@ -200,7 +200,7 @@ class SchedulerCog(commands.Cog):
             embed = self.bot.embed_service.create_success_embed("Morning messages have been disabled for this celestial body.")
         else:
             embed = self.bot.embed_service.create_error_embed("Morning messages were not configured for this server.")
-            
+
         await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(name="test_morning", description="Test the morning message functionality")
@@ -253,15 +253,11 @@ class SchedulerCog(commands.Cog):
     @is_globally_blocked()
     async def list_timezones(self, interaction: discord.Interaction):
         """List common timezones that can be used"""
-        common_timezones = [
-            "UTC", "US/Eastern", "US/Central", "US/Mountain", "US/Pacific",
-            "Europe/London", "Europe/Berlin", "Europe/Moscow", "Asia/Tokyo",
-            "Asia/Shanghai", "Australia/Sydney", "Pacific/Auckland"
-        ]
+        common_timezones = ["UTC", "US/Eastern", "US/Central", "US/Mountain", "US/Pacific", "Europe/London", "Europe/Berlin", "Europe/Moscow", "Asia/Tokyo", "Asia/Shanghai", "Australia/Sydney", "Pacific/Auckland"]
 
         timezone_list = "\n".join([f"• `{tz}`" for tz in common_timezones])
         message = f"**Available Chronos Zones:**\n{timezone_list}\n\n*Refer to [TZ Database](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) for more.*"
-        
+
         embed = self.bot.embed_service.create_base_embed(title="🕒 Temporal Regions", description=message)
         await interaction.followup.send(embed=embed, ephemeral=True)
 

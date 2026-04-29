@@ -46,11 +46,7 @@ class MusicCog(commands.Cog):
     @is_globally_blocked()
     async def join(self, interaction: discord.Interaction):
         action_response = await self.bot.music_queue_service.get_player(interaction.guild).join(interaction)
-        embed = self.bot.embed_service.create_action_embed(
-            title="Channel Connection",
-            message=action_response.message,
-            is_success=action_response.is_success
-        )
+        embed = self.bot.embed_service.create_action_embed(title="Channel Connection", message=action_response.message, is_success=action_response.is_success)
         await interaction.response.send_message(embed=embed, ephemeral=not action_response.is_success)
 
     @app_commands.command(name="play", description="Play a song with a link or query.")
@@ -101,11 +97,7 @@ class MusicCog(commands.Cog):
     @is_globally_blocked()
     async def skip(self, interaction: discord.Interaction):
         skip_action_response = await self.bot.music_queue_service.get_player(interaction.guild).skip()
-        embed = self.bot.embed_service.create_action_embed(
-            title="Track Skip",
-            message=skip_action_response.message,
-            is_success=skip_action_response.is_success
-        )
+        embed = self.bot.embed_service.create_action_embed(title="Track Skip", message=skip_action_response.message, is_success=skip_action_response.is_success)
         await interaction.response.send_message(embed=embed, ephemeral=not skip_action_response.is_success)
 
     @app_commands.command(name="pause", description="Pause the currently playing audio.")
@@ -114,11 +106,7 @@ class MusicCog(commands.Cog):
     @is_globally_blocked()
     async def pause(self, interaction: discord.Interaction):
         pause_action_response = await self.bot.music_queue_service.get_player(interaction.guild).pause()
-        embed = self.bot.embed_service.create_action_embed(
-            title="Playback Paused",
-            message=pause_action_response.message,
-            is_success=pause_action_response.is_success
-        )
+        embed = self.bot.embed_service.create_action_embed(title="Playback Paused", message=pause_action_response.message, is_success=pause_action_response.is_success)
         await interaction.response.send_message(embed=embed, ephemeral=not pause_action_response.is_success)
 
     @app_commands.command(name="resume", description="Resume audio that was previously paused.")
@@ -127,11 +115,7 @@ class MusicCog(commands.Cog):
     @is_globally_blocked()
     async def resume(self, interaction: discord.Interaction):
         resume_action_response = await self.bot.music_queue_service.get_player(interaction.guild).resume()
-        embed = self.bot.embed_service.create_action_embed(
-            title="Playback Resumed",
-            message=resume_action_response.message,
-            is_success=resume_action_response.is_success
-        )
+        embed = self.bot.embed_service.create_action_embed(title="Playback Resumed", message=resume_action_response.message, is_success=resume_action_response.is_success)
         await interaction.response.send_message(embed=embed, ephemeral=not resume_action_response.is_success)
 
     @app_commands.command(name="leave", description="Have Juno leave the voice channel.")
@@ -140,11 +124,7 @@ class MusicCog(commands.Cog):
     @is_globally_blocked()
     async def leave(self, interaction: discord.Interaction):
         leave_action_response = await self.bot.music_queue_service.get_player(interaction.guild).leave()
-        embed = self.bot.embed_service.create_action_embed(
-            title="Disconnected",
-            message=leave_action_response.message,
-            is_success=leave_action_response.is_success
-        )
+        embed = self.bot.embed_service.create_action_embed(title="Disconnected", message=leave_action_response.message, is_success=leave_action_response.is_success)
         await interaction.response.send_message(embed=embed, ephemeral=not leave_action_response.is_success)
 
     @app_commands.command(name="queue", description="View the current music queue.")
@@ -188,11 +168,8 @@ class MusicCog(commands.Cog):
 
         self.logger.info(f"Filter called with {new_filter} to {player.current.title}")
         await player.filter(filter_preset)
-        
-        embed = self.bot.embed_service.create_success_embed(
-            f"Applied filter: **{filter_preset.display_name}**",
-            title="✨ Filter Engaged"
-        )
+
+        embed = self.bot.embed_service.create_success_embed(f"Applied filter: **{filter_preset.display_name}**", title="✨ Filter Engaged")
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="seek", description="Seek to a specific position in the current song.")
@@ -231,12 +208,8 @@ class MusicCog(commands.Cog):
             return
 
         action_response = await player.seek(hours, minutes, seconds)
-        
-        embed = self.bot.embed_service.create_action_embed(
-            title="Temporal Shift",
-            message=action_response.message,
-            is_success=action_response.is_success
-        )
+
+        embed = self.bot.embed_service.create_action_embed(title="Temporal Shift", message=action_response.message, is_success=action_response.is_success)
         await interaction.response.send_message(embed=embed, ephemeral=not action_response.is_success)
 
 

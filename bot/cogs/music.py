@@ -46,7 +46,12 @@ class MusicCog(commands.Cog):
     @is_globally_blocked()
     async def join(self, interaction: discord.Interaction):
         action_response = await self.bot.music_queue_service.get_player(interaction.guild).join(interaction)
-        await interaction.response.send_message(action_response.message, ephemeral=not action_response.is_success)
+        embed = self.bot.embed_service.create_action_embed(
+            title="Channel Connection",
+            message=action_response.message,
+            is_success=action_response.is_success
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=not action_response.is_success)
 
     @app_commands.command(name="play", description="Play a song with a link or query.")
     @app_commands.describe(query="Song name or YouTube link", filter="Audio filter to apply")
@@ -65,23 +70,30 @@ class MusicCog(commands.Cog):
             join_action_response = await player.join(interaction)
 
             if not join_action_response.is_success:
-                await interaction.followup.send(join_action_response.message)
+                embed = self.bot.embed_service.create_error_embed(join_action_response.message)
+                await interaction.followup.send(embed=embed)
                 return
 
         # Generate the song metadata
-        metadata = self.bot.audio_service.get_metadata(self.bot.audio_service.extract_info(query))
-        metadata.text_channel = interaction.channel
-        metadata.requested_by = interaction.user.name
-        metadata.filter_preset = FilterPreset.from_value(filter)
+        try:
+            info = await self.bot.audio_service.extract_info(query)
+            metadata = await self.bot.audio_service.get_metadata(info)
+            metadata.text_channel = interaction.channel
+            metadata.requested_by = interaction.user.name
+            metadata.filter_preset = FilterPreset.from_value(filter)
 
-        if not player.is_playing() and player.queue.empty():
-            await interaction.followup.send("Starting playback...", ephemeral=True)
-        else:
-            queue_position = player.queue.qsize()
-            embed = self.bot.embed_service.create_added_to_queue_embed(metadata, queue_position)
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            if not player.is_playing() and player.queue.empty():
+                embed = self.bot.embed_service.create_success_embed(f"Preparing to play **{metadata.title}**", title="Initializing...")
+                await interaction.followup.send(embed=embed, ephemeral=True)
+            else:
+                queue_position = player.queue.qsize() + 1
+                embed = self.bot.embed_service.create_added_to_queue_embed(metadata, queue_position)
+                await interaction.followup.send(embed=embed, ephemeral=True)
 
-        await player.add(metadata)
+            await player.add(metadata)
+        except Exception as e:
+            embed = self.bot.embed_service.create_error_embed(f"Failed to extract song info: {str(e)}")
+            await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="skip", description="Skip actively playing audio.")
     @log_command_usage()
@@ -89,7 +101,12 @@ class MusicCog(commands.Cog):
     @is_globally_blocked()
     async def skip(self, interaction: discord.Interaction):
         skip_action_response = await self.bot.music_queue_service.get_player(interaction.guild).skip()
-        await interaction.response.send_message(skip_action_response.message, ephemeral=not skip_action_response.is_success)
+        embed = self.bot.embed_service.create_action_embed(
+            title="Track Skip",
+            message=skip_action_response.message,
+            is_success=skip_action_response.is_success
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=not skip_action_response.is_success)
 
     @app_commands.command(name="pause", description="Pause the currently playing audio.")
     @log_command_usage()
@@ -97,7 +114,12 @@ class MusicCog(commands.Cog):
     @is_globally_blocked()
     async def pause(self, interaction: discord.Interaction):
         pause_action_response = await self.bot.music_queue_service.get_player(interaction.guild).pause()
-        await interaction.response.send_message(pause_action_response.message, ephemeral=not pause_action_response.is_success)
+        embed = self.bot.embed_service.create_action_embed(
+            title="Playback Paused",
+            message=pause_action_response.message,
+            is_success=pause_action_response.is_success
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=not pause_action_response.is_success)
 
     @app_commands.command(name="resume", description="Resume audio that was previously paused.")
     @log_command_usage()
@@ -105,7 +127,12 @@ class MusicCog(commands.Cog):
     @is_globally_blocked()
     async def resume(self, interaction: discord.Interaction):
         resume_action_response = await self.bot.music_queue_service.get_player(interaction.guild).resume()
-        await interaction.response.send_message(resume_action_response.message, ephemeral=not resume_action_response.is_success)
+        embed = self.bot.embed_service.create_action_embed(
+            title="Playback Resumed",
+            message=resume_action_response.message,
+            is_success=resume_action_response.is_success
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=not resume_action_response.is_success)
 
     @app_commands.command(name="leave", description="Have Juno leave the voice channel.")
     @log_command_usage()
@@ -113,7 +140,12 @@ class MusicCog(commands.Cog):
     @is_globally_blocked()
     async def leave(self, interaction: discord.Interaction):
         leave_action_response = await self.bot.music_queue_service.get_player(interaction.guild).leave()
-        await interaction.response.send_message(leave_action_response.message, ephemeral=not leave_action_response.is_success)
+        embed = self.bot.embed_service.create_action_embed(
+            title="Disconnected",
+            message=leave_action_response.message,
+            is_success=leave_action_response.is_success
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=not leave_action_response.is_success)
 
     @app_commands.command(name="queue", description="View the current music queue.")
     @log_command_usage()
@@ -149,14 +181,19 @@ class MusicCog(commands.Cog):
         player = self.bot.music_queue_service.get_player(interaction.guild)
         filter_preset = FilterPreset.from_value(new_filter)
 
+        if not player.current:
+            embed = self.bot.embed_service.create_error_embed("No song is currently playing to apply a filter to.")
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+
         self.logger.info(f"Filter called with {new_filter} to {player.current.title}")
-
-        filtered = await player.filter(filter_preset)
-
-        if filtered:
-            await interaction.response.send_message(f"Applied filter: `{filter_preset.display_name}`")
-        else:
-            await interaction.response.send_message("No song is currently playing to apply a filter to.", ephemeral=True)
+        await player.filter(filter_preset)
+        
+        embed = self.bot.embed_service.create_success_embed(
+            f"Applied filter: **{filter_preset.display_name}**",
+            title="✨ Filter Engaged"
+        )
+        await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="seek", description="Seek to a specific position in the current song.")
     @app_commands.describe(
@@ -177,28 +214,30 @@ class MusicCog(commands.Cog):
         player = self.bot.music_queue_service.get_player(interaction.guild)
 
         if not player.current:
-            await interaction.response.send_message("No song is currently playing.", ephemeral=True)
+            embed = self.bot.embed_service.create_error_embed("No song is currently playing.")
+            await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
         # Validate inputs
         if hours < 0 or minutes < 0 or seconds < 0:
-            await interaction.response.send_message(
-                "Please provide non-negative values for hours, minutes, and seconds.",
-                ephemeral=True,
-            )
+            embed = self.bot.embed_service.create_error_embed("Please provide non-negative values for time components.")
+            await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
         # If no values were provided, default to beginning of the song
         if hours == 0 and minutes == 0 and seconds == 0:
-            await interaction.response.send_message(
-                "Please specify at least one time value (hours, minutes, or seconds).",
-                ephemeral=True,
-            )
+            embed = self.bot.embed_service.create_error_embed("Please specify at least one time value (hours, minutes, or seconds).")
+            await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
         action_response = await player.seek(hours, minutes, seconds)
-
-        await interaction.response.send_message(action_response.message, ephemeral=not action_response.is_success)
+        
+        embed = self.bot.embed_service.create_action_embed(
+            title="Temporal Shift",
+            message=action_response.message,
+            is_success=action_response.is_success
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=not action_response.is_success)
 
 
 async def setup(bot: "Juno"):

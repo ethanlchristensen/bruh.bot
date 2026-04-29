@@ -187,11 +187,9 @@ class MusicWebSocketService:
         elif msg_type == "add":
             query = payload.get("query")
             if query:
-                # Use run_in_executor for blocking yt-dlp call
-                loop = asyncio.get_event_loop()
                 try:
-                    info = await loop.run_in_executor(None, self.bot.audio_service.extract_info, query)
-                    metadata = self.bot.audio_service.get_metadata(info)
+                    info = await self.bot.audio_service.extract_info(query)
+                    metadata = await self.bot.audio_service.get_metadata(info)
                     metadata.requested_by = payload.get("requested_by", "Web API")
 
                     # Handle filter preset

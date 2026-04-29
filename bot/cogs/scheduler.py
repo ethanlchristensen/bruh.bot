@@ -124,10 +124,10 @@ class SchedulerCog(commands.Cog):
         config = await self.bot.morning_config_service.set_channel(interaction.guild.id, channel.id)
 
         timezone = config.get("timezone", "UTC")
-        await interaction.followup.send(
-            content=f"Morning messages will be sent to {channel.mention} at {config['hour']}:{config['minute']:02d} {timezone}",
-            ephemeral=True,
-        )
+        message = f"Morning messages will be sent to {channel.mention} at **{config['hour']}:{config['minute']:02d} {timezone}**"
+        
+        embed = self.bot.embed_service.create_success_embed(message, title="🌅 Schedule Configured")
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
         self.bot.logger.info(f"Set morning channel for {interaction.guild.name} to {channel.name}")
 
@@ -153,21 +153,21 @@ class SchedulerCog(commands.Cog):
         """Set the time for morning messages"""
         # Validate input
         if hour < 0 or hour > 23:
-            await interaction.followup.send(content="Hour must be between 0 and 23.", ephemeral=True)
+            embed = self.bot.embed_service.create_error_embed("Hour must be between 0 and 23.")
+            await interaction.followup.send(embed=embed, ephemeral=True)
             return
 
         if minute < 0 or minute > 59:
-            await interaction.followup.send(content="Minute must be between 0 and 59.", ephemeral=True)
+            embed = self.bot.embed_service.create_error_embed("Minute must be between 0 and 59.")
+            await interaction.followup.send(embed=embed, ephemeral=True)
             return
 
         # Validate timezone
         try:
             pytz.timezone(timezone)
         except pytz.exceptions.UnknownTimeZoneError:
-            await interaction.followup.send(
-                content=f"Unknown timezone: '{timezone}'. Please use a valid timezone like 'US/Eastern' or 'Europe/London'.",
-                ephemeral=True,
-            )
+            embed = self.bot.embed_service.create_error_embed(f"Unknown timezone: **{timezone}**")
+            await interaction.followup.send(embed=embed, ephemeral=True)
             return
 
         # Set time using MongoDB service
@@ -177,15 +177,12 @@ class SchedulerCog(commands.Cog):
         if "channel_id" in config and config["channel_id"]:
             channel = interaction.guild.get_channel(config["channel_id"])
             channel_mention = channel.mention if channel else "unknown channel"
-            await interaction.followup.send(
-                content=f"Morning messages will be sent to {channel_mention} at {hour}:{minute:02d} {timezone}",
-                ephemeral=True,
-            )
+            message = f"Morning messages scheduled for {channel_mention} at **{hour}:{minute:02d} {timezone}**"
         else:
-            await interaction.followup.send(
-                content=f"Morning message time set to {hour}:{minute:02d} {timezone}, but no channel has been set yet. Use /set_morning_channel to complete setup.",
-                ephemeral=True,
-            )
+            message = f"Morning message time set to **{hour}:{minute:02d} {timezone}**\n\n⚠️ *No channel set. Use `/set_morning_channel` to complete setup.*"
+
+        embed = self.bot.embed_service.create_success_embed(message, title="🕒 Chronos Updated")
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
         self.bot.logger.info(f"Set morning time for {interaction.guild.name} to {hour}:{minute:02d} {timezone}")
 
@@ -200,12 +197,11 @@ class SchedulerCog(commands.Cog):
         """Remove morning messages for this guild"""
         removed = await self.bot.morning_config_service.remove_config(interaction.guild.id)
         if removed:
-            await interaction.followup.send(content="Morning messages disabled for this server.", ephemeral=True)
+            embed = self.bot.embed_service.create_success_embed("Morning messages have been disabled for this celestial body.")
         else:
-            await interaction.followup.send(
-                content="Morning messages are not configured for this server.",
-                ephemeral=True,
-            )
+            embed = self.bot.embed_service.create_error_embed("Morning messages were not configured for this server.")
+            
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(name="test_morning", description="Test the morning message functionality")
     @log_command_usage()
@@ -213,7 +209,8 @@ class SchedulerCog(commands.Cog):
     @is_globally_blocked()
     async def test_morning_message(self, interaction: discord.Interaction):
         """Test the morning message functionality"""
-        await interaction.followup.send(content="Sending test morning message...", ephemeral=True)
+        status_embed = self.bot.embed_service.create_success_embed("Initializing test broadcast...", title="🛰️ Uplink Starting")
+        await interaction.followup.send(embed=status_embed, ephemeral=True)
 
         try:
             guild_dynamic_config = await self.bot.config_service.get_config(str(interaction.guild.id))
@@ -243,7 +240,8 @@ class SchedulerCog(commands.Cog):
             self.bot.logger.info(f"Sent test morning message to {interaction.channel.name} in {interaction.guild.name}")
 
         except Exception as e:
-            await interaction.followup.send(f"Error testing morning message: {e}")
+            embed = self.bot.embed_service.create_error_embed(f"Failed to transmit morning message: {e}")
+            await interaction.followup.send(embed=embed)
             self.bot.logger.error(f"Error in test morning message: {e}")
 
     @app_commands.command(
@@ -256,24 +254,16 @@ class SchedulerCog(commands.Cog):
     async def list_timezones(self, interaction: discord.Interaction):
         """List common timezones that can be used"""
         common_timezones = [
-            "UTC",
-            "US/Eastern",
-            "US/Central",
-            "US/Mountain",
-            "US/Pacific",
-            "Europe/London",
-            "Europe/Berlin",
-            "Europe/Moscow",
-            "Asia/Tokyo",
-            "Asia/Shanghai",
-            "Australia/Sydney",
-            "Pacific/Auckland",
+            "UTC", "US/Eastern", "US/Central", "US/Mountain", "US/Pacific",
+            "Europe/London", "Europe/Berlin", "Europe/Moscow", "Asia/Tokyo",
+            "Asia/Shanghai", "Australia/Sydney", "Pacific/Auckland"
         ]
 
-        timezone_text = "**Available Timezones:**\n" + "\n".join(common_timezones)
-        timezone_text += "\n\nFor a full list of timezones, see: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones"
-
-        await interaction.followup.send(content=timezone_text, ephemeral=True)
+        timezone_list = "\n".join([f"• `{tz}`" for tz in common_timezones])
+        message = f"**Available Chronos Zones:**\n{timezone_list}\n\n*Refer to [TZ Database](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) for more.*"
+        
+        embed = self.bot.embed_service.create_base_embed(title="🕒 Temporal Regions", description=message)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 async def setup(bot: "Juno"):

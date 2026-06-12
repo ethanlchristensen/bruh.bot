@@ -56,6 +56,10 @@ class UpdateAIProviderRequest(BaseModel):
     orchestratorModel: str | None = None
     systemPrompt: str | None = None
     realtimePrompt: str | None = None
+    boostImagePrompts: bool | None = None
+    maxDailyImages: int | None = None
+    imageGenProvider: Literal["google", "openrouter"] | None = None
+    imageGenModel: str | None = None
 
 
 class AddAdminRequest(BaseModel):
@@ -216,6 +220,21 @@ async def update_ai_provider(data: UpdateAIProviderRequest, guild_id: str = Depe
         if data.realtimePrompt is not None:
             ai_config_dict["realtimePrompt"] = data.realtimePrompt
 
+        # Handle Image Generation updates
+        if "imageGeneration" not in ai_config_dict or ai_config_dict["imageGeneration"] is None:
+            ai_config_dict["imageGeneration"] = {}
+
+        if data.boostImagePrompts is not None:
+            ai_config_dict["boostImagePrompts"] = data.boostImagePrompts
+            ai_config_dict["imageGeneration"]["boostImagePrompts"] = data.boostImagePrompts
+        if data.maxDailyImages is not None:
+            ai_config_dict["imageGeneration"]["maxDailyImages"] = data.maxDailyImages
+        if data.imageGenProvider is not None:
+            ai_config_dict["imageGeneration"]["preferredAiProvider"] = data.imageGenProvider
+            ai_config_dict["imageGeneration"]["preferredAiProvidder"] = data.imageGenProvider
+        if data.imageGenModel is not None:
+            ai_config_dict["imageGeneration"]["preferredModel"] = data.imageGenModel
+
         await config_service.update(guild_id, {"aiConfig": ai_config_dict})
 
         new_config = await config_service.get_config(guild_id)
@@ -291,7 +310,7 @@ async def get_version(guild_id: str = Depends(get_guild_id), authorized: bool = 
 
 
 @app.get("/config/models")
-async def get_models(provider: str, endpoint: str | None = None, guild_id: str = Depends(get_guild_id), authorized: bool = Depends(verify_admin)):
+async def get_models(provider: str, endpoint: str | None = None, image_gen: bool = False, structured_outputs: bool = False, guild_id: str = Depends(get_guild_id), authorized: bool = Depends(verify_admin)):
     """Fetch available models for a provider using MeshGateway."""
     try:
         config_obj = await config_service.get_config(guild_id)
@@ -315,7 +334,13 @@ async def get_models(provider: str, endpoint: str | None = None, guild_id: str =
         gateway = get_mesh_gateway()
         models = await gateway.get_models(provider, credentials={"api_key": api_key, "endpoint": endpoint})
 
-        model_ids = [m.id for m in models]
+        if image_gen:
+            model_ids = [m.id for m in models if m.capabilities.image_gen]
+        elif structured_outputs:
+            model_ids = [m.id for m in models if m.capabilities.json_mode]
+        else:
+            model_ids = [m.id for m in models]
+
         return {"success": True, "models": model_ids}
     except Exception as e:
         logger.warning(f"Error getting models for provider {provider}: {e}")

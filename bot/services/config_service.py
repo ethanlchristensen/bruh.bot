@@ -2,12 +2,12 @@ import asyncio
 import logging
 import os
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Any, Literal
 
 import yaml
 from cryptography.fernet import Fernet
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr, model_validator
 
 logger = logging.getLogger("bot.config")
 
@@ -34,10 +34,19 @@ class OrchestratorConfig(BaseModel):
 
 
 class ImageGenerationConfig(BaseModel):
-    preferredAiProvidder: Literal["google"] = "google"
+    preferredAiProvider: Literal["google", "openrouter"] = "openrouter"
+    preferredAiProvidder: str | None = "openrouter"
     preferredModel: str = ""
     maxDailyImages: int = 5
     boostImagePrompts: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def handle_typo(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "preferredAiProvidder" in data and "preferredAiProvider" not in data:
+                data["preferredAiProvider"] = data["preferredAiProvidder"]
+        return data
 
 
 def load_default_prompts() -> tuple[str, str]:
@@ -63,6 +72,7 @@ class AIConfig(BaseModel):
     ollama: ProviderConfig = Field(default_factory=lambda: ProviderConfig(endpoint="localhost:11434", preferredModel="llama3.1"))
     openrouter: ProviderConfig = Field(default_factory=lambda: ProviderConfig(preferredModel="deepseek/deepseek-v4-flash"))
     mesh_router: ProviderConfig = Field(default_factory=lambda: ProviderConfig(preferredModel="deepseek/deepseek-v4-flash"))
+    google: ProviderConfig = Field(default_factory=ProviderConfig)
     elevenlabs: ProviderConfig = Field(default_factory=ProviderConfig)
     realTimeConfig: ProviderConfig = Field(default_factory=lambda: ProviderConfig(voice="alloy"))
     orchestrator: OrchestratorConfig = Field(default_factory=lambda: OrchestratorConfig(preferredAiProvider="openrouter", preferredModel="deepseek/deepseek-v4-flash"))

@@ -195,6 +195,38 @@ class Juno(commands.Bot):
         api_key = provider_config.get_api_key()
         preferred_model = provider_config.preferredModel
 
+        # Check if messages contain image attachments
+        has_images = any(isinstance(m.parts, list) and any(p.type == "image" for p in m.parts) for m in messages)
+
+        if has_images:
+            supports_vision = False
+            gateway = get_mesh_gateway()
+            try:
+                # Fetch models list for current provider to check capabilities
+                if provider == "ollama":
+                    ollama_endpoint = getattr(provider_config, "endpoint", "http://localhost:11434")
+                    models = await gateway.get_models("ollama", credentials={"endpoint": ollama_endpoint})
+                else:
+                    models = await gateway.get_models("openrouter", credentials={"api_key": api_key})
+
+                model_info = next((m for m in models if m.id == preferred_model), None)
+                if model_info:
+                    supports_vision = model_info.capabilities.vision
+            except Exception as e:
+                self.logger.warning(f"Error fetching model list for vision check: {e}")
+
+            # Fallback to string heuristic check if list lookup is uncertain
+            if not supports_vision:
+                model_lower = preferred_model.lower()
+                supports_vision = "gemini" in model_lower or "gpt-4o" in model_lower or "claude-3" in model_lower or "vision" in model_lower or "pixtral" in model_lower or "llava" in model_lower
+
+            if not supports_vision:
+                self.logger.info(f"Model '{preferred_model}' on provider '{provider}' does not support image input. Routing request to OpenRouter with 'google/gemini-3.1-flash-lite'.")
+                provider = "openrouter"
+                provider_config = aiConfig.openrouter
+                api_key = provider_config.get_api_key()
+                preferred_model = "google/gemini-3.1-flash-lite"
+
         req = NormalizedRequest(provider=provider, model=preferred_model, messages=messages)
         gateway = get_mesh_gateway()
         response = await gateway.complete(req, credentials={"api_key": api_key})

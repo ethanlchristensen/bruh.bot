@@ -15,6 +15,14 @@ export interface OrchestratorConfig {
   preferredModel: string;
 }
 
+export interface ImageGenerationConfig {
+  preferredAiProvider?: 'google' | 'openrouter';
+  preferredAiProvidder?: string;
+  preferredModel?: string;
+  maxDailyImages?: number;
+  boostImagePrompts?: boolean;
+}
+
 export interface AIConfig {
   preferredAiProvider: AIProvider;
   ollama: ProviderConfig;
@@ -27,6 +35,7 @@ export interface AIConfig {
   maxDailyImages: number;
   systemPrompt?: string;
   realtimePrompt?: string;
+  imageGeneration?: ImageGenerationConfig;
 }
 
 export interface DeleteUserMessagesConfig {
@@ -83,6 +92,10 @@ export interface UpdateAIProviderRequest {
   orchestratorModel?: string;
   systemPrompt?: string;
   realtimePrompt?: string;
+  boostImagePrompts?: boolean;
+  maxDailyImages?: number;
+  imageGenProvider?: 'google' | 'openrouter';
+  imageGenModel?: string;
 }
 
 export interface AddAdminRequest {
@@ -223,10 +236,12 @@ export class ConfigAPIClient {
   }
 
   // Get available models for a provider
-  async getModels(provider: string, endpoint?: string): Promise<{ success: boolean; models: string[]; error?: string }> {
+  async getModels(provider: string, endpoint?: string, imageGen?: boolean, structuredOutputs?: boolean): Promise<{ success: boolean; models: string[]; error?: string }> {
     const ep = endpoint ? encodeURIComponent(endpoint) : '';
+    const ig = imageGen ? '&image_gen=true' : '';
+    const so = structuredOutputs ? '&structured_outputs=true' : '';
     return this.fetch<{ success: boolean; models: string[]; error?: string }>(
-      `/config/models?provider=${provider}&endpoint=${ep}`,
+      `/config/models?provider=${provider}&endpoint=${ep}${ig}${so}`,
       {
         method: 'GET',
       }

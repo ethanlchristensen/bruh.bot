@@ -100,10 +100,10 @@ export function useGuilds() {
   });
 }
 
-export function useModels(provider: string, endpoint?: string) {
+export function useModels(provider: string, endpoint?: string, imageGen?: boolean, structuredOutputs?: boolean) {
   return useQuery({
-    queryKey: ['models', provider, endpoint],
-    queryFn: () => apiClient.getModels(provider, endpoint),
+    queryKey: ['models', provider, endpoint, imageGen, structuredOutputs],
+    queryFn: () => apiClient.getModels(provider, endpoint, imageGen, structuredOutputs),
     enabled: !!provider,
     staleTime: 30000, // Reduced to 30s for reactive typed changes
   });

@@ -18,6 +18,14 @@ export interface BotConfig {
   globalBlockList: Array<string>;
 }
 
+export interface ImageGenerationConfig {
+  preferredAiProvider?: 'google' | 'openrouter';
+  preferredAiProvidder?: string;
+  preferredModel?: string;
+  maxDailyImages?: number;
+  boostImagePrompts?: boolean;
+}
+
 export interface AIConfig {
   preferredAiProvider: string;
   boostImagePrompts: boolean;
@@ -29,6 +37,7 @@ export interface AIConfig {
   elevenlabs: ElevenLabsConfig;
   orchestrator: OrchestratorConfig;
   realTimeConfig: RealTimeConfig;
+  imageGeneration?: ImageGenerationConfig;
 }
 
 export interface OllamaConfig {

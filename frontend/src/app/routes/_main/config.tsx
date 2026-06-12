@@ -316,6 +316,9 @@ function ConfigComponent() {
   const [maxDailyImages, setMaxDailyImages] = useState(5);
   const [invisible, setInvisible] = useState(false);
   const [mentionCooldown, setMentionCooldown] = useState(0);
+
+  // Image Generation States
+  const [imageGenModel, setImageGenModel] = useState('');
   
   // Provider configs
   const [ollamaEndpoint, setOllamaEndpoint] = useState('');
@@ -342,6 +345,9 @@ function ConfigComponent() {
   // Fetch models for both providers dynamically using our query hook
   const { data: ollamaModelsData, isLoading: isLoadingOllamaModels } = useModels('ollama', ollamaEndpoint);
   const { data: openrouterModelsData, isLoading: isLoadingOpenrouterModels } = useModels('openrouter');
+  const { data: openrouterImageModelsData, isLoading: isLoadingOpenrouterImageModels } = useModels('openrouter', undefined, true);
+  const { data: openrouterOrchestratorModelsData, isLoading: isLoadingOpenrouterOrchestratorModels } = useModels('openrouter', undefined, false, true);
+  const { data: ollamaOrchestratorModelsData, isLoading: isLoadingOllamaOrchestratorModels } = useModels('ollama', ollamaEndpoint, false, true);
 
   const availableOllamaModels = ollamaModelsData?.models?.length 
     ? ollamaModelsData.models 
@@ -350,6 +356,18 @@ function ConfigComponent() {
   const availableOpenrouterModels = openrouterModelsData?.models?.length 
     ? openrouterModelsData.models 
     : POPULAR_MODELS.openrouter;
+
+  const availableOpenrouterImageModels = openrouterImageModelsData?.models?.length 
+    ? openrouterImageModelsData.models 
+    : POPULAR_MODELS.openrouter;
+
+  const availableOpenrouterOrchestratorModels = openrouterOrchestratorModelsData?.models?.length 
+    ? openrouterOrchestratorModelsData.models 
+    : POPULAR_MODELS.openrouter;
+
+  const availableOllamaOrchestratorModels = ollamaOrchestratorModelsData?.models?.length 
+    ? ollamaOrchestratorModelsData.models 
+    : POPULAR_MODELS.ollama;
 
   // Set default values when config data loads
   useEffect(() => {
@@ -362,6 +380,10 @@ function ConfigComponent() {
       setMaxDailyImages(config.aiConfig.maxDailyImages || 5);
       setInvisible(config.invisible || false);
       setMentionCooldown(config.mentionCooldown || 0);
+
+      // Populate Image Gen configs
+      const imgConfig = config.aiConfig.imageGeneration || {};
+      setImageGenModel(imgConfig.preferredModel || '');
 
       // Populate provider-specific settings
       setOllamaEndpoint(config.aiConfig.ollama?.endpoint || 'http://localhost:11434');
@@ -410,6 +432,10 @@ function ConfigComponent() {
             orchestratorModel,
             systemPrompt,
             realtimePrompt,
+            boostImagePrompts,
+            maxDailyImages,
+            imageGenProvider: 'openrouter',
+            imageGenModel,
           });
         } else {
           await updateProvider.mutateAsync({
@@ -420,6 +446,10 @@ function ConfigComponent() {
             orchestratorModel,
             systemPrompt,
             realtimePrompt,
+            boostImagePrompts,
+            maxDailyImages,
+            imageGenProvider: 'openrouter',
+            imageGenModel,
           });
         }
 
@@ -556,6 +586,33 @@ function ConfigComponent() {
                 </p>
               </div>
 
+              {/* Image Generation Model Selection */}
+              <div className="space-y-2 border-t border-border/40 pt-4">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="image-model-select" className="font-semibold">Preferred Image Generation Model (OpenRouter)</Label>
+                  {isLoadingOpenrouterImageModels && (
+                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Spinner className="h-3 w-3" /> Fetching image models...
+                    </span>
+                  )}
+                </div>
+                <ModelSelector
+                  selectedProvider="openrouter"
+                  selectedModel={imageGenModel}
+                  onSelect={(_, model) => {
+                    setImageGenModel(model);
+                  }}
+                  groupedModels={{
+                    ollama: [],
+                    openrouter: availableOpenrouterImageModels
+                  }}
+                  isLoading={isLoadingOpenrouterImageModels}
+                />
+                <p className="text-xs text-muted-foreground">
+                  The model that will be used for generating and editing images. Filtered for image-gen capable models.
+                </p>
+              </div>
+
               {/* Additional AI Settings */}
               <div className="grid gap-6 sm:grid-cols-2 border-t border-border/40 pt-4">
                 <div className="flex items-center justify-between p-3 rounded-lg bg-muted/40">
@@ -641,9 +698,9 @@ function ConfigComponent() {
               <div className="space-y-2 border-t border-border/40 pt-4">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="orchestrator-model-select" className="font-semibold">Orchestrator AI Model</Label>
-                  {(orchestratorProvider === 'ollama' ? isLoadingOllamaModels : isLoadingOpenrouterModels) && (
+                  {(orchestratorProvider === 'ollama' ? isLoadingOllamaOrchestratorModels : isLoadingOpenrouterOrchestratorModels) && (
                     <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Spinner className="h-3 w-3" /> Fetching models...
+                      <Spinner className="h-3 w-3" /> Fetching structured models...
                     </span>
                   )}
                 </div>
@@ -655,13 +712,13 @@ function ConfigComponent() {
                     setOrchestratorModel(model);
                   }}
                   groupedModels={{
-                    ollama: availableOllamaModels,
-                    openrouter: availableOpenrouterModels
+                    ollama: availableOllamaOrchestratorModels,
+                    openrouter: availableOpenrouterOrchestratorModels
                   }}
-                  isLoading={orchestratorProvider === 'ollama' ? isLoadingOllamaModels : isLoadingOpenrouterModels}
+                  isLoading={orchestratorProvider === 'ollama' ? isLoadingOllamaOrchestratorModels : isLoadingOpenrouterOrchestratorModels}
                 />
                 <p className="text-xs text-muted-foreground">
-                  The model that will be used for interpreting user messages and executing prompt routing.
+                  The model that will be used for interpreting user messages and executing prompt routing. Filtered for models that support structured outputs.
                 </p>
               </div>
             </CardContent>

@@ -291,12 +291,7 @@ async def get_version(guild_id: str = Depends(get_guild_id), authorized: bool = 
 
 
 @app.get("/config/models")
-async def get_models(
-    provider: str,
-    endpoint: str | None = None,
-    guild_id: str = Depends(get_guild_id),
-    authorized: bool = Depends(verify_admin)
-):
+async def get_models(provider: str, endpoint: str | None = None, guild_id: str = Depends(get_guild_id), authorized: bool = Depends(verify_admin)):
     """Fetch available models for a provider using MeshGateway."""
     try:
         config_obj = await config_service.get_config(guild_id)
@@ -316,6 +311,7 @@ async def get_models(
                 endpoint = getattr(provider_cfg, "endpoint", "")
 
         from bot.services.ai.gateway.gateway import get_mesh_gateway
+
         gateway = get_mesh_gateway()
         models = await gateway.get_models(provider, credentials={"api_key": api_key, "endpoint": endpoint})
 
@@ -332,10 +328,7 @@ async def get_guilds(authorized: bool = Depends(verify_admin)):
     try:
         collection = config_service.db[config_service.base.mongoConfigCollectionName]
         guilds = await collection.find({}, {"guildId": 1, "guildName": 1, "_id": 0}).to_list(length=None)
-        guild_list = [
-            {"id": g["guildId"], "name": g.get("guildName", g["guildId"])}
-            for g in guilds if "guildId" in g
-        ]
+        guild_list = [{"id": g["guildId"], "name": g.get("guildName", g["guildId"])} for g in guilds if "guildId" in g]
         return {"success": True, "guilds": guild_list}
     except Exception as e:
         logger.error(f"Error getting guilds: {e}")

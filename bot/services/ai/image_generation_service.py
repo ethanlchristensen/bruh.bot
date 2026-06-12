@@ -56,7 +56,7 @@ Please enhance this edit request with specific details while maintaining the con
                 messages=[
                     Message(role="system", parts=[MessagePart(type="text", text=system_prompt)]),
                     Message(role="user", parts=[MessagePart(type="text", text=user_content)]),
-                ]
+                ],
             )
 
             gateway = get_mesh_gateway()
@@ -97,14 +97,8 @@ Be specific and thorough as this description will be used for image editing cont
                 model=preferred_model,
                 messages=[
                     Message(role="system", parts=[MessagePart(type="text", text=system_prompt)]),
-                    Message(
-                        role="user",
-                        parts=[
-                            MessagePart(type="text", text="Please describe this image in detail."),
-                            MessagePart(type="image", url=data_url)
-                        ]
-                    ),
-                ]
+                    Message(role="user", parts=[MessagePart(type="text", text="Please describe this image in detail."), MessagePart(type="image", url=data_url)]),
+                ],
             )
 
             gateway = get_mesh_gateway()

@@ -195,11 +195,7 @@ class Juno(commands.Bot):
         api_key = provider_config.get_api_key()
         preferred_model = provider_config.preferredModel
 
-        req = NormalizedRequest(
-            provider=provider,
-            model=preferred_model,
-            messages=messages
-        )
+        req = NormalizedRequest(provider=provider, model=preferred_model, messages=messages)
         gateway = get_mesh_gateway()
         response = await gateway.complete(req, credentials={"api_key": api_key})
         content = "".join(part.content for part in response.parts if part.type == "text")

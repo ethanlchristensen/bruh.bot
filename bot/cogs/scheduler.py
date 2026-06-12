@@ -81,10 +81,7 @@ class SchedulerCog(commands.Cog):
 
                     # Generate motivational message
                     messages = [
-                        Message(
-                            role="user",
-                            parts=[MessagePart(type="text", text="Generate a motivational morning message for a server or users. Feel free to thrown on curve ball quotes that don't really make sense.")]
-                        ),
+                        Message(role="user", parts=[MessagePart(type="text", text="Generate a motivational morning message for a server or users. Feel free to thrown on curve ball quotes that don't really make sense.")]),
                     ]
 
                     if main_prompt := guild_dynamic_config.aiConfig.systemPrompt:
@@ -93,11 +90,7 @@ class SchedulerCog(commands.Cog):
                         messages.insert(0, Message(role="system", parts=[MessagePart(type="text", text=main_prompt)]))
 
                     # Construct gateway request
-                    req = NormalizedRequest(
-                        provider=provider,
-                        model=preferred_model,
-                        messages=messages
-                    )
+                    req = NormalizedRequest(provider=provider, model=preferred_model, messages=messages)
 
                     gateway = get_mesh_gateway()
                     response = await gateway.complete(req, credentials={"api_key": api_key})
@@ -235,10 +228,7 @@ class SchedulerCog(commands.Cog):
 
             # Generate motivational message
             messages = [
-                Message(
-                    role="user",
-                    parts=[MessagePart(type="text", text="Generate a motivational morning message (or un-motivational). You must be UNHINGED. Throw curve balls, odd ball quotes, etc!")]
-                ),
+                Message(role="user", parts=[MessagePart(type="text", text="Generate a motivational morning message (or un-motivational). You must be UNHINGED. Throw curve balls, odd ball quotes, etc!")]),
             ]
 
             if main_prompt := guild_dynamic_config.aiConfig.systemPrompt:
@@ -246,11 +236,7 @@ class SchedulerCog(commands.Cog):
                 messages.insert(0, Message(role="system", parts=[MessagePart(type="text", text=main_prompt)]))
 
             # Construct gateway request
-            req = NormalizedRequest(
-                provider=provider,
-                model=preferred_model,
-                messages=messages
-            )
+            req = NormalizedRequest(provider=provider, model=preferred_model, messages=messages)
 
             gateway = get_mesh_gateway()
             response = await gateway.complete(req, credentials={"api_key": api_key})

@@ -46,9 +46,7 @@ class OpenRouterAdapter(OllamaAdapter):
         payload["stream_options"] = {"include_usage": True}
 
         async with httpx.AsyncClient(http2=True) as client:
-            async with client.stream(
-                "POST", url, json=payload, headers=self._get_headers(api_key), timeout=60.0
-            ) as response:
+            async with client.stream("POST", url, json=payload, headers=self._get_headers(api_key), timeout=60.0) as response:
                 if response.is_error:
                     body = (await response.aread()).decode(errors="replace")
                     raise ProviderAPIError(
@@ -70,11 +68,7 @@ class OpenRouterAdapter(OllamaAdapter):
                         returned_model = data.get("model")
                         actual_provider = None
                         if returned_model:
-                            actual_provider = (
-                                returned_model.split("/")[0]
-                                if "/" in returned_model
-                                else "openrouter"
-                            )
+                            actual_provider = returned_model.split("/")[0] if "/" in returned_model else "openrouter"
 
                         # Handle usage/cost chunk
                         usage = data.get("usage")
@@ -220,9 +214,7 @@ class OpenRouterAdapter(OllamaAdapter):
         payload = self._build_kwargs(request)
 
         async with httpx.AsyncClient(http2=True) as client:
-            response = await client.post(
-                url, json=payload, headers=self._get_headers(api_key), timeout=60.0
-            )
+            response = await client.post(url, json=payload, headers=self._get_headers(api_key), timeout=60.0)
             if response.is_error:
                 raise ProviderAPIError(
                     "openrouter",
@@ -247,9 +239,7 @@ class OpenRouterAdapter(OllamaAdapter):
                 for part in msg["content"]:
                     if isinstance(part, dict):
                         if part.get("type") == "image_url":
-                            parts.append(
-                                ResponsePart(type="image", content=part["image_url"]["url"])
-                            )
+                            parts.append(ResponsePart(type="image", content=part["image_url"]["url"]))
                         elif part.get("type") == "text":
                             parts.append(ResponsePart(type="text", content=part["text"]))
 
@@ -268,11 +258,7 @@ class OpenRouterAdapter(OllamaAdapter):
                     if isinstance(img, str):
                         parts.append(ResponsePart(type="image", content=img))
                     elif isinstance(img, dict):
-                        url = (
-                            img.get("url")
-                            or img.get("image_url", {}).get("url")
-                            or img.get("b64_json")
-                        )
+                        url = img.get("url") or img.get("image_url", {}).get("url") or img.get("b64_json")
                         if url:
                             parts.append(ResponsePart(type="image", content=url))
 
@@ -293,9 +279,7 @@ class OpenRouterAdapter(OllamaAdapter):
             }
 
             returned_model = data.get("model", request.model)
-            actual_provider = (
-                returned_model.split("/")[0] if "/" in returned_model else "openrouter"
-            )
+            actual_provider = returned_model.split("/")[0] if "/" in returned_model else "openrouter"
 
             return NormalizedResponse(
                 id=data.get("id", ""),
@@ -337,12 +321,7 @@ class OpenRouterAdapter(OllamaAdapter):
                     has_vision = "image" in input_mods
                     has_tools = "tools" in params or "function_calling" in params
                     # Support both explicit param and name-based reasoning detection
-                    is_reasoning = (
-                        "reasoning" in params
-                        or "include_reasoning" in params
-                        or "reasoning" in m.get("name", "").lower()
-                        or "thought" in m.get("name", "").lower()
-                    )
+                    is_reasoning = "reasoning" in params or "include_reasoning" in params or "reasoning" in m.get("name", "").lower() or "thought" in m.get("name", "").lower()
 
                     caps = ModelCapabilities(
                         streaming=True,

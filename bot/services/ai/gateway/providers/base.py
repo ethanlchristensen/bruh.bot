@@ -9,9 +9,7 @@ from bot.services.ai.gateway.schemas.response import NormalizedResponse
 
 class ProviderAdapter(ABC):
     @abstractmethod
-    async def stream(
-        self, request: NormalizedRequest, api_key: str
-    ) -> AsyncIterator[StreamChunk]: ...
+    async def stream(self, request: NormalizedRequest, api_key: str) -> AsyncIterator[StreamChunk]: ...
 
     @abstractmethod
     async def complete(self, request: NormalizedRequest, api_key: str) -> NormalizedResponse: ...

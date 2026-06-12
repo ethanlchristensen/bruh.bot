@@ -54,13 +54,7 @@ Everything else is chat.{context_note}"""
         preferred_model = orchestrator_config.preferredModel or provider_config.preferredModel
 
         # Construct JSON schema response format
-        response_format = {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "UserIntent",
-                "schema": UserIntent.model_json_schema()
-            }
-        }
+        response_format = {"type": "json_schema", "json_schema": {"name": "UserIntent", "schema": UserIntent.model_json_schema()}}
 
         # Build gateway request
         req = NormalizedRequest(
@@ -70,7 +64,7 @@ Everything else is chat.{context_note}"""
                 Message(role="system", parts=[MessagePart(type="text", text=system_prompt)]),
                 Message(role="user", parts=[MessagePart(type="text", text=user_message)]),
             ],
-            response_format=response_format
+            response_format=response_format,
         )
 
         try:

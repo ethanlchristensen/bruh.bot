@@ -46,6 +46,7 @@ def load_default_prompts() -> tuple[str, str]:
     realtime_prompt = ""
     try:
         import json
+
         path = os.path.join(os.getcwd(), "config/prompts.json")
         if os.path.exists(path):
             with open(path) as f:

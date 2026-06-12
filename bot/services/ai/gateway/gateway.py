@@ -45,9 +45,7 @@ class MeshGateway:
             if key:
                 return key
 
-        raise ProviderAuthError(
-            f"No API key supplied for provider '{provider}'."
-        )
+        raise ProviderAuthError(f"No API key supplied for provider '{provider}'.")
 
     def _get_adapter(self, provider: str):
         adapter = self.registry.get(provider)
@@ -108,11 +106,7 @@ class MeshGateway:
             except Exception:
                 return provider, []
 
-        tasks = [
-            _fetch(provider, key)
-            for provider, key in credentials_map.items()
-            if provider in self.registry
-        ]
+        tasks = [_fetch(provider, key) for provider, key in credentials_map.items() if provider in self.registry]
 
         if not tasks:
             return {}

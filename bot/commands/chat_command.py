@@ -29,16 +29,7 @@ class ChatCommand(app_commands.Command):
             preferred_model = provider_config.preferredModel
 
             # Construct gateway request
-            req = NormalizedRequest(
-                provider=provider,
-                model=preferred_model,
-                messages=[
-                    Message(
-                        role="user",
-                        parts=[MessagePart(type="text", text=message)]
-                    )
-                ]
-            )
+            req = NormalizedRequest(provider=provider, model=preferred_model, messages=[Message(role="user", parts=[MessagePart(type="text", text=message)])])
 
             gateway = get_mesh_gateway()
             response = await gateway.complete(req, credentials={"api_key": api_key})

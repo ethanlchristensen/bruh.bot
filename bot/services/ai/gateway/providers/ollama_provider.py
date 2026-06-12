@@ -274,6 +274,7 @@ class OllamaAdapter(ProviderAdapter):
             import logging
 
             import httpx
+
             prov_logger = logging.getLogger("api.config")
 
             async with httpx.AsyncClient() as client:

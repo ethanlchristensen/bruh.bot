@@ -7,7 +7,8 @@ import pytz
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from bot.services import AiServiceFactory, Message
+from bot.services.ai.gateway.gateway import get_mesh_gateway
+from bot.services.ai.gateway.schemas.request import Message, MessagePart, NormalizedRequest
 from bot.utils.decarators.admin_check import is_admin
 from bot.utils.decarators.command_logging import log_command_usage
 from bot.utils.decarators.global_block_check import is_globally_blocked
@@ -72,25 +73,37 @@ class SchedulerCog(commands.Cog):
 
                     # Get per-guild services and config
                     guild_dynamic_config = await self.bot.config_service.get_config(str(guild_id))
-                    ai_service = AiServiceFactory.get_service(self.bot, guild_dynamic_config.aiConfig.preferredAiProvider)
-                    prompts = self.bot.get_prompts()
+                    ai_cfg = guild_dynamic_config.aiConfig
+                    provider = ai_cfg.preferredAiProvider
+                    provider_config = getattr(ai_cfg, provider, None) or ai_cfg.openrouter
+                    api_key = provider_config.get_api_key()
+                    preferred_model = provider_config.preferredModel
 
                     # Generate motivational message
                     messages = [
                         Message(
                             role="user",
-                            content="Generate a motivational morning message for a server or users. Feel free to thrown on curve ball quotes that don't really make sense.",
+                            parts=[MessagePart(type="text", text="Generate a motivational morning message for a server or users. Feel free to thrown on curve ball quotes that don't really make sense.")]
                         ),
                     ]
 
-                    if main_prompt := prompts.get("main"):
+                    if main_prompt := guild_dynamic_config.aiConfig.systemPrompt:
                         self.bot.logger.info(f"Using main prompt for morning message in guild {guild.name}")
                         main_prompt = main_prompt.replace("{{BOTNAME}}", self.bot.user.name)
-                        messages.insert(0, Message(role="system", content=main_prompt))
+                        messages.insert(0, Message(role="system", parts=[MessagePart(type="text", text=main_prompt)]))
 
-                    response = await ai_service.chat(guild_id=guild.id, messages=messages)
+                    # Construct gateway request
+                    req = NormalizedRequest(
+                        provider=provider,
+                        model=preferred_model,
+                        messages=messages
+                    )
 
-                    embed, emoji_file = self.bot.embed_service.create_morning_embed(message=response.content)
+                    gateway = get_mesh_gateway()
+                    response = await gateway.complete(req, credentials={"api_key": api_key})
+                    content = "".join(part.content for part in response.parts if part.type == "text")
+
+                    embed, emoji_file = self.bot.embed_service.create_morning_embed(message=content)
                     await channel.send(
                         embed=embed,
                         file=discord.File(os.path.join(os.getcwd(), "emojis", emoji_file), emoji_file),
@@ -214,24 +227,36 @@ class SchedulerCog(commands.Cog):
 
         try:
             guild_dynamic_config = await self.bot.config_service.get_config(str(interaction.guild.id))
-            ai_service = AiServiceFactory.get_service(self.bot, guild_dynamic_config.aiConfig.preferredAiProvider)
-            prompts = self.bot.get_prompts()
+            ai_cfg = guild_dynamic_config.aiConfig
+            provider = ai_cfg.preferredAiProvider
+            provider_config = getattr(ai_cfg, provider, None) or ai_cfg.openrouter
+            api_key = provider_config.get_api_key()
+            preferred_model = provider_config.preferredModel
 
             # Generate motivational message
             messages = [
                 Message(
                     role="user",
-                    content="Generate a motivational morning message (or un-motivational). You must be UNHINGED. Throw curve balls, odd ball quotes, etc!",
+                    parts=[MessagePart(type="text", text="Generate a motivational morning message (or un-motivational). You must be UNHINGED. Throw curve balls, odd ball quotes, etc!")]
                 ),
             ]
 
-            if main_prompt := prompts.get("main"):
+            if main_prompt := guild_dynamic_config.aiConfig.systemPrompt:
                 self.bot.logger.info("Using main prompt for morning message")
-                messages.insert(0, Message(role="system", content=main_prompt))
+                messages.insert(0, Message(role="system", parts=[MessagePart(type="text", text=main_prompt)]))
 
-            response = await ai_service.chat(guild_id=interaction.guild.id, messages=messages)
+            # Construct gateway request
+            req = NormalizedRequest(
+                provider=provider,
+                model=preferred_model,
+                messages=messages
+            )
 
-            embed, emoji_file = self.bot.embed_service.create_morning_embed(message=response.content)
+            gateway = get_mesh_gateway()
+            response = await gateway.complete(req, credentials={"api_key": api_key})
+            content = "".join(part.content for part in response.parts if part.type == "text")
+
+            embed, emoji_file = self.bot.embed_service.create_morning_embed(message=content)
 
             await interaction.channel.send(
                 embed=embed,

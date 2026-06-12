@@ -13,7 +13,6 @@ import { Route as LoginRouteImport } from './app/routes/login'
 import { Route as MainRouteImport } from './app/routes/_main'
 import { Route as IndexRouteImport } from './app/routes/index'
 import { Route as AuthCallbackRouteImport } from './app/routes/auth.callback'
-import { Route as MainUserManagementRouteImport } from './app/routes/_main/user-management'
 import { Route as MainProfileRouteImport } from './app/routes/_main/profile'
 import { Route as MainMusicRouteImport } from './app/routes/_main/music'
 import { Route as MainConfigRouteImport } from './app/routes/_main/config'
@@ -37,11 +36,6 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
   path: '/auth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
-const MainUserManagementRoute = MainUserManagementRouteImport.update({
-  id: '/user-management',
-  path: '/user-management',
-  getParentRoute: () => MainRoute,
-} as any)
 const MainProfileRoute = MainProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -64,7 +58,6 @@ export interface FileRoutesByFullPath {
   '/config': typeof MainConfigRoute
   '/music': typeof MainMusicRoute
   '/profile': typeof MainProfileRoute
-  '/user-management': typeof MainUserManagementRoute
   '/auth/callback': typeof AuthCallbackRoute
 }
 export interface FileRoutesByTo {
@@ -73,7 +66,6 @@ export interface FileRoutesByTo {
   '/config': typeof MainConfigRoute
   '/music': typeof MainMusicRoute
   '/profile': typeof MainProfileRoute
-  '/user-management': typeof MainUserManagementRoute
   '/auth/callback': typeof AuthCallbackRoute
 }
 export interface FileRoutesById {
@@ -84,7 +76,6 @@ export interface FileRoutesById {
   '/_main/config': typeof MainConfigRoute
   '/_main/music': typeof MainMusicRoute
   '/_main/profile': typeof MainProfileRoute
-  '/_main/user-management': typeof MainUserManagementRoute
   '/auth/callback': typeof AuthCallbackRoute
 }
 export interface FileRouteTypes {
@@ -95,17 +86,9 @@ export interface FileRouteTypes {
     | '/config'
     | '/music'
     | '/profile'
-    | '/user-management'
     | '/auth/callback'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/login'
-    | '/config'
-    | '/music'
-    | '/profile'
-    | '/user-management'
-    | '/auth/callback'
+  to: '/' | '/login' | '/config' | '/music' | '/profile' | '/auth/callback'
   id:
     | '__root__'
     | '/'
@@ -114,7 +97,6 @@ export interface FileRouteTypes {
     | '/_main/config'
     | '/_main/music'
     | '/_main/profile'
-    | '/_main/user-management'
     | '/auth/callback'
   fileRoutesById: FileRoutesById
 }
@@ -155,13 +137,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_main/user-management': {
-      id: '/_main/user-management'
-      path: '/user-management'
-      fullPath: '/user-management'
-      preLoaderRoute: typeof MainUserManagementRouteImport
-      parentRoute: typeof MainRoute
-    }
     '/_main/profile': {
       id: '/_main/profile'
       path: '/profile'
@@ -190,14 +165,12 @@ interface MainRouteChildren {
   MainConfigRoute: typeof MainConfigRoute
   MainMusicRoute: typeof MainMusicRoute
   MainProfileRoute: typeof MainProfileRoute
-  MainUserManagementRoute: typeof MainUserManagementRoute
 }
 
 const MainRouteChildren: MainRouteChildren = {
   MainConfigRoute: MainConfigRoute,
   MainMusicRoute: MainMusicRoute,
   MainProfileRoute: MainProfileRoute,
-  MainUserManagementRoute: MainUserManagementRoute,
 }
 
 const MainRouteWithChildren = MainRoute._addFileChildren(MainRouteChildren)

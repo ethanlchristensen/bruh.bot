@@ -51,10 +51,8 @@ class RealTimeAudioService:
         instructions: str = "Speak clearly and briefly. Confirm understanding before taking actions.",
     ):
         """Configure the session parameters."""
-        # Get prompts for this specific guild
-        prompts = self.bot.get_prompts(self.config.promptsPath)
-        if erm := prompts.get("realtime"):
-            instructions = erm
+        if self.config.aiConfig.realtimePrompt:
+            instructions = self.config.aiConfig.realtimePrompt
 
         self.logger.info(f"Using model: {self.model} and voice: {self.voice}")
         self.logger.info(f"Configuring with instructions of: {instructions}")

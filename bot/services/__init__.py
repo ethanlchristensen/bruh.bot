@@ -1,12 +1,11 @@
 from .ai.ai_orchestrator import AiOrchestrator
-from .ai.ai_service_factory import AiServiceFactory
 from .ai.image_generation_service import ImageGenerationService
 from .ai.real_time_audio_service import (
     AudioProcessor,
     RealTimeAudioService,
     VoiceReceiveSink,
 )
-from .ai.types import AIChatResponse, ImageGenerationResponse, Message, UserIntent
+from .ai.types import ImageGenerationResponse, UserIntent
 from .config_service import BaseConfig, ConfigService, DynamicConfig, get_config_service
 from .cooldown_service import CooldownService
 from .discord_messages_service import DiscordMessagesService
@@ -20,9 +19,6 @@ from .music.types import AudioMetaData, AudioSource, FilterPreset
 from .response_service import ResponseService
 
 __all__ = [
-    "AiServiceFactory",
-    "AIChatResponse",
-    "Message",
     "MusicPlayer",
     "MusicQueueService",
     "AudioService",

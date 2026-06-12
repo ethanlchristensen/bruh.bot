@@ -8,7 +8,6 @@ export interface BotConfig {
   idToUsers: Record<string, string>;
   mentionCooldown: number;
   cooldownBypassList: Array<string>;
-  promptsPath: string;
   mongoUri: string;
   mongoDbName: string;
   mongoMessagesCollectionName: string;

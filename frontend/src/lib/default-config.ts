@@ -50,7 +50,6 @@ export const defaultConfig: BotConfig = {
   },
   mentionCooldown: 20,
   cooldownBypassList: ['100000000000000000'],
-  promptsPath: 'prompts.json',
   mongoUri: 'mongodb://localhost:27017/',
   mongoDbName: 'DB',
   mongoMessagesCollectionName: 'COLLECTION',

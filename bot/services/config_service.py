@@ -29,8 +29,8 @@ class ProviderConfig(BaseModel):
 
 
 class OrchestratorConfig(BaseModel):
-    preferredAiProvider: Literal["ollama", "openai", "antropic", "google"] = "google"
-    preferredModel: str = ""
+    preferredAiProvider: Literal["ollama", "openrouter", "mesh_router"] = "openrouter"
+    preferredModel: str = "deepseek/deepseek-v4-flash"
 
 
 class ImageGenerationConfig(BaseModel):
@@ -40,17 +40,35 @@ class ImageGenerationConfig(BaseModel):
     boostImagePrompts: bool = False
 
 
+def load_default_prompts() -> tuple[str, str]:
+    """Helper to load system prompts from local prompts.json if available as initial seed."""
+    system_prompt = ""
+    realtime_prompt = ""
+    try:
+        import json
+        path = os.path.join(os.getcwd(), "config/prompts.json")
+        if os.path.exists(path):
+            with open(path) as f:
+                prompts = json.load(f)
+                system_prompt = prompts.get("main", "")
+                realtime_prompt = prompts.get("realtime", "")
+    except Exception:
+        pass
+    return system_prompt, realtime_prompt
+
+
 class AIConfig(BaseModel):
-    preferredAiProvider: Literal["ollama", "openai", "antropic", "google"] = "google"
+    preferredAiProvider: Literal["ollama", "openrouter", "mesh_router"] = "openrouter"
     ollama: ProviderConfig = Field(default_factory=lambda: ProviderConfig(endpoint="localhost:11434", preferredModel="llama3.1"))
-    openai: ProviderConfig = Field(default_factory=lambda: ProviderConfig(preferredModel="gpt-5-nano"))
-    antropic: ProviderConfig = Field(default_factory=lambda: ProviderConfig(preferredModel="claude-4-5-sonnet"))
-    google: ProviderConfig = Field(default_factory=lambda: ProviderConfig(preferredModel="gemini-3-flash-preview"))
+    openrouter: ProviderConfig = Field(default_factory=lambda: ProviderConfig(preferredModel="deepseek/deepseek-v4-flash"))
+    mesh_router: ProviderConfig = Field(default_factory=lambda: ProviderConfig(preferredModel="deepseek/deepseek-v4-flash"))
     elevenlabs: ProviderConfig = Field(default_factory=ProviderConfig)
     realTimeConfig: ProviderConfig = Field(default_factory=lambda: ProviderConfig(voice="alloy"))
-    orchestrator: OrchestratorConfig = Field(default_factory=lambda: OrchestratorConfig(preferredAiProvider="google", preferredModel="gemini-3-flash-preview"))
+    orchestrator: OrchestratorConfig = Field(default_factory=lambda: OrchestratorConfig(preferredAiProvider="openrouter", preferredModel="deepseek/deepseek-v4-flash"))
     boostImagePrompts: bool = False
     imageGeneration: ImageGenerationConfig = Field(default_factory=ImageGenerationConfig)
+    systemPrompt: str = Field(default_factory=lambda: load_default_prompts()[0])
+    realtimePrompt: str = Field(default_factory=lambda: load_default_prompts()[1])
 
 
 class DeleteUserMessagesConfig(BaseModel):
@@ -71,7 +89,6 @@ class BaseConfig(BaseModel):
     encryptionKey: str
     adminApiKey: str
     adminApiKeyProd: str
-    promptsPath: str
     ollamaEndpoint: str
 
     mongoUri: str
@@ -87,6 +104,7 @@ class DynamicConfig(BaseModel):
     """Dynamic config stored in MongoDB."""
 
     guildId: str
+    guildName: str = ""
     configVersion: int = 1
     lastUpdated: datetime | None = None
     adminIds: list[str] = Field(default_factory=list)
@@ -99,6 +117,10 @@ class DynamicConfig(BaseModel):
     allowedBotsToRespondTo: list[str] = Field(default_factory=list)
     deleteUserMessages: DeleteUserMessagesConfig = Field(default_factory=DeleteUserMessagesConfig)
     globalBlockList: list[str] = Field(default_factory=list)
+    mongoMessagesDbName: str = "DiscordScrapeBot"
+    mongoMessagesCollectionName: str = "Messages"
+    mongoMorningConfigsCollectionName: str = "MorningConfigs"
+    mongoImageLimitsCollectionName: str = "ImageLimits"
 
 
 class ConfigService:
@@ -108,6 +130,8 @@ class ConfigService:
         "google",
         "elevenlabs",
         "realTimeConfig",
+        "openrouter",
+        "mesh_router",
     ]
 
     def __init__(self, config_path: str = "config.yaml"):
@@ -182,10 +206,26 @@ class ConfigService:
 
         data = config.model_dump(by_alias=True)
         self._encrypt(data)
+        self._clean_secret_strs(data)
 
         coll = self.db[self.base.mongoConfigCollectionName]
         await coll.replace_one({"guildId": guild_id}, data, upsert=True)
         logger.info(f"Saved config for guild {guild_id} (v{config.configVersion})")
+
+    def _clean_secret_strs(self, d: any):
+        """Recursively convert all SecretStr objects to plain strings."""
+        if isinstance(d, dict):
+            for k, v in d.items():
+                if hasattr(v, "get_secret_value"):
+                    d[k] = v.get_secret_value()
+                else:
+                    self._clean_secret_strs(v)
+        elif isinstance(d, list):
+            for i, v in enumerate(d):
+                if hasattr(v, "get_secret_value"):
+                    d[i] = v.get_secret_value()
+                else:
+                    self._clean_secret_strs(v)
 
     def _encrypt(self, config_dict: dict):
         ai = config_dict.get("aiConfig", {})
@@ -193,8 +233,13 @@ class ConfigService:
             p_data = ai.get(provider)
             if p_data and isinstance(p_data, dict):
                 key = p_data.get("apiKey", "")
+                if hasattr(key, "get_secret_value"):
+                    key = key.get_secret_value()
+                key = str(key)
                 if key and not key.startswith("gAAAA"):
                     p_data["apiKey"] = self.cipher.encrypt(key.encode()).decode()
+                else:
+                    p_data["apiKey"] = key
 
     def _decrypt(self, config_dict: dict):
         ai = config_dict.get("aiConfig", {})
@@ -202,6 +247,10 @@ class ConfigService:
             p_data = ai.get(provider)
             if p_data and isinstance(p_data, dict):
                 key = p_data.get("apiKey", "")
+                if hasattr(key, "get_secret_value"):
+                    key = key.get_secret_value()
+                key = str(key)
+                p_data["apiKey"] = key
                 if key:
                     try:
                         p_data["apiKey"] = self.cipher.decrypt(key.encode()).decode()

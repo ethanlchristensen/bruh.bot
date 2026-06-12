@@ -1,6 +1,6 @@
 import { env } from '@/config/env';
 
-export type AIProvider = 'ollama' | 'openai' | 'antropic' | 'google';
+export type AIProvider = 'ollama' | 'openrouter' | 'mesh_router';
 
 export interface ProviderConfig {
   apiKey: string;
@@ -18,14 +18,15 @@ export interface OrchestratorConfig {
 export interface AIConfig {
   preferredAiProvider: AIProvider;
   ollama: ProviderConfig;
-  openai: ProviderConfig;
-  antropic: ProviderConfig;
-  google: ProviderConfig;
+  openrouter: ProviderConfig;
+  mesh_router: ProviderConfig;
   elevenlabs: ProviderConfig;
   realTimeConfig: ProviderConfig;
   orchestrator: OrchestratorConfig;
   boostImagePrompts: boolean;
   maxDailyImages: number;
+  systemPrompt?: string;
+  realtimePrompt?: string;
 }
 
 export interface DeleteUserMessagesConfig {
@@ -67,7 +68,6 @@ export interface UpdateConfigRequest {
   adminIds?: Array<string>;
   cooldownBypassList?: Array<string>;
   globalBlockList?: Array<string>;
-  promptsPath?: string;
   mongoMessagesDbName?: string;
   mongoMessagesCollectionName?: string;
   allowedBotsToRespondTo?: Array<string>;
@@ -79,6 +79,10 @@ export interface UpdateAIProviderRequest {
   preferredModel?: string;
   endpoint?: string;
   voice?: string;
+  orchestratorProvider?: AIProvider;
+  orchestratorModel?: string;
+  systemPrompt?: string;
+  realtimePrompt?: string;
 }
 
 export interface AddAdminRequest {
@@ -95,9 +99,14 @@ export interface HealthResponse {
   service: string;
 }
 
+export interface Guild {
+  id: string;
+  name: string;
+}
+
 export interface GuildsResponse {
   success: boolean;
-  guilds: Array<string>;
+  guilds: Array<Guild>;
 }
 
 export class ConfigAPIClient {
@@ -211,6 +220,17 @@ export class ConfigAPIClient {
     return this.fetch<VersionResponse>('/config/version', {
       method: 'GET',
     });
+  }
+
+  // Get available models for a provider
+  async getModels(provider: string, endpoint?: string): Promise<{ success: boolean; models: string[]; error?: string }> {
+    const ep = endpoint ? encodeURIComponent(endpoint) : '';
+    return this.fetch<{ success: boolean; models: string[]; error?: string }>(
+      `/config/models?provider=${provider}&endpoint=${ep}`,
+      {
+        method: 'GET',
+      }
+    );
   }
 
   // Get available guilds

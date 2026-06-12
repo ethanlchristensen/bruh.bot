@@ -38,7 +38,6 @@ class UpdateConfigRequest(BaseModel):
     adminIds: list[str] | None = None
     cooldownBypassList: list[str] | None = None
     globalBlockList: list[str] | None = None
-    promptsPath: str | None = None
     mongoMessagesDbName: str | None = None
     mongoMessagesCollectionName: str | None = None
     allowedBotsToRespondTo: list[str] | None = None
@@ -48,11 +47,15 @@ class UpdateConfigRequest(BaseModel):
 
 
 class UpdateAIProviderRequest(BaseModel):
-    provider: Literal["ollama", "openai", "antropic", "google"]
+    provider: Literal["ollama", "openrouter", "mesh_router"]
     apiKey: str | None = None
     preferredModel: str | None = None
     endpoint: str | None = None
     voice: str | None = None
+    orchestratorProvider: Literal["ollama", "openrouter", "mesh_router"] | None = None
+    orchestratorModel: str | None = None
+    systemPrompt: str | None = None
+    realtimePrompt: str | None = None
 
 
 class AddAdminRequest(BaseModel):
@@ -116,7 +119,7 @@ async def get_config(guild_id: str = Depends(get_guild_id), authorized: bool = D
 
         # Mask API keys
         if "aiConfig" in data:
-            for provider in ["openai", "antropic", "google", "elevenlabs", "realTimeConfig"]:
+            for provider in ["openai", "antropic", "google", "elevenlabs", "realTimeConfig", "openrouter", "mesh_router"]:
                 if provider in data["aiConfig"] and data["aiConfig"][provider]:
                     p_data = data["aiConfig"][provider]
                     if isinstance(p_data, dict):
@@ -189,13 +192,29 @@ async def update_ai_provider(data: UpdateAIProviderRequest, guild_id: str = Depe
             pass  # Pydantic defaults handles this usually
 
         if data.apiKey is not None:
-            ai_config_dict[data.provider]["apiKey"] = data.apiKey
+            # If the API key is masked (consists of or contains asterisks), do not overwrite the existing one
+            if "*" in data.apiKey:
+                pass
+            else:
+                ai_config_dict[data.provider]["apiKey"] = data.apiKey
         if data.preferredModel is not None:
             ai_config_dict[data.provider]["preferredModel"] = data.preferredModel
         if data.endpoint is not None:
             ai_config_dict[data.provider]["endpoint"] = data.endpoint
         if data.voice is not None:
             ai_config_dict[data.provider]["voice"] = data.voice
+
+        # Handle Orchestrator-specific updates
+        if data.orchestratorProvider is not None:
+            ai_config_dict["orchestrator"]["preferredAiProvider"] = data.orchestratorProvider
+        if data.orchestratorModel is not None:
+            ai_config_dict["orchestrator"]["preferredModel"] = data.orchestratorModel
+
+        # Handle Prompt-specific updates
+        if data.systemPrompt is not None:
+            ai_config_dict["systemPrompt"] = data.systemPrompt
+        if data.realtimePrompt is not None:
+            ai_config_dict["realtimePrompt"] = data.realtimePrompt
 
         await config_service.update(guild_id, {"aiConfig": ai_config_dict})
 
@@ -271,14 +290,53 @@ async def get_version(guild_id: str = Depends(get_guild_id), authorized: bool = 
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+@app.get("/config/models")
+async def get_models(
+    provider: str,
+    endpoint: str | None = None,
+    guild_id: str = Depends(get_guild_id),
+    authorized: bool = Depends(verify_admin)
+):
+    """Fetch available models for a provider using MeshGateway."""
+    try:
+        config_obj = await config_service.get_config(guild_id)
+        ai_cfg = config_obj.aiConfig
+        provider_cfg = getattr(ai_cfg, provider, None) or ai_cfg.openrouter
+
+        api_key = ""
+        if provider_cfg:
+            try:
+                api_key = provider_cfg.get_api_key()
+            except Exception:
+                pass
+
+        if not endpoint:
+            endpoint = ""
+            if provider == "ollama" and provider_cfg:
+                endpoint = getattr(provider_cfg, "endpoint", "")
+
+        from bot.services.ai.gateway.gateway import get_mesh_gateway
+        gateway = get_mesh_gateway()
+        models = await gateway.get_models(provider, credentials={"api_key": api_key, "endpoint": endpoint})
+
+        model_ids = [m.id for m in models]
+        return {"success": True, "models": model_ids}
+    except Exception as e:
+        logger.warning(f"Error getting models for provider {provider}: {e}")
+        return {"success": False, "models": [], "error": str(e)}
+
+
 @app.get("/guilds")
 async def get_guilds(authorized: bool = Depends(verify_admin)):
-    """Get list of available guild IDs from MongoDB."""
+    """Get list of available guild IDs and names from MongoDB."""
     try:
         collection = config_service.db[config_service.base.mongoConfigCollectionName]
-        guilds = await collection.find({}, {"guildId": 1, "_id": 0}).to_list(length=None)
-        guild_ids = [g["guildId"] for g in guilds if "guildId" in g]
-        return {"success": True, "guilds": guild_ids}
+        guilds = await collection.find({}, {"guildId": 1, "guildName": 1, "_id": 0}).to_list(length=None)
+        guild_list = [
+            {"id": g["guildId"], "name": g.get("guildName", g["guildId"])}
+            for g in guilds if "guildId" in g
+        ]
+        return {"success": True, "guilds": guild_list}
     except Exception as e:
         logger.error(f"Error getting guilds: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e

@@ -1,8 +1,10 @@
 import logging
 from typing import TYPE_CHECKING
 
-from .ai_service_factory import AiServiceFactory
-from .types import Message, Role, UserIntent
+from bot.services.ai.gateway.gateway import get_mesh_gateway
+from bot.services.ai.gateway.schemas.request import Message, MessagePart, NormalizedRequest
+
+from .types import UserIntent
 
 if TYPE_CHECKING:
     from bot.juno import Juno
@@ -43,17 +45,39 @@ Examples of image_generation:
 
 Everything else is chat.{context_note}"""
 
-        messages = [
-            Message(role=Role.SYSTEM, content=system_prompt),
-            Message(role=Role.USER, content=user_message),
-        ]
-
         orchestrator_config = (await self.bot.config_service.get_config(str(guild_id))).aiConfig.orchestrator
+        ai_cfg = (await self.bot.config_service.get_config(str(guild_id))).aiConfig
 
-        ai_service = AiServiceFactory.get_service(self.bot, orchestrator_config.preferredAiProvider)
+        provider = orchestrator_config.preferredAiProvider
+        provider_config = getattr(ai_cfg, provider, None) or ai_cfg.openrouter
+        api_key = provider_config.get_api_key()
+        preferred_model = orchestrator_config.preferredModel or provider_config.preferredModel
+
+        # Construct JSON schema response format
+        response_format = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "UserIntent",
+                "schema": UserIntent.model_json_schema()
+            }
+        }
+
+        # Build gateway request
+        req = NormalizedRequest(
+            provider=provider,
+            model=preferred_model,
+            messages=[
+                Message(role="system", parts=[MessagePart(type="text", text=system_prompt)]),
+                Message(role="user", parts=[MessagePart(type="text", text=user_message)]),
+            ],
+            response_format=response_format
+        )
 
         try:
-            intent = await ai_service.chat_with_schema(guild_id=guild_id, messages=messages, schema=UserIntent, model=orchestrator_config.preferredModel)
+            gateway = get_mesh_gateway()
+            response = await gateway.complete(req, credentials={"api_key": api_key})
+            content = "".join(part.content for part in response.parts if part.type == "text")
+            intent = UserIntent.model_validate_json(content)
 
             self.logger.info(f"Detected intent: {intent.intent} (replying_to_image={is_replying_to_bot_image})")
             return intent

@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import time
@@ -8,7 +7,6 @@ from discord.ext import commands
 
 from bot.services import (
     AiOrchestrator,
-    AiServiceFactory,
     AudioService,
     ConfigService,
     CooldownService,
@@ -22,12 +20,7 @@ from bot.services import (
     ResponseService,
 )
 from bot.services.ai import (
-    AIChatResponse,
-    AnthropicService,
-    GoogleAIService,
     ImageGenerationResponse,
-    OllamaService,
-    OpenAIService,
     UserIntent,
 )
 from bot.services.music.music_websocket_service import MusicWebSocketService
@@ -47,7 +40,6 @@ class Juno(commands.Bot):
         self.config_service = config_service
         self.logger = logging.getLogger(__name__)
         self._config_reload_lock = False
-        self._prompts_cache: dict[str, dict] = {}
 
         # Services
         self.embed_service = EmbedService()
@@ -57,39 +49,11 @@ class Juno(commands.Bot):
         self.morning_config_service = MongoMorningConfigService(self)
         self.discord_messages_service = DiscordMessagesService(self)
         self.response_service = ResponseService(self)
-        self.message_service = MessageService(self, self.get_prompts(self.config_service.base.promptsPath))
+        self.message_service = MessageService(self)
         self.cooldown_service = CooldownService(self)
-        self.ollama_service = OllamaService(self)
-        self.openai_service = OpenAIService(self)
-        self.anthropic_service = AnthropicService(self)
-        self.google_service = GoogleAIService(self)
         self.ai_orchestrator = AiOrchestrator(self)
         self.image_generation_service = ImageGenerationService(self)
         self.music_websocket_service = MusicWebSocketService(self)
-
-    def get_prompts(self, prompts_path: str | None = None) -> dict:
-        """Get prompts from cache or load them."""
-        if not prompts_path:
-            prompts_path = self.config_service.base.promptsPath
-
-        if prompts_path not in self._prompts_cache:
-            self._prompts_cache[prompts_path] = self._load_prompts(prompts_path)
-        return self._prompts_cache[prompts_path]
-
-    def _load_prompts(self, prompts_path: str) -> dict:
-        """Load prompts from JSON file."""
-        try:
-            path = os.path.join(os.getcwd(), prompts_path)
-            if not os.path.exists(path):
-                self.logger.warning(f"Prompts file not found: {path}, using empty dict")
-                return {}
-            with open(path) as f:
-                prompts = json.load(f)
-                self.logger.info(f"Loaded {len(prompts)} prompts from prompts_path={prompts_path}")
-                return prompts
-        except Exception as e:
-            self.logger.error(f"Failed to load prompts from {prompts_path}: {e}")
-            return {}
 
     async def setup_hook(self):
         await self.juno_slash.load_commands()
@@ -132,6 +96,17 @@ class Juno(commands.Bot):
         user_count = sum(g.member_count for g in self.guilds)
 
         self.logger.info(f"🌐 Connected to {guild_count} guilds with access to {user_count} users")
+
+        # Populate dynamic guild names in MongoDB
+        for guild in self.guilds:
+            try:
+                config = await self.config_service.get_config(str(guild.id))
+                if config.guildName != guild.name:
+                    await self.config_service.update(str(guild.id), {"guildName": guild.name})
+                    self.logger.info(f"Updated guild name for {guild.name} ({guild.id}) in MongoDB")
+            except Exception as e:
+                self.logger.error(f"Failed to update guild name for {guild.name}: {e}")
+
         self.logger.info("✅ Juno is online!")
 
     async def on_message(self, message: discord.Message):
@@ -211,8 +186,24 @@ class Juno(commands.Bot):
         self.logger.info(f"Chatting with intent: {user_intent.intent} for reason of: {user_intent.reasoning}")
         aiConfig = (await self.config_service.get_config(str(message.guild.id))).aiConfig
         messages = await self.message_service.build_message_context(message, reference_message, message.author.name)
-        response: AIChatResponse = await AiServiceFactory.get_service(self, aiConfig.preferredAiProvider).chat(guild_id=message.guild.id, messages=messages)
-        await self.response_service.send_response(message, response.content)
+
+        from bot.services.ai.gateway.gateway import get_mesh_gateway
+        from bot.services.ai.gateway.schemas.request import NormalizedRequest
+
+        provider = aiConfig.preferredAiProvider
+        provider_config = getattr(aiConfig, provider, None) or aiConfig.openrouter
+        api_key = provider_config.get_api_key()
+        preferred_model = provider_config.preferredModel
+
+        req = NormalizedRequest(
+            provider=provider,
+            model=preferred_model,
+            messages=messages
+        )
+        gateway = get_mesh_gateway()
+        response = await gateway.complete(req, credentials={"api_key": api_key})
+        content = "".join(part.content for part in response.parts if part.type == "text")
+        await self.response_service.send_response(message, content)
 
     async def _handle_image_generation_intent(self, message: discord.Message, reference_message):
         """Handle image generation intent."""

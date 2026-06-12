@@ -2,7 +2,7 @@ import { Navigate, createFileRoute } from '@tanstack/react-router';
 import { useAuth } from '@/hooks/use-auth';
 import { Spinner } from '@/components/ui/spinner';
 
-export const Route = createFileRoute('/' as any)({
+export const Route = createFileRoute('/')({
   component: IndexPage,
 });
 

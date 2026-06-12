@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 import discord
 from bson import Int64
 
-from .ai.types import Message
+from bot.services.ai.gateway.schemas.request import Message, MessagePart
 
 if TYPE_CHECKING:
     from bot.juno import Juno
@@ -40,4 +40,4 @@ class DiscordMessagesService:
 
         role = "user" if db_message["author_id"] != self.bot.user.id else "assistant"
         user = idToUsers.get(str(db_message["author_id"]), db_message["author_name"])
-        return Message(role=role, content=f"{user}: {db_message['content']}")
+        return Message(role=role, parts=[MessagePart(type="text", text=f"{user}: {db_message['content']}")])

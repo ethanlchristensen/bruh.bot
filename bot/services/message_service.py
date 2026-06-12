@@ -5,16 +5,15 @@ from typing import TYPE_CHECKING
 import aiohttp
 import discord
 
-from bot.services import Message
+from bot.services.ai.gateway.schemas.request import Message, MessagePart
 
 if TYPE_CHECKING:
     from bot.juno import Juno
 
 
 class MessageService:
-    def __init__(self, bot: "Juno", prompts: dict):
+    def __init__(self, bot: "Juno"):
         self.bot = bot
-        self.prompts = prompts
         self.logger = logging.getLogger(__name__)
 
     async def get_reference_message(self, message: discord.Message) -> discord.Message | None:
@@ -63,8 +62,10 @@ class MessageService:
         images = await self.process_message_images(message)
         messages = []
 
+        config = await self.bot.config_service.get_config(str(message.guild.id))
+
         # Add enhanced system prompt
-        if main_prompt := self.prompts.get("main"):
+        if main_prompt := config.aiConfig.systemPrompt:
             main_prompt = main_prompt.replace("{{BOTNAME}}", self.bot.user.name)
 
             # Add multi-user context instructions
@@ -79,12 +80,10 @@ class MessageService:
     - When responding, you may address specific users by name if appropriate
     - IMPORTANT: DO NOT prepend your response with your name or brackets. Just send the message content directly. Your message is going straight to the discord server.
     """
-            messages.append(Message(role="system", content=multi_user_prompt))
+            messages.append(Message(role="system", parts=[MessagePart(type="text", text=multi_user_prompt)]))
 
         # Get historical messages and format as transcript
         historical_msgs = await self.bot.discord_messages_service.get_last_n_messages_within_n_minutes(message=message, n=10, minutes=30)
-
-        config = await self.bot.config_service.get_config(str(message.guild.id))
 
         if historical_msgs:
             transcript_lines = []
@@ -100,7 +99,7 @@ class MessageService:
 
             # Add all historical messages as a single user message
             transcript = "RECENT CONVERSATION:\n" + "\n".join(transcript_lines)
-            messages.append(Message(role="user", content=transcript))
+            messages.append(Message(role="user", parts=[MessagePart(type="text", text=transcript)]))
 
         # Add reference message context if replying
         if reference_message:
@@ -109,11 +108,17 @@ class MessageService:
 
             # Format as part of the conversation flow
             reply_context = f"\nREPLYING TO:\n[{ref_username}]: {ref_content}"
-            messages.append(Message(role="user", content=reply_context))
+            messages.append(Message(role="user", parts=[MessagePart(type="text", text=reply_context)]))
 
         # Add current message
         current_content = f"\nCURRENT MESSAGE:\n[{username}]: " + self.replace_mentions(message.content).strip()
-        messages.append(Message(role="user", content=current_content, images=images))
+
+        parts = [MessagePart(type="text", text=current_content)]
+        for img in images:
+            data_url = f"data:{img['type']};base64,{img['data']}"
+            parts.append(MessagePart(type="image", url=data_url))
+
+        messages.append(Message(role="user", parts=parts))
 
         return messages
 

@@ -46,9 +46,9 @@ export function GuildSelector() {
           <SelectValue placeholder="Select a guild" />
         </SelectTrigger>
         <SelectContent>
-          {data.guilds.map((guildId) => (
-            <SelectItem key={guildId} value={guildId}>
-              {guildId}
+          {data.guilds.map((guild) => (
+            <SelectItem key={guild.id} value={guild.id}>
+              {guild.name}
             </SelectItem>
           ))}
         </SelectContent>

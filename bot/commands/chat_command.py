@@ -6,7 +6,8 @@ if TYPE_CHECKING:
 import discord
 from discord import app_commands
 
-from bot.services import AIChatResponse, AiServiceFactory, Message
+from bot.services.ai.gateway.gateway import get_mesh_gateway
+from bot.services.ai.gateway.schemas.request import Message, MessagePart, NormalizedRequest
 from bot.utils.decarators.command_logging import log_command_usage
 from bot.utils.decarators.global_block_check import is_globally_blocked
 
@@ -21,7 +22,26 @@ class ChatCommand(app_commands.Command):
 
             client: Juno = interaction.client
             config = (await client.config_service.get_config(str(interaction.guild.id))).aiConfig
-            ai_service = AiServiceFactory.get_service(client, config.preferredAiProvider)
-            response: AIChatResponse = await ai_service.chat(guild_id=interaction.guild.id, messages=[Message(role="user", content=message)])
 
-            await interaction.followup.send(response.content)
+            provider = config.preferredAiProvider
+            provider_config = getattr(config, provider, None) or config.openrouter
+            api_key = provider_config.get_api_key()
+            preferred_model = provider_config.preferredModel
+
+            # Construct gateway request
+            req = NormalizedRequest(
+                provider=provider,
+                model=preferred_model,
+                messages=[
+                    Message(
+                        role="user",
+                        parts=[MessagePart(type="text", text=message)]
+                    )
+                ]
+            )
+
+            gateway = get_mesh_gateway()
+            response = await gateway.complete(req, credentials={"api_key": api_key})
+            content = "".join(part.content for part in response.parts if part.type == "text")
+
+            await interaction.followup.send(content)

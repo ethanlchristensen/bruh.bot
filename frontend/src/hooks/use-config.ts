@@ -99,3 +99,12 @@ export function useGuilds() {
     staleTime: 60000, // 1 minute
   });
 }
+
+export function useModels(provider: string, endpoint?: string) {
+  return useQuery({
+    queryKey: ['models', provider, endpoint],
+    queryFn: () => apiClient.getModels(provider, endpoint),
+    enabled: !!provider,
+    staleTime: 30000, // Reduced to 30s for reactive typed changes
+  });
+}

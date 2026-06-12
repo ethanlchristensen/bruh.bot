@@ -6,9 +6,10 @@ import aiohttp
 from google.genai import Client
 from PIL import Image
 
-from bot.services.ai.ai_service_factory import AiServiceFactory
+from bot.services.ai.gateway.gateway import get_mesh_gateway
+from bot.services.ai.gateway.schemas.request import Message, MessagePart, NormalizedRequest
 
-from .types import ImageGenerationResponse, Message, Role
+from .types import ImageGenerationResponse
 
 if TYPE_CHECKING:
     from bot.juno import Juno
@@ -27,35 +28,40 @@ class ImageGenerationService:
         try:
             logger.info(f"Boosting prompt: {user_prompt}")
 
-            system_message = Message(
-                role=Role.SYSTEM,
-                content="""You are a prompt enhancement specialist for image generation AI.
+            system_prompt = """You are a prompt enhancement specialist for image generation AI.
 Your job is to take user prompts and enhance them with specific details about composition,
 lighting, style, colors, mood, and technical aspects that will help generate better images.
 Keep the core intent of the user's request while adding helpful details.
-Return ONLY the enhanced prompt, no explanations or commentary.""",
-            )
+Return ONLY the enhanced prompt, no explanations or commentary."""
 
             if image_description:
-                user_message = Message(
-                    role=Role.USER,
-                    content=f"""Original image description: {image_description}
+                user_content = f"""Original image description: {image_description}
 
 User's edit request: {user_prompt}
 
-Please enhance this edit request with specific details while maintaining the context of the original image.""",
-                )
+Please enhance this edit request with specific details while maintaining the context of the original image."""
             else:
-                user_message = Message(
-                    role=Role.USER,
-                    content=f"User prompt: {user_prompt}\n\nPlease enhance this prompt with specific details for image generation.",
-                )
+                user_content = f"User prompt: {user_prompt}\n\nPlease enhance this prompt with specific details for image generation."
 
             config = (await self.bot.config_service.get_config(str(guild_id))).aiConfig
-            ai_service = AiServiceFactory.get_service(self.bot, config.preferredAiProvider)
+            provider = config.preferredAiProvider
+            provider_config = getattr(config, provider, None) or config.openrouter
+            api_key = provider_config.get_api_key()
+            preferred_model = provider_config.preferredModel
 
-            response = await ai_service.chat(guild_id, messages=[system_message, user_message])
-            boosted_prompt = response.content.strip()
+            # Construct gateway request
+            req = NormalizedRequest(
+                provider=provider,
+                model=preferred_model,
+                messages=[
+                    Message(role="system", parts=[MessagePart(type="text", text=system_prompt)]),
+                    Message(role="user", parts=[MessagePart(type="text", text=user_content)]),
+                ]
+            )
+
+            gateway = get_mesh_gateway()
+            response = await gateway.complete(req, credentials={"api_key": api_key})
+            boosted_prompt = "".join(part.content for part in response.parts if part.type == "text").strip()
 
             logger.info(f"Boosted prompt: {boosted_prompt}")
             return boosted_prompt
@@ -73,25 +79,37 @@ Please enhance this edit request with specific details while maintaining the con
             import base64
 
             img_str = base64.b64encode(buffered.getvalue()).decode()
+            data_url = f"data:image/png;base64,{img_str}"
 
-            system_message = Message(
-                role=Role.SYSTEM,
-                content="""You are an image analysis expert. Describe the image in detail,
+            system_prompt = """You are an image analysis expert. Describe the image in detail,
 including composition, subjects, colors, lighting, mood, style, and any notable elements.
-Be specific and thorough as this description will be used for image editing context.""",
-            )
-
-            user_message = Message(
-                role=Role.USER,
-                content="Please describe this image in detail.",
-                images=[{"type": "image/png", "data": img_str}],
-            )
+Be specific and thorough as this description will be used for image editing context."""
 
             config = (await self.bot.config_service.get_config(str(guild_id))).aiConfig
-            ai_service = AiServiceFactory.get_service(self.bot, config.preferredAiProvider)
+            provider = config.preferredAiProvider
+            provider_config = getattr(config, provider, None) or config.openrouter
+            api_key = provider_config.get_api_key()
+            preferred_model = provider_config.preferredModel
 
-            response = await ai_service.chat(guild_id, messages=[system_message, user_message])
-            description = response.content.strip()
+            # Construct gateway request with system prompt and user message containing image
+            req = NormalizedRequest(
+                provider=provider,
+                model=preferred_model,
+                messages=[
+                    Message(role="system", parts=[MessagePart(type="text", text=system_prompt)]),
+                    Message(
+                        role="user",
+                        parts=[
+                            MessagePart(type="text", text="Please describe this image in detail."),
+                            MessagePart(type="image", url=data_url)
+                        ]
+                    ),
+                ]
+            )
+
+            gateway = get_mesh_gateway()
+            response = await gateway.complete(req, credentials={"api_key": api_key})
+            description = "".join(part.content for part in response.parts if part.type == "text").strip()
 
             logger.info(f"Generated description: {description[:100]}...")
             return description

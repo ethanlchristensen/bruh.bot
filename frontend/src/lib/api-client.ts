@@ -80,6 +80,8 @@ export interface UpdateConfigRequest {
   mongoMessagesDbName?: string;
   mongoMessagesCollectionName?: string;
   allowedBotsToRespondTo?: Array<string>;
+  usersToId?: Record<string, string>;
+  idToUsers?: Record<string, string>;
 }
 
 export interface UpdateAIProviderRequest {

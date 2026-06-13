@@ -27,7 +27,8 @@ import {
   ChevronDown,
   Search,
   BrainCircuit,
-  FileText
+  FileText,
+  Users
 } from 'lucide-react';
 import {
   Dialog,
@@ -342,6 +343,12 @@ function ConfigComponent() {
   const [dbName, setDbName] = useState('');
   const [collectionName, setCollectionName] = useState('');
 
+  // User mapping fields
+  const [usersToId, setUsersToId] = useState<Record<string, string>>({});
+  const [idToUsers, setIdToUsers] = useState<Record<string, string>>({});
+  const [newUsername, setNewUsername] = useState('');
+  const [newDiscordId, setNewDiscordId] = useState('');
+
   // Fetch models for both providers dynamically using our query hook
   const { data: ollamaModelsData, isLoading: isLoadingOllamaModels } = useModels('ollama', ollamaEndpoint);
   const { data: openrouterModelsData, isLoading: isLoadingOpenrouterModels } = useModels('openrouter');
@@ -404,6 +411,10 @@ function ConfigComponent() {
       // DB Settings
       setDbName(config.mongoMessagesDbName || '');
       setCollectionName(config.mongoMessagesCollectionName || '');
+
+      // User Mappings
+      setUsersToId(config.usersToId || {});
+      setIdToUsers(config.idToUsers || {});
     }
   }, [data, isSaving]);
 
@@ -420,6 +431,8 @@ function ConfigComponent() {
           cooldownBypassList,
           mongoMessagesDbName: dbName,
           mongoMessagesCollectionName: collectionName,
+          usersToId,
+          idToUsers,
         });
 
         // 2. Save active preferred provider details AND prompts
@@ -467,6 +480,39 @@ function ConfigComponent() {
       success: (msg) => `${msg}`,
       error: (err) => `Failed to save: ${err}`,
     });
+  };
+
+  const handleAddMapping = () => {
+    if (!newUsername || !newDiscordId) {
+      toast.error('Please enter both username and Discord ID.');
+      return;
+    }
+    
+    const username = newUsername.trim();
+    const discordId = newDiscordId.trim();
+
+    setUsersToId((prev) => ({ ...prev, [username]: discordId }));
+    setIdToUsers((prev) => ({ ...prev, [discordId]: username }));
+    
+    setNewUsername('');
+    setNewDiscordId('');
+    toast.success(`Added mapping: ${username} ↔ ${discordId}`);
+  };
+
+  const handleRemoveMapping = (username: string) => {
+    const discordId = usersToId[username];
+    
+    const nextUsersToId = { ...usersToId };
+    delete nextUsersToId[username];
+    setUsersToId(nextUsersToId);
+
+    if (discordId) {
+      const nextIdToUsers = { ...idToUsers };
+      delete nextIdToUsers[discordId];
+      setIdToUsers(nextIdToUsers);
+    }
+    
+    toast.success(`Removed mapping for ${username}`);
   };
 
   if (isLoading) {
@@ -909,6 +955,77 @@ function ConfigComponent() {
                   onChange={(e) => setMentionCooldown(parseInt(e.target.value) || 0)}
                   min={0}
                 />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* User Mappings Card */}
+          <Card>
+            <CardHeader className="flex flex-row items-center gap-4">
+              <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                <Users className="h-6 w-6" />
+              </div>
+              <div>
+                <CardTitle>Discord User Mappings</CardTitle>
+                <CardDescription>
+                  Map Discord usernames/nicks to user IDs for replacements.
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Add Mapping Form */}
+              <div className="space-y-3">
+                <Label className="font-semibold text-sm">Add New User Mapping</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Username (e.g. etchris)"
+                    value={newUsername}
+                    onChange={(e) => setNewUsername(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Input
+                    placeholder="Discord User ID (e.g. 41139969...)"
+                    value={newDiscordId}
+                    onChange={(e) => setNewDiscordId(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button onClick={handleAddMapping} size="icon" className="shrink-0 rounded-xl">
+                    <Plus className="h-5 w-5" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Mappings List */}
+              <div className="space-y-3 border-t border-border/40 pt-4">
+                <Label className="font-semibold text-sm">Active Mappings</Label>
+                {Object.keys(usersToId).length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic p-2 bg-muted/40 rounded-lg">
+                    No active user mappings defined.
+                  </p>
+                ) : (
+                  <div className="max-h-[220px] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                    {Object.entries(usersToId).map(([username, id]) => (
+                      <div
+                        key={username}
+                        className="flex items-center justify-between p-2 rounded-lg bg-muted/40 border border-border/30 hover:border-border/60 transition-all text-xs"
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="font-bold text-foreground">@{username}</span>
+                          <span className="text-muted-foreground text-[10px]">↔</span>
+                          <span className="font-mono text-muted-foreground select-all">{id}</span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg shrink-0"
+                          onClick={() => handleRemoveMapping(username)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

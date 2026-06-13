@@ -492,7 +492,15 @@ function ConfigComponent() {
     const discordId = newDiscordId.trim();
 
     setUsersToId((prev) => ({ ...prev, [username]: discordId }));
-    setIdToUsers((prev) => ({ ...prev, [discordId]: username }));
+    
+    // Only map back to this username in idToUsers if the ID is not already mapped!
+    // This allows multiple names (aliases) to map to the same ID, keeping the first added name as primary.
+    setIdToUsers((prev) => {
+      if (prev[discordId]) {
+        return prev;
+      }
+      return { ...prev, [discordId]: username };
+    });
     
     setNewUsername('');
     setNewDiscordId('');
@@ -508,7 +516,19 @@ function ConfigComponent() {
 
     if (discordId) {
       const nextIdToUsers = { ...idToUsers };
-      delete nextIdToUsers[discordId];
+      
+      // Find if there is any other username in the REMAINING usersToId maps that also uses this discordId
+      const remainingUsernames = Object.entries(nextUsersToId)
+        .filter(([_, id]) => id === discordId)
+        .map(([u]) => u);
+        
+      if (remainingUsernames.length > 0) {
+        // Set one of the remaining usernames as the primary mapping for this ID!
+        nextIdToUsers[discordId] = remainingUsernames[0];
+      } else {
+        // No usernames left mapping to this ID, delete it
+        delete nextIdToUsers[discordId];
+      }
       setIdToUsers(nextIdToUsers);
     }
     

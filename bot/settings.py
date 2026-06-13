@@ -33,7 +33,7 @@ LOGGING_CONFIG = {
             "formatter": "rich",
             "markup": True,
             "rich_tracebacks": True,
-            "tracebacks_show_locals": True,
+            "tracebacks_show_locals": False,
             "console": console,
             "show_time": True,
             "show_path": True,

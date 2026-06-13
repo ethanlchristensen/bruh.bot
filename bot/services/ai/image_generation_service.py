@@ -272,6 +272,14 @@ Be specific and thorough as this description will be used for image editing cont
             logger.error(f"Error editing image: {e}", exc_info=True)
             return None
 
+    async def download_images_from_urls(self, urls: list[str]) -> list[Image.Image]:
+        images = []
+        for url in urls:
+            image = await self.download_image_from_url(url)
+            if image:
+                images.append(image)
+        return images
+
     async def edit_image_from_url(self, guild_id: int, prompt: str, image_url: str) -> ImageGenerationResponse | None:
         source_image = await self.download_image_from_url(image_url)
         if source_image is None:

@@ -58,67 +58,71 @@ class MessageService:
         return images
 
     async def build_message_context(self, message: discord.Message, reference_message: discord.Message | None, username: str) -> list[Message]:
-        """Build the message context for AI processing."""
+        """Build the message context for AI processing using the parent-pointer tree."""
         images = await self.process_message_images(message)
         messages = []
 
         config = await self.bot.config_service.get_config(str(message.guild.id))
 
-        # Add enhanced system prompt
+        # 1. Determine parent_id
+        if reference_message:
+            parent_id = reference_message.id
+        else:
+            # Strict mode: treat as a brand new conversation root
+            parent_id = None
+
+        # 2. Save current user message
+        await self.bot.chat_service.save_message(
+            message_id=message.id,
+            channel_id=message.channel.id,
+            parent_id=parent_id,
+            role="user",
+            content=message.content,
+            author_name=username,
+        )
+
+        # 3. Retrieve conversation path
+        path = await self.bot.chat_service.get_conversation_path(message.id)
+
+        # 4. Add enhanced system prompt
         if main_prompt := config.aiConfig.systemPrompt:
             main_prompt = main_prompt.replace("{{BOTNAME}}", self.bot.user.name)
 
             # Add multi-user context instructions
             multi_user_prompt = f"""
-    {main_prompt}
+{main_prompt}
 
-    MULTI-USER CHAT CONTEXT:
-    - You are in a Discord group chat with multiple users
-    - Messages are formatted as: [Username]: [Message Content]
-    - Each line represents a different message, possibly from different users
-    - Pay close attention to the username before each message
-    - When responding, you may address specific users by name if appropriate
-    - IMPORTANT: DO NOT prepend your response with your name or brackets. Just send the message content directly. Your message is going straight to the discord server.
-    """
+MULTI-USER CHAT CONTEXT:
+- You are in a Discord group chat with multiple users
+- Messages are formatted as: [Username]: [Message Content]
+- Pay close attention to the username before each message
+- When responding, you may address specific users by name if appropriate
+- IMPORTANT: DO NOT prepend your response with your name or brackets. Just send the message content directly. Your message is going straight to the discord server.
+"""
             messages.append(Message(role="system", parts=[MessagePart(type="text", text=multi_user_prompt)]))
 
-        # Get historical messages and format as transcript
-        historical_msgs = await self.bot.discord_messages_service.get_last_n_messages_within_n_minutes(message=message, n=10, minutes=30)
+        # 5. Populate messages from conversation path
+        for node in path:
+            node_role = node["role"]
+            node_content = node["content"]
+            node_author = node.get("author_name")
 
-        if historical_msgs:
-            transcript_lines = []
-            for msg in historical_msgs:
-                author_name = config.idToUsers.get(str(msg["author_id"]), msg["author_name"])
-                content = self.replace_mentions(msg["content"]).strip()
+            clean_content = self.replace_mentions(node_content).strip()
 
-                # Mark bot's own messages clearly
-                if msg["author_id"] == self.bot.user.id:
-                    transcript_lines.append(f"[{self.bot.user.name}]: {content}")
-                else:
-                    transcript_lines.append(f"[{author_name}]: {content}")
+            if node_role == "assistant":
+                text = f"[{self.bot.user.name}]: {clean_content}"
+            else:
+                text = f"[{node_author or 'user'}]: {clean_content}"
 
-            # Add all historical messages as a single user message
-            transcript = "RECENT CONVERSATION:\n" + "\n".join(transcript_lines)
-            messages.append(Message(role="user", parts=[MessagePart(type="text", text=transcript)]))
+            parts = [MessagePart(type="text", text=text)]
 
-        # Add reference message context if replying
-        if reference_message:
-            ref_username = config.idToUsers.get(str(reference_message.author.id), reference_message.author.name)
-            ref_content = self.replace_mentions(reference_message.content).strip()
+            # Attach images only to the current message (the end of the chain)
+            if node["_id"] == message.id:
+                for img in images:
+                    data_url = f"data:{img['type']};base64,{img['data']}"
+                    parts.append(MessagePart(type="image", url=data_url))
 
-            # Format as part of the conversation flow
-            reply_context = f"\nREPLYING TO:\n[{ref_username}]: {ref_content}"
-            messages.append(Message(role="user", parts=[MessagePart(type="text", text=reply_context)]))
-
-        # Add current message
-        current_content = f"\nCURRENT MESSAGE:\n[{username}]: " + self.replace_mentions(message.content).strip()
-
-        parts = [MessagePart(type="text", text=current_content)]
-        for img in images:
-            data_url = f"data:{img['type']};base64,{img['data']}"
-            parts.append(MessagePart(type="image", url=data_url))
-
-        messages.append(Message(role="user", parts=parts))
+            messages.append(Message(role=node_role, parts=parts))
 
         return messages
 

@@ -48,34 +48,36 @@ class ResponseService:
 
         return chunks
 
-    async def send_response(self, message: discord.Message, content: str, image_file: discord.File | None = None, reply: bool = True, ephemeral: bool = False):
+    async def send_response(self, message: discord.Message, content: str, image_file: discord.File | None = None, reply: bool = True, ephemeral: bool = False) -> discord.Message | None:
         """Send the AI response, splitting if necessary."""
         processed_content = await self.process_mentions(message.guild.id, content)
         chunks = await self.split_long_message(processed_content)
+        sent_message = None
 
         try:
             if image_file:
                 if reply:
-                    await message.reply(content=processed_content, file=image_file)
+                    sent_message = await message.reply(content=processed_content, file=image_file)
                 else:
-                    await message.channel.send(content=processed_content, file=image_file)
+                    sent_message = await message.channel.send(content=processed_content, file=image_file)
             else:
                 for idx, chunk in enumerate(chunks):
                     if idx == 0:
                         if reply:
-                            await message.reply(chunk)
+                            sent_message = await message.reply(chunk)
                         else:
-                            await message.channel.send(chunk)
+                            sent_message = await message.channel.send(chunk)
                     else:
                         await message.channel.send("...")
-                        await message.channel.send(chunk)
+                        sent_message = await message.channel.send(chunk)
         except Exception:
             if image_file:
-                await message.channel.send(content=processed_content, file=image_file)
+                sent_message = await message.channel.send(content=processed_content, file=image_file)
             else:
                 for idx, chunk in enumerate(chunks):
                     if idx == 0:
-                        await message.channel.send(chunk)
+                        sent_message = await message.channel.send(chunk)
                     else:
                         await message.channel.send("...")
-                        await message.channel.send(chunk)
+                        sent_message = await message.channel.send(chunk)
+        return sent_message

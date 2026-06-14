@@ -14,6 +14,7 @@ from bot.services import (
     EmbedService,
     ImageGenerationService,
     MessageService,
+    MongoChatService,
     MongoImageLimitService,
     MongoMorningConfigService,
     MusicQueueService,
@@ -47,6 +48,7 @@ class Juno(commands.Bot):
         self.music_queue_service = MusicQueueService(self)
         self.image_limit_service = MongoImageLimitService(self)
         self.morning_config_service = MongoMorningConfigService(self)
+        self.chat_service = MongoChatService(self)
         self.discord_messages_service = DiscordMessagesService(self)
         self.response_service = ResponseService(self)
         self.message_service = MessageService(self)
@@ -56,6 +58,22 @@ class Juno(commands.Bot):
         self.music_websocket_service = MusicWebSocketService(self)
 
     async def setup_hook(self):
+        # Initialize database services
+        try:
+            await self.image_limit_service.initialize()
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize image_limit_service: {e}")
+
+        try:
+            await self.morning_config_service.initialize()
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize morning_config_service: {e}")
+
+        try:
+            await self.chat_service.initialize()
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize chat_service: {e}")
+
         await self.juno_slash.load_commands()
         await self.load_cogs()
         await self.music_websocket_service.start_server(port=int(os.getenv("WS_PORT", 8001)))
@@ -231,7 +249,15 @@ class Juno(commands.Bot):
         gateway = get_mesh_gateway()
         response = await gateway.complete(req, credentials={"api_key": api_key})
         content = "".join(part.content for part in response.parts if part.type == "text")
-        await self.response_service.send_response(message, content)
+        sent_msg = await self.response_service.send_response(message, content)
+        if sent_msg:
+            await self.chat_service.save_message(
+                message_id=sent_msg.id,
+                channel_id=message.channel.id,
+                parent_id=message.id,
+                role="assistant",
+                content=content,
+            )
 
     async def _handle_image_generation_intent(self, message: discord.Message, reference_message):
         """Handle image generation intent."""

@@ -11,6 +11,7 @@ from .cooldown_service import CooldownService
 from .discord_messages_service import DiscordMessagesService
 from .embed_service import EmbedService, QueuePaginationView
 from .message_service import MessageService
+from .mongo_chat_service import MongoChatService
 from .mongo_image_limit_service import MongoImageLimitService
 from .mongo_morning_config_service import MongoMorningConfigService
 from .music.audio_service import AudioService
@@ -40,6 +41,7 @@ __all__ = [
     "CooldownService",
     "MongoImageLimitService",
     "MongoMorningConfigService",
+    "MongoChatService",
     "RealTimeAudioService",
     "VoiceReceiveSink",
     "AudioProcessor",

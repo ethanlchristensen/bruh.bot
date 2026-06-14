@@ -108,6 +108,7 @@ class BaseConfig(BaseModel):
     mongoImageLimitsCollectionName: str = "ImageLimits"
     mongoMorningConfigsCollectionName: str = "Morningconfigs"
     mongoCooldownCollectionName: str = "Cooldowns"
+    mongoChatThreadsCollectionName: str = "ChatThreads"
     mongoDiscordScrapeBot: DiscordScrapeBotConfig = Field(default_factory=DiscordScrapeBotConfig)
 
 
@@ -132,6 +133,7 @@ class DynamicConfig(BaseModel):
     mongoMessagesCollectionName: str = "Messages"
     mongoMorningConfigsCollectionName: str = "MorningConfigs"
     mongoImageLimitsCollectionName: str = "ImageLimits"
+    mongoChatThreadsCollectionName: str = "ChatThreads"
 
 
 class ConfigService:

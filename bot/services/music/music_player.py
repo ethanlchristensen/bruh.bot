@@ -19,12 +19,22 @@ class MusicPlayer:
         self.bot = bot
         self.guild = guild
         self.queue = PriorityMusicQueue()
-        self.voice_client: discord.VoiceClient | None = None
+        self._voice_client: discord.VoiceClient | None = None
         self.played_at: float | None = None
         self.paused_at: float | None = None
         self.current: AudioMetaData | None = None
         self.last_text_channel: discord.TextChannel | None = None
         self.logger = logging.getLogger(__name__)
+
+    @property
+    def voice_client(self) -> discord.VoiceClient | None:
+        if self.guild.voice_client:
+            return self.guild.voice_client
+        return self._voice_client
+
+    @voice_client.setter
+    def voice_client(self, value: discord.VoiceClient | None):
+        self._voice_client = value
 
     def is_playing(self) -> bool:
         """Check if the voice client is playing"""

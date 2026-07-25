@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 from collections.abc import AsyncIterator
 
@@ -10,6 +11,8 @@ from bot.services.ai.gateway.schemas.chunks import StreamChunk
 from bot.services.ai.gateway.schemas.models import ModelCapabilities, ModelInfo
 from bot.services.ai.gateway.schemas.request import NormalizedRequest
 from bot.services.ai.gateway.schemas.response import NormalizedResponse, ResponsePart
+
+logger = logging.getLogger(__name__)
 
 _cached_models: list[ModelInfo] | None = None
 _cache_timestamp: float = 0
@@ -300,11 +303,15 @@ class OpenRouterAdapter(OllamaAdapter):
         if _cached_models and (time.monotonic() - _cache_timestamp) < MODELS_CACHE_TTL:
             return _cached_models
 
+        has_key = bool(api_key and api_key.strip())
+
         headers = {
-            "Authorization": f"Bearer {api_key}",
+            "Authorization": f"Bearer {api_key}" if has_key else "",
             "HTTP-Referer": "https://mesh.etchris.dev",
             "X-Title": "Mesh",
         }
+        if not has_key:
+            headers.pop("Authorization", None)
         async with httpx.AsyncClient(http2=True) as client:
             try:
                 resp = await client.get(f"{self.base_url}/models", headers=headers, timeout=10.0)
@@ -361,10 +368,12 @@ class OpenRouterAdapter(OllamaAdapter):
                     )
 
                 sorted_models = sorted(models, key=lambda x: x.id)
-                _cached_models = sorted_models
-                _cache_timestamp = time.monotonic()
+                if has_key:
+                    _cached_models = sorted_models
+                    _cache_timestamp = time.monotonic()
                 return sorted_models
-            except Exception:
+            except Exception as exc:
+                logger.error(f"OpenRouter get_models failed: {exc}", exc_info=True)
                 return []
 
     @staticmethod

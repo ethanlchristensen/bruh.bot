@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import TYPE_CHECKING
 
@@ -14,7 +15,12 @@ class MongoMorningConfigService:
         self.bot = bot
         self.collection = self.bot.config_service.db[self.bot.config_service.base.mongoMorningConfigsCollectionName]
         self.logger = logging.getLogger(__name__)
-        self.initialize()
+        try:
+            loop = asyncio.get_running_loop()
+            if loop.is_running():
+                loop.create_task(self.initialize())
+        except RuntimeError:
+            pass
 
     async def initialize(self):
         """Initialize collection with indexes."""

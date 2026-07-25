@@ -25,6 +25,6 @@ class ModelInfo(BaseModel):
     context_window: int | None = None
     max_output_tokens: int | None = None
     description: str | None = None
-    pricing: dict[str, str] | None = None
+    pricing: dict | None = None
     knowledge_cutoff: str | None = None
     created_at: int | None = None

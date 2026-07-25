@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 from datetime import UTC, datetime
 from typing import Literal
 
@@ -10,7 +11,12 @@ from pydantic import BaseModel
 
 from bot.services.config_service import get_config_service
 
-logger = logging.getLogger("api.config")
+logger = logging.getLogger("api")
+_handler = logging.StreamHandler(sys.stdout)
+_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s", "%H:%M:%S"))
+logger.addHandler(_handler)
+logger.setLevel(logging.INFO)
+logger.propagate = False
 
 app = FastAPI(title="Bot Config API", description="API for managing dynamic bot configuration", version="1.0.0")
 
@@ -336,6 +342,8 @@ async def get_models(provider: str, endpoint: str | None = None, image_gen: bool
             if provider == "ollama" and provider_cfg:
                 endpoint = getattr(provider_cfg, "endpoint", "")
 
+        has_key = bool(api_key and api_key.strip())
+
         from bot.services.ai.gateway.gateway import get_mesh_gateway
 
         gateway = get_mesh_gateway()
@@ -348,7 +356,9 @@ async def get_models(provider: str, endpoint: str | None = None, image_gen: bool
         else:
             model_ids = [m.id for m in models]
 
-        return {"success": True, "models": model_ids}
+        logger.info(f"/config/models provider={provider} guild={guild_id} has_key={has_key} key_len={len(api_key) if has_key else 0} count={len(model_ids)}")
+
+        return {"success": True, "models": model_ids, "has_api_key": has_key, "model_count": len(model_ids)}
     except Exception as e:
         logger.warning(f"Error getting models for provider {provider}: {e}")
         return {"success": False, "models": [], "error": str(e)}

@@ -15,6 +15,11 @@ export const configKeys = {
   version: () => [...configKeys.all, 'version'] as const,
 };
 
+export const memoryKeys = {
+  all: ['memories'] as const,
+  user: (userId: string) => [...memoryKeys.all, userId] as const,
+};
+
 // Get config
 export function useConfig() {
   return useQuery({
@@ -117,5 +122,32 @@ export function useRefreshModels() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['models'] });
     },
+  });
+}
+
+export function useUserMemories(userId: string) {
+  return useQuery({
+    queryKey: memoryKeys.user(userId),
+    queryFn: () => apiClient.getUserMemories(userId),
+    enabled: userId.length > 0,
+    staleTime: 10000,
+  });
+}
+
+export function useDeleteMemory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (memoryId: string) => apiClient.deleteMemory(memoryId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: memoryKeys.all });
+    },
+  });
+}
+
+export function useUsers() {
+  return useQuery({
+    queryKey: ['users'],
+    queryFn: () => apiClient.getUsers(),
+    staleTime: 30000,
   });
 }

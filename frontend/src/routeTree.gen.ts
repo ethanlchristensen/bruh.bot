@@ -18,6 +18,7 @@ import { Route as MainMusicRouteImport } from './app/routes/_main/music'
 import { Route as MainConfigIndexRouteImport } from './app/routes/_main/config/index'
 import { Route as MainConfigServerRouteImport } from './app/routes/_main/config/server'
 import { Route as MainConfigMemoryRouteImport } from './app/routes/_main/config/memory'
+import { Route as MainConfigMemoriesRouteImport } from './app/routes/_main/config/memories'
 import { Route as MainConfigAiRouteImport } from './app/routes/_main/config/ai'
 
 const LoginRoute = LoginRouteImport.update({
@@ -64,6 +65,11 @@ const MainConfigMemoryRoute = MainConfigMemoryRouteImport.update({
   path: '/config/memory',
   getParentRoute: () => MainRoute,
 } as any)
+const MainConfigMemoriesRoute = MainConfigMemoriesRouteImport.update({
+  id: '/config/memories',
+  path: '/config/memories',
+  getParentRoute: () => MainRoute,
+} as any)
 const MainConfigAiRoute = MainConfigAiRouteImport.update({
   id: '/config/ai',
   path: '/config/ai',
@@ -77,6 +83,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof MainProfileRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/config/ai': typeof MainConfigAiRoute
+  '/config/memories': typeof MainConfigMemoriesRoute
   '/config/memory': typeof MainConfigMemoryRoute
   '/config/server': typeof MainConfigServerRoute
   '/config/': typeof MainConfigIndexRoute
@@ -88,6 +95,7 @@ export interface FileRoutesByTo {
   '/profile': typeof MainProfileRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/config/ai': typeof MainConfigAiRoute
+  '/config/memories': typeof MainConfigMemoriesRoute
   '/config/memory': typeof MainConfigMemoryRoute
   '/config/server': typeof MainConfigServerRoute
   '/config': typeof MainConfigIndexRoute
@@ -101,6 +109,7 @@ export interface FileRoutesById {
   '/_main/profile': typeof MainProfileRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/_main/config/ai': typeof MainConfigAiRoute
+  '/_main/config/memories': typeof MainConfigMemoriesRoute
   '/_main/config/memory': typeof MainConfigMemoryRoute
   '/_main/config/server': typeof MainConfigServerRoute
   '/_main/config/': typeof MainConfigIndexRoute
@@ -114,6 +123,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/auth/callback'
     | '/config/ai'
+    | '/config/memories'
     | '/config/memory'
     | '/config/server'
     | '/config/'
@@ -125,6 +135,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/auth/callback'
     | '/config/ai'
+    | '/config/memories'
     | '/config/memory'
     | '/config/server'
     | '/config'
@@ -137,6 +148,7 @@ export interface FileRouteTypes {
     | '/_main/profile'
     | '/auth/callback'
     | '/_main/config/ai'
+    | '/_main/config/memories'
     | '/_main/config/memory'
     | '/_main/config/server'
     | '/_main/config/'
@@ -214,6 +226,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MainConfigMemoryRouteImport
       parentRoute: typeof MainRoute
     }
+    '/_main/config/memories': {
+      id: '/_main/config/memories'
+      path: '/config/memories'
+      fullPath: '/config/memories'
+      preLoaderRoute: typeof MainConfigMemoriesRouteImport
+      parentRoute: typeof MainRoute
+    }
     '/_main/config/ai': {
       id: '/_main/config/ai'
       path: '/config/ai'
@@ -228,6 +247,7 @@ interface MainRouteChildren {
   MainMusicRoute: typeof MainMusicRoute
   MainProfileRoute: typeof MainProfileRoute
   MainConfigAiRoute: typeof MainConfigAiRoute
+  MainConfigMemoriesRoute: typeof MainConfigMemoriesRoute
   MainConfigMemoryRoute: typeof MainConfigMemoryRoute
   MainConfigServerRoute: typeof MainConfigServerRoute
   MainConfigIndexRoute: typeof MainConfigIndexRoute
@@ -237,6 +257,7 @@ const MainRouteChildren: MainRouteChildren = {
   MainMusicRoute: MainMusicRoute,
   MainProfileRoute: MainProfileRoute,
   MainConfigAiRoute: MainConfigAiRoute,
+  MainConfigMemoriesRoute: MainConfigMemoriesRoute,
   MainConfigMemoryRoute: MainConfigMemoryRoute,
   MainConfigServerRoute: MainConfigServerRoute,
   MainConfigIndexRoute: MainConfigIndexRoute,

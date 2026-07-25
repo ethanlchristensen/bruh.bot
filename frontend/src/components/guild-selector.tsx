@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { configKeys, useGuilds } from '@/hooks/use-config';
+import { configKeys, memoryKeys, useGuilds } from '@/hooks/use-config';
 import { useGuild } from '@/contexts/guild-context';
 import { useSidebar } from '@/components/ui/sidebar';
 import {
@@ -49,6 +49,8 @@ export function GuildSelector() {
   const handleGuildChange = (guildId: string) => {
     setSelectedGuildId(guildId);
     queryClient.invalidateQueries({ queryKey: configKeys.all });
+    queryClient.invalidateQueries({ queryKey: ['users'] });
+    queryClient.invalidateQueries({ queryKey: memoryKeys.all });
   };
 
   const selectedGuild = data?.guilds?.find((g) => g.id === selectedGuildId);

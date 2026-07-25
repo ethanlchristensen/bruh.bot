@@ -105,8 +105,6 @@ class MemoryCommand:
         @log_command_usage()
         @is_globally_blocked()
         async def add_memory(interaction: discord.Interaction, user: discord.User, text: str, category: str = "fact", target_user: discord.User | None = None):
-            await interaction.response.defer(ephemeral=True)
-
             bot: Juno = interaction.client
 
             try:
@@ -144,8 +142,6 @@ class MemoryCommand:
         @log_command_usage()
         @is_globally_blocked()
         async def remove_memory(interaction: discord.Interaction, memory_id: str):
-            await interaction.response.defer(ephemeral=True)
-
             bot: Juno = interaction.client
 
             try:
@@ -182,8 +178,6 @@ class MemoryCommand:
         @log_command_usage()
         @is_globally_blocked()
         async def list_memories(interaction: discord.Interaction, user: discord.User, category: str | None = None, page: int = 1):
-            await interaction.response.defer(ephemeral=True)
-
             bot: Juno = interaction.client
 
             try:
@@ -231,8 +225,6 @@ class MemoryCommand:
         @log_command_usage()
         @is_globally_blocked()
         async def clear_memories(interaction: discord.Interaction, user: discord.User):
-            await interaction.response.defer(ephemeral=True)
-
             bot: Juno = interaction.client
 
             try:
@@ -261,8 +253,6 @@ class MemoryCommand:
         @log_command_usage()
         @is_globally_blocked()
         async def toggle_memory(interaction: discord.Interaction, enabled: bool):
-            await interaction.response.defer(ephemeral=True)
-
             bot: Juno = interaction.client
 
             try:
@@ -290,8 +280,6 @@ class MemoryCommand:
         @log_command_usage()
         @is_globally_blocked()
         async def extract_now(interaction: discord.Interaction):
-            await interaction.response.defer(ephemeral=True)
-
             bot: Juno = interaction.client
 
             try:
@@ -319,8 +307,6 @@ class MemoryCommand:
         @log_command_usage()
         @is_globally_blocked()
         async def extract_user(interaction: discord.Interaction, user: discord.User):
-            await interaction.response.defer(ephemeral=True)
-
             bot: Juno = interaction.client
 
             try:

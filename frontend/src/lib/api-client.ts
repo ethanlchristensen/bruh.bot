@@ -132,6 +132,47 @@ export interface HealthResponse {
   service: string;
 }
 
+export interface MemoryItem {
+  id: string;
+  guild_id: string;
+  user_id: string;
+  memory: string;
+  category: string;
+  confidence: number;
+  created_by: string;
+  created_at: string | null;
+  updated_at: string | null;
+  expires_at: string | null;
+  source_message_id: string | null;
+  target_user_id: string | null;
+  ttl_days: number | null;
+  is_permanent: boolean;
+  is_expired: boolean;
+}
+
+export interface MemoriesResponse {
+  success: boolean;
+  user_id: string;
+  memories: Array<MemoryItem>;
+  count: number;
+}
+
+export interface DeleteMemoryResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface UserEntry {
+  id: string;
+  username: string;
+  memory_count: number;
+}
+
+export interface UsersResponse {
+  success: boolean;
+  users: Array<UserEntry>;
+}
+
 export interface Guild {
   id: string;
   name: string;
@@ -274,6 +315,27 @@ export class ConfigAPIClient {
   async getGuilds(): Promise<GuildsResponse> {
     return this.fetch<GuildsResponse>('/guilds', {
       method: 'GET',
+    });
+  }
+
+  // Get memories for a specific user
+  async getUserMemories(userId: string): Promise<MemoriesResponse> {
+    return this.fetch<MemoriesResponse>(`/memories/${userId}`, {
+      method: 'GET',
+    });
+  }
+
+  // Get all known users
+  async getUsers(): Promise<UsersResponse> {
+    return this.fetch<UsersResponse>('/users', {
+      method: 'GET',
+    });
+  }
+
+  // Delete a specific memory
+  async deleteMemory(memoryId: string): Promise<DeleteMemoryResponse> {
+    return this.fetch<DeleteMemoryResponse>(`/memories/${memoryId}`, {
+      method: 'DELETE',
     });
   }
 

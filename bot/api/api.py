@@ -1,7 +1,9 @@
 import logging
 import os
+from datetime import UTC, datetime
 from typing import Literal
 
+from bson import Int64, ObjectId
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -365,9 +367,172 @@ async def get_guilds(authorized: bool = Depends(verify_admin)):
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+class MemoryItem(BaseModel):
+    id: str
+    guild_id: str
+    user_id: str
+    memory: str
+    category: str
+    confidence: float
+    created_by: str
+    created_at: str | None = None
+    updated_at: str | None = None
+    expires_at: str | None = None
+    source_message_id: str | None = None
+    target_user_id: str | None = None
+    ttl_days: int | None = None
+    is_permanent: bool = False
+    is_expired: bool = False
+
+
+class MemoriesResponse(BaseModel):
+    success: bool
+    user_id: str
+    memories: list[MemoryItem]
+    count: int
+
+
+class DeleteMemoryResponse(BaseModel):
+    success: bool
+    message: str
+
+
+class UsersResponse(BaseModel):
+    success: bool
+    users: list[dict]
+
+
+@app.get("/users", response_model=UsersResponse)
+async def get_users(
+    guild_id: str = Depends(get_guild_id),
+    authorized: bool = Depends(verify_admin),
+):
+    try:
+        collection = config_service.db[config_service.base.mongoUserMemoriesCollectionName]
+        pipeline = [
+            {"$match": {"guild_id": Int64(int(guild_id))}},
+            {"$group": {"_id": "$user_id", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+        ]
+        config_obj = await config_service.get_config(guild_id)
+        id_to_users = getattr(config_obj, "idToUsers", {})
+
+        users = []
+        async for doc in collection.aggregate(pipeline):
+            user_id = str(doc["_id"])
+            username = id_to_users.get(user_id, None)
+            users.append(
+                {
+                    "id": user_id,
+                    "username": username or f"User {user_id}",
+                    "memory_count": doc["count"],
+                }
+            )
+
+        return UsersResponse(success=True, users=users)
+    except Exception as e:
+        logger.error(f"Error fetching users: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+CATEGORY_TTL_DAYS: dict[str, int | None] = {
+    "identity": None,
+    "trait": None,
+    "preference": 90,
+    "opinion": 30,
+    "relationship": None,
+    "mood": 7,
+    "fact": 90,
+    "admin": None,
+}
+
+
+def _format_memory_doc(doc: dict) -> MemoryItem:
+    category = doc.get("category", "fact")
+    ttl_days = CATEGORY_TTL_DAYS.get(category)
+    is_permanent = ttl_days is None
+    expires_at = doc.get("expires_at")
+
+    expires_at_str = None
+    if expires_at:
+        if isinstance(expires_at, datetime):
+            expires_at_str = expires_at.isoformat()
+        else:
+            expires_at_str = str(expires_at)
+
+    is_expired = False
+    if isinstance(expires_at, datetime):
+        aware = expires_at.replace(tzinfo=UTC) if expires_at.tzinfo is None else expires_at
+        is_expired = aware < datetime.now(UTC)
+
+    return MemoryItem(
+        id=str(doc["_id"]),
+        guild_id=str(doc.get("guild_id", 0)),
+        user_id=str(doc.get("user_id", 0)),
+        memory=doc.get("memory", ""),
+        category=category,
+        confidence=float(doc.get("confidence", 0.5)),
+        created_by=doc.get("created_by", "unknown"),
+        created_at=doc.get("created_at").isoformat() if isinstance(doc.get("created_at"), datetime) else str(doc.get("created_at", "")),
+        updated_at=doc.get("updated_at").isoformat() if isinstance(doc.get("updated_at"), datetime) else str(doc.get("updated_at", "")),
+        expires_at=expires_at_str,
+        source_message_id=str(doc["source_message_id"]) if doc.get("source_message_id") else None,
+        target_user_id=str(doc["target_user_id"]) if doc.get("target_user_id") else None,
+        ttl_days=ttl_days,
+        is_permanent=is_permanent,
+        is_expired=is_expired,
+    )
+
+
+@app.get("/memories/{user_id}", response_model=MemoriesResponse)
+async def get_user_memories(
+    user_id: str,
+    guild_id: str = Depends(get_guild_id),
+    authorized: bool = Depends(verify_admin),
+):
+    try:
+        collection = config_service.db[config_service.base.mongoUserMemoriesCollectionName]
+        query = {"guild_id": Int64(int(guild_id)), "user_id": Int64(int(user_id))}
+        cursor = collection.find(query).sort("created_at", -1)
+
+        memories = []
+        async for doc in cursor:
+            memories.append(_format_memory_doc(doc))
+
+        return MemoriesResponse(
+            success=True,
+            user_id=user_id,
+            memories=memories,
+            count=len(memories),
+        )
+    except Exception as e:
+        logger.error(f"Error fetching memories for user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.delete("/memories/{memory_id}", response_model=DeleteMemoryResponse)
+async def delete_memory(
+    memory_id: str,
+    guild_id: str = Depends(get_guild_id),
+    authorized: bool = Depends(verify_admin),
+):
+    try:
+        collection = config_service.db[config_service.base.mongoUserMemoriesCollectionName]
+        result = await collection.delete_one({"_id": ObjectId(memory_id), "guild_id": Int64(int(guild_id))})
+
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Memory not found")
+
+        return DeleteMemoryResponse(success=True, message=f"Memory {memory_id} deleted")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting memory {memory_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 if __name__ == "__main__":
     import uvicorn
 
     port = int(os.getenv("API_PORT", 5000))
-    # Ensure correct module path if running directly
     uvicorn.run("api:app", host="0.0.0.0", port=port, reload=False, log_level="info")

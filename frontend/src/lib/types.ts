@@ -16,6 +16,19 @@ export interface BotConfig {
   allowedBotsToRespondTo: Array<string>;
   deleteUserMessages: DeleteUserMessagesConfig;
   globalBlockList: Array<string>;
+  memoryConfig: {
+    enabled: boolean;
+    extractionIntervalMinutes: number;
+    moodExtractionIntervalMinutes: number;
+    extractionProvider: string;
+    extractionModel: string;
+    maxMessagesPerExtraction: number;
+    minMessagesForExtraction: number;
+    minMessageLength: number;
+    maxMemoriesPerUser: number;
+    maxInjectionCount: number;
+    enabledCategories: Array<string>;
+  };
 }
 
 export interface ImageGenerationConfig {

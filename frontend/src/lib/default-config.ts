@@ -61,4 +61,17 @@ export const defaultConfig: BotConfig = {
     userIds: ['100000000000000000'],
   },
   globalBlockList: ['100000000000000000'],
+  memoryConfig: {
+    enabled: true,
+    extractionIntervalMinutes: 20,
+    moodExtractionIntervalMinutes: 5,
+    extractionProvider: 'openrouter',
+    extractionModel: 'deepseek/deepseek-v4-flash',
+    maxMessagesPerExtraction: 50,
+    minMessagesForExtraction: 5,
+    minMessageLength: 10,
+    maxMemoriesPerUser: 50,
+    maxInjectionCount: 10,
+    enabledCategories: ['identity', 'trait', 'preference', 'opinion', 'relationship', 'mood', 'fact'],
+  },
 };

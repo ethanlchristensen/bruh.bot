@@ -44,6 +44,7 @@ class UpdateConfigRequest(BaseModel):
     deleteUserMessages: DeleteUserMessagesConfig | None = None
     usersToId: dict[str, str] | None = None
     idToUsers: dict[str, str] | None = None
+    memoryConfig: dict | None = None
 
 
 class UpdateAIProviderRequest(BaseModel):
@@ -352,8 +353,8 @@ async def get_guilds(authorized: bool = Depends(verify_admin)):
     """Get list of available guild IDs and names from MongoDB."""
     try:
         collection = config_service.db[config_service.base.mongoConfigCollectionName]
-        guilds = await collection.find({}, {"guildId": 1, "guildName": 1, "_id": 0}).to_list(length=None)
-        guild_list = [{"id": g["guildId"], "name": g.get("guildName", g["guildId"])} for g in guilds if "guildId" in g]
+        guilds = await collection.find({}, {"guildId": 1, "guildName": 1, "guildIcon": 1, "_id": 0}).to_list(length=None)
+        guild_list = [{"id": g["guildId"], "name": g.get("guildName", g["guildId"]), "icon": g.get("guildIcon", "")} for g in guilds if "guildId" in g]
         return {"success": True, "guilds": guild_list}
     except Exception as e:
         logger.error(f"Error getting guilds: {e}")

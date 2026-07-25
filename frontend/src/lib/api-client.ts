@@ -43,6 +43,22 @@ export interface DeleteUserMessagesConfig {
   userIds: Array<number>;
 }
 
+export interface MemoryConfig {
+  enabled: boolean;
+  extractionIntervalMinutes: number;
+  moodExtractionIntervalMinutes: number;
+  extractionProvider: string;
+  extractionModel: string;
+  orchestratorProvider: string;
+  orchestratorModel: string;
+  maxMessagesPerExtraction: number;
+  minMessagesForExtraction: number;
+  minMessageLength: number;
+  maxMemoriesPerUser: number;
+  maxInjectionCount: number;
+  enabledCategories: Array<string>;
+}
+
 export interface DynamicConfig {
   configVersion: number;
   lastUpdated: string | null;
@@ -61,6 +77,7 @@ export interface DynamicConfig {
   allowedBotsToRespondTo: Array<number>;
   deleteUserMessages: DeleteUserMessagesConfig;
   globalBlockList: Array<string>;
+  memoryConfig: MemoryConfig;
 }
 
 export interface ConfigResponse {
@@ -82,6 +99,7 @@ export interface UpdateConfigRequest {
   allowedBotsToRespondTo?: Array<string>;
   usersToId?: Record<string, string>;
   idToUsers?: Record<string, string>;
+  memoryConfig?: Partial<MemoryConfig>;
 }
 
 export interface UpdateAIProviderRequest {
@@ -117,6 +135,7 @@ export interface HealthResponse {
 export interface Guild {
   id: string;
   name: string;
+  icon: string;
 }
 
 export interface GuildsResponse {

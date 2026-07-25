@@ -84,6 +84,48 @@ class MessageService:
         # 3. Retrieve conversation path
         path = await self.bot.chat_service.get_conversation_path(message.id)
 
+        # 3.5 Inject user memories into context
+        memories_section = ""
+        try:
+            if config.memoryConfig.enabled:
+                user_ids_to_query = [message.author.id]
+                author_to_id = {str(message.author.id): message.author.name}
+
+                for node in path:
+                    author = node.get("author_name")
+                    if author and author != self.bot.user.name and author != message.author.name:
+                        user_id = config.usersToId.get(author)
+                        if user_id:
+                            uid_int = int(user_id)
+                            if uid_int not in user_ids_to_query:
+                                user_ids_to_query.append(uid_int)
+                                author_to_id[str(uid_int)] = author
+
+                memories_map = await self.bot.memory_service.get_memories_for_users(
+                    guild_id=message.guild.id,
+                    user_ids=user_ids_to_query,
+                    limit=config.memoryConfig.maxInjectionCount,
+                )
+                if memories_map:
+                    lines = []
+                    for uid_str, mems in memories_map.items():
+                        name = author_to_id.get(uid_str, uid_str)
+                        for mem in mems:
+                            if mem.get("target_user_id") and mem["category"] == "relationship":
+                                lines.append(f"- [{name}]: {mem['memory']} → <@{mem['target_user_id']}> ({mem['category']})")
+                            else:
+                                lines.append(f"- [{name}]: {mem['memory']} ({mem['category']})")
+                    if lines:
+                        memories_section = (
+                            "\n## GROUNDING MEMORIES:\n"
+                            "These are known facts and observations about users in this conversation. "
+                            "Use them to personalize responses naturally.\n\n"
+                            + "\n".join(lines)
+                            + "\n"
+                        )
+        except Exception:
+            self.logger.exception("Error retrieving user memories for context")
+
         # 4. Add enhanced system prompt
         if main_prompt := config.aiConfig.systemPrompt:
             main_prompt = main_prompt.replace("{{BOTNAME}}", self.bot.user.name)
@@ -97,7 +139,7 @@ MULTI-USER CHAT CONTEXT:
 - Messages are formatted as: [Username]: [Message Content]
 - Pay close attention to the username before each message
 - When responding, you may address specific users by name if appropriate
-- IMPORTANT: DO NOT prepend your response with your name or brackets. Just send the message content directly. Your message is going straight to the discord server.
+- IMPORTANT: DO NOT prepend your response with your name or brackets. Just send the message content directly. Your message is going straight to the discord server.{memories_section}
 """
             messages.append(Message(role="system", parts=[MessagePart(type="text", text=multi_user_prompt)]))
 

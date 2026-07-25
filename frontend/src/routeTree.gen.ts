@@ -15,7 +15,10 @@ import { Route as IndexRouteImport } from './app/routes/index'
 import { Route as AuthCallbackRouteImport } from './app/routes/auth.callback'
 import { Route as MainProfileRouteImport } from './app/routes/_main/profile'
 import { Route as MainMusicRouteImport } from './app/routes/_main/music'
-import { Route as MainConfigRouteImport } from './app/routes/_main/config'
+import { Route as MainConfigIndexRouteImport } from './app/routes/_main/config/index'
+import { Route as MainConfigServerRouteImport } from './app/routes/_main/config/server'
+import { Route as MainConfigMemoryRouteImport } from './app/routes/_main/config/memory'
+import { Route as MainConfigAiRouteImport } from './app/routes/_main/config/ai'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -46,58 +49,97 @@ const MainMusicRoute = MainMusicRouteImport.update({
   path: '/music',
   getParentRoute: () => MainRoute,
 } as any)
-const MainConfigRoute = MainConfigRouteImport.update({
-  id: '/config',
-  path: '/config',
+const MainConfigIndexRoute = MainConfigIndexRouteImport.update({
+  id: '/config/',
+  path: '/config/',
+  getParentRoute: () => MainRoute,
+} as any)
+const MainConfigServerRoute = MainConfigServerRouteImport.update({
+  id: '/config/server',
+  path: '/config/server',
+  getParentRoute: () => MainRoute,
+} as any)
+const MainConfigMemoryRoute = MainConfigMemoryRouteImport.update({
+  id: '/config/memory',
+  path: '/config/memory',
+  getParentRoute: () => MainRoute,
+} as any)
+const MainConfigAiRoute = MainConfigAiRouteImport.update({
+  id: '/config/ai',
+  path: '/config/ai',
   getParentRoute: () => MainRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/config': typeof MainConfigRoute
   '/music': typeof MainMusicRoute
   '/profile': typeof MainProfileRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/config/ai': typeof MainConfigAiRoute
+  '/config/memory': typeof MainConfigMemoryRoute
+  '/config/server': typeof MainConfigServerRoute
+  '/config/': typeof MainConfigIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/config': typeof MainConfigRoute
   '/music': typeof MainMusicRoute
   '/profile': typeof MainProfileRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/config/ai': typeof MainConfigAiRoute
+  '/config/memory': typeof MainConfigMemoryRoute
+  '/config/server': typeof MainConfigServerRoute
+  '/config': typeof MainConfigIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_main': typeof MainRouteWithChildren
   '/login': typeof LoginRoute
-  '/_main/config': typeof MainConfigRoute
   '/_main/music': typeof MainMusicRoute
   '/_main/profile': typeof MainProfileRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/_main/config/ai': typeof MainConfigAiRoute
+  '/_main/config/memory': typeof MainConfigMemoryRoute
+  '/_main/config/server': typeof MainConfigServerRoute
+  '/_main/config/': typeof MainConfigIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/login'
-    | '/config'
     | '/music'
     | '/profile'
     | '/auth/callback'
+    | '/config/ai'
+    | '/config/memory'
+    | '/config/server'
+    | '/config/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/config' | '/music' | '/profile' | '/auth/callback'
+  to:
+    | '/'
+    | '/login'
+    | '/music'
+    | '/profile'
+    | '/auth/callback'
+    | '/config/ai'
+    | '/config/memory'
+    | '/config/server'
+    | '/config'
   id:
     | '__root__'
     | '/'
     | '/_main'
     | '/login'
-    | '/_main/config'
     | '/_main/music'
     | '/_main/profile'
     | '/auth/callback'
+    | '/_main/config/ai'
+    | '/_main/config/memory'
+    | '/_main/config/server'
+    | '/_main/config/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -151,26 +193,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MainMusicRouteImport
       parentRoute: typeof MainRoute
     }
-    '/_main/config': {
-      id: '/_main/config'
+    '/_main/config/': {
+      id: '/_main/config/'
       path: '/config'
-      fullPath: '/config'
-      preLoaderRoute: typeof MainConfigRouteImport
+      fullPath: '/config/'
+      preLoaderRoute: typeof MainConfigIndexRouteImport
+      parentRoute: typeof MainRoute
+    }
+    '/_main/config/server': {
+      id: '/_main/config/server'
+      path: '/config/server'
+      fullPath: '/config/server'
+      preLoaderRoute: typeof MainConfigServerRouteImport
+      parentRoute: typeof MainRoute
+    }
+    '/_main/config/memory': {
+      id: '/_main/config/memory'
+      path: '/config/memory'
+      fullPath: '/config/memory'
+      preLoaderRoute: typeof MainConfigMemoryRouteImport
+      parentRoute: typeof MainRoute
+    }
+    '/_main/config/ai': {
+      id: '/_main/config/ai'
+      path: '/config/ai'
+      fullPath: '/config/ai'
+      preLoaderRoute: typeof MainConfigAiRouteImport
       parentRoute: typeof MainRoute
     }
   }
 }
 
 interface MainRouteChildren {
-  MainConfigRoute: typeof MainConfigRoute
   MainMusicRoute: typeof MainMusicRoute
   MainProfileRoute: typeof MainProfileRoute
+  MainConfigAiRoute: typeof MainConfigAiRoute
+  MainConfigMemoryRoute: typeof MainConfigMemoryRoute
+  MainConfigServerRoute: typeof MainConfigServerRoute
+  MainConfigIndexRoute: typeof MainConfigIndexRoute
 }
 
 const MainRouteChildren: MainRouteChildren = {
-  MainConfigRoute: MainConfigRoute,
   MainMusicRoute: MainMusicRoute,
   MainProfileRoute: MainProfileRoute,
+  MainConfigAiRoute: MainConfigAiRoute,
+  MainConfigMemoryRoute: MainConfigMemoryRoute,
+  MainConfigServerRoute: MainConfigServerRoute,
+  MainConfigIndexRoute: MainConfigIndexRoute,
 }
 
 const MainRouteWithChildren = MainRoute._addFileChildren(MainRouteChildren)

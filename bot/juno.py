@@ -13,9 +13,11 @@ from bot.services import (
     DiscordMessagesService,
     EmbedService,
     ImageGenerationService,
+    MemoryExtractionService,
     MessageService,
     MongoChatService,
     MongoImageLimitService,
+    MongoMemoryService,
     MongoMorningConfigService,
     MusicQueueService,
     ResponseService,
@@ -56,6 +58,8 @@ class Juno(commands.Bot):
         self.ai_orchestrator = AiOrchestrator(self)
         self.image_generation_service = ImageGenerationService(self)
         self.music_websocket_service = MusicWebSocketService(self)
+        self.memory_service = MongoMemoryService(self)
+        self.memory_extraction_service = MemoryExtractionService(self)
 
     async def setup_hook(self):
         # Initialize database services
@@ -73,6 +77,16 @@ class Juno(commands.Bot):
             await self.chat_service.initialize()
         except Exception as e:
             self.logger.warning(f"Failed to initialize chat_service: {e}")
+
+        try:
+            await self.memory_service.initialize()
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize memory_service: {e}")
+
+        try:
+            await self.memory_extraction_service.start_extraction_loops()
+        except Exception as e:
+            self.logger.warning(f"Failed to start memory extraction loops: {e}")
 
         await self.juno_slash.load_commands()
         await self.load_cogs()
@@ -115,13 +129,19 @@ class Juno(commands.Bot):
 
         self.logger.info(f"🌐 Connected to {guild_count} guilds with access to {user_count} users")
 
-        # Populate dynamic guild names in MongoDB
+        # Populate dynamic guild names and icons in MongoDB
         for guild in self.guilds:
             try:
                 config = await self.config_service.get_config(str(guild.id))
+                updates = {}
                 if config.guildName != guild.name:
-                    await self.config_service.update(str(guild.id), {"guildName": guild.name})
-                    self.logger.info(f"Updated guild name for {guild.name} ({guild.id}) in MongoDB")
+                    updates["guildName"] = guild.name
+                icon_url = str(guild.icon.url) if guild.icon else ""
+                if config.guildIcon != icon_url:
+                    updates["guildIcon"] = icon_url
+                if updates:
+                    await self.config_service.update(str(guild.id), updates)
+                    self.logger.info(f"Updated guild info for {guild.name} ({guild.id}) in MongoDB")
             except Exception as e:
                 self.logger.error(f"Failed to update guild name for {guild.name}: {e}")
 
@@ -142,6 +162,9 @@ class Juno(commands.Bot):
 
         if author_id in config.globalBlockList:
             return
+
+        if message.guild:
+            await self.memory_extraction_service.enqueue_message(message)
 
         if await self.message_service.should_delete_message(message.guild.id, message):
             await self.response_service.send_response(message, "L + RATIO", reply=False)

@@ -87,6 +87,22 @@ class DeleteUserMessagesConfig(BaseModel):
     userIds: list[int] = []
 
 
+class MemoryConfig(BaseModel):
+    enabled: bool = True
+    extractionIntervalMinutes: int = 20
+    moodExtractionIntervalMinutes: int = 5
+    extractionProvider: str = "openrouter"
+    extractionModel: str = "deepseek/deepseek-v4-flash"
+    orchestratorProvider: str = "openrouter"
+    orchestratorModel: str = "deepseek/deepseek-v4-flash"
+    maxMessagesPerExtraction: int = 50
+    minMessagesForExtraction: int = 5
+    minMessageLength: int = 10
+    maxMemoriesPerUser: int = 50
+    maxInjectionCount: int = 10
+    enabledCategories: list[str] = Field(default_factory=lambda: ["identity", "trait", "preference", "opinion", "relationship", "mood", "fact"])
+
+
 class DiscordScrapeBotConfig(BaseModel):
     databaseName: str = ""
     collectionName: str = ""
@@ -109,6 +125,7 @@ class BaseConfig(BaseModel):
     mongoMorningConfigsCollectionName: str = "Morningconfigs"
     mongoCooldownCollectionName: str = "Cooldowns"
     mongoChatThreadsCollectionName: str = "ChatThreads"
+    mongoUserMemoriesCollectionName: str = "UserMemories"
     mongoDiscordScrapeBot: DiscordScrapeBotConfig = Field(default_factory=DiscordScrapeBotConfig)
 
 
@@ -117,6 +134,7 @@ class DynamicConfig(BaseModel):
 
     guildId: str
     guildName: str = ""
+    guildIcon: str = ""
     configVersion: int = 1
     lastUpdated: datetime | None = None
     adminIds: list[str] = Field(default_factory=list)
@@ -134,6 +152,7 @@ class DynamicConfig(BaseModel):
     mongoMorningConfigsCollectionName: str = "MorningConfigs"
     mongoImageLimitsCollectionName: str = "ImageLimits"
     mongoChatThreadsCollectionName: str = "ChatThreads"
+    memoryConfig: MemoryConfig = Field(default_factory=MemoryConfig)
 
 
 class ConfigService:

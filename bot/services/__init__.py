@@ -6,13 +6,15 @@ from .ai.real_time_audio_service import (
     VoiceReceiveSink,
 )
 from .ai.types import ImageGenerationResponse, UserIntent
-from .config_service import BaseConfig, ConfigService, DynamicConfig, get_config_service
+from .config_service import BaseConfig, ConfigService, DynamicConfig, MemoryConfig, get_config_service
 from .cooldown_service import CooldownService
 from .discord_messages_service import DiscordMessagesService
 from .embed_service import EmbedService, QueuePaginationView
+from .memory_extraction_service import MemoryExtractionService
 from .message_service import MessageService
 from .mongo_chat_service import MongoChatService
 from .mongo_image_limit_service import MongoImageLimitService
+from .mongo_memory_service import MongoMemoryService
 from .mongo_morning_config_service import MongoMorningConfigService
 from .music.audio_service import AudioService
 from .music.music_queue_service import MusicPlayer, MusicQueueService
@@ -35,6 +37,7 @@ __all__ = [
     "get_config_service",
     "BaseConfig",
     "DynamicConfig",
+    "MemoryConfig",
     "ConfigService",
     "MessageService",
     "ResponseService",
@@ -42,8 +45,11 @@ __all__ = [
     "MongoImageLimitService",
     "MongoMorningConfigService",
     "MongoChatService",
+    "MongoMemoryService",
     "RealTimeAudioService",
     "VoiceReceiveSink",
     "AudioProcessor",
     "DiscordMessagesService",
+    "MemoryExtractionService",
+    "MemoryConfig",
 ]

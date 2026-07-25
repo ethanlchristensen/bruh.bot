@@ -7,13 +7,13 @@ import discord
 from bson import Int64
 
 if TYPE_CHECKING:
-    from bot.juno import Juno
+    from bot.bruh_bot import BruhBot
 
 
 class MongoImageLimitService:
     """Service for managing daily image generation limits in MongoDB."""
 
-    def __init__(self, bot: "Juno"):
+    def __init__(self, bot: "BruhBot"):
         self.bot = bot
         self.collection = self.bot.config_service.db[self.bot.config_service.base.mongoImageLimitsCollectionName]
         self.timezone = ZoneInfo("America/Chicago")

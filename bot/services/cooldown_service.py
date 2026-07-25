@@ -5,11 +5,11 @@ from typing import TYPE_CHECKING
 from bson import Int64
 
 if TYPE_CHECKING:
-    from bot.juno import Juno
+    from bot.bruh_bot import BruhBot
 
 
 class CooldownService:
-    def __init__(self, bot: "Juno"):
+    def __init__(self, bot: "BruhBot"):
         self.bot = bot
         self.collection_name = self.bot.config_service.base.mongoCooldownCollectionName
         self.collection = self.bot.config_service.db[self.collection_name]

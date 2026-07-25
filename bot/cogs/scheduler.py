@@ -1,4 +1,3 @@
-import os
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -14,11 +13,11 @@ from bot.utils.decarators.command_logging import log_command_usage
 from bot.utils.decarators.global_block_check import is_globally_blocked
 
 if TYPE_CHECKING:
-    from bot.juno import Juno
+    from bot.bruh_bot import BruhBot
 
 
 class SchedulerCog(commands.Cog):
-    def __init__(self, bot: "Juno"):
+    def __init__(self, bot: "BruhBot"):
         self.bot = bot
         self.check.start()
 
@@ -96,11 +95,8 @@ class SchedulerCog(commands.Cog):
                     response = await gateway.complete(req, credentials={"api_key": api_key})
                     content = "".join(part.content for part in response.parts if part.type == "text")
 
-                    embed, emoji_file = self.bot.embed_service.create_morning_embed(message=content)
-                    await channel.send(
-                        embed=embed,
-                        file=discord.File(os.path.join(os.getcwd(), "emojis", emoji_file), emoji_file),
-                    )
+                    embed = self.bot.embed_service.create_morning_embed(message=content)
+                    await channel.send(embed=embed, files=self.bot.embed_service.get_brand_files(embed=embed))
 
                     # Mark as sent today
                     await self.bot.morning_config_service.update_last_sent_date(guild_id, today)
@@ -133,7 +129,7 @@ class SchedulerCog(commands.Cog):
         message = f"Morning messages will be sent to {channel.mention} at **{config['hour']}:{config['minute']:02d} {timezone}**"
 
         embed = self.bot.embed_service.create_success_embed(message, title="🌅 Schedule Configured")
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True, files=self.bot.embed_service.get_brand_files(embed=embed))
 
         self.bot.logger.info(f"Set morning channel for {interaction.guild.name} to {channel.name}")
 
@@ -160,12 +156,12 @@ class SchedulerCog(commands.Cog):
         # Validate input
         if hour < 0 or hour > 23:
             embed = self.bot.embed_service.create_error_embed("Hour must be between 0 and 23.")
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed, ephemeral=True, files=self.bot.embed_service.get_brand_files(embed=embed))
             return
 
         if minute < 0 or minute > 59:
             embed = self.bot.embed_service.create_error_embed("Minute must be between 0 and 59.")
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed, ephemeral=True, files=self.bot.embed_service.get_brand_files(embed=embed))
             return
 
         # Validate timezone
@@ -173,7 +169,7 @@ class SchedulerCog(commands.Cog):
             pytz.timezone(timezone)
         except pytz.exceptions.UnknownTimeZoneError:
             embed = self.bot.embed_service.create_error_embed(f"Unknown timezone: **{timezone}**")
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed, ephemeral=True, files=self.bot.embed_service.get_brand_files(embed=embed))
             return
 
         # Set time using MongoDB service
@@ -187,8 +183,8 @@ class SchedulerCog(commands.Cog):
         else:
             message = f"Morning message time set to **{hour}:{minute:02d} {timezone}**\n\n⚠️ *No channel set. Use `/set_morning_channel` to complete setup.*"
 
-        embed = self.bot.embed_service.create_success_embed(message, title="🕒 Chronos Updated")
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        embed = self.bot.embed_service.create_success_embed(message, title="Time Updated")
+        await interaction.followup.send(embed=embed, ephemeral=True, files=self.bot.embed_service.get_brand_files(embed=embed))
 
         self.bot.logger.info(f"Set morning time for {interaction.guild.name} to {hour}:{minute:02d} {timezone}")
 
@@ -203,11 +199,11 @@ class SchedulerCog(commands.Cog):
         """Remove morning messages for this guild"""
         removed = await self.bot.morning_config_service.remove_config(interaction.guild.id)
         if removed:
-            embed = self.bot.embed_service.create_success_embed("Morning messages have been disabled for this celestial body.")
+            embed = self.bot.embed_service.create_success_embed("Morning messages have been disabled for this server.")
         else:
             embed = self.bot.embed_service.create_error_embed("Morning messages were not configured for this server.")
 
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True, files=self.bot.embed_service.get_brand_files(embed=embed))
 
     @app_commands.command(name="test_morning", description="Test the morning message functionality")
     @log_command_usage()
@@ -215,7 +211,7 @@ class SchedulerCog(commands.Cog):
     @is_globally_blocked()
     async def test_morning_message(self, interaction: discord.Interaction):
         """Test the morning message functionality"""
-        status_embed = self.bot.embed_service.create_success_embed("Initializing test broadcast...", title="🛰️ Uplink Starting")
+        status_embed = self.bot.embed_service.create_success_embed("Starting test broadcast...", title="Test Morning Message")
         await interaction.followup.send(embed=status_embed, ephemeral=True)
 
         try:
@@ -242,17 +238,14 @@ class SchedulerCog(commands.Cog):
             response = await gateway.complete(req, credentials={"api_key": api_key})
             content = "".join(part.content for part in response.parts if part.type == "text")
 
-            embed, emoji_file = self.bot.embed_service.create_morning_embed(message=content)
+            embed = self.bot.embed_service.create_morning_embed(message=content)
 
-            await interaction.channel.send(
-                embed=embed,
-                file=discord.File(os.path.join(os.getcwd(), "emojis", emoji_file), emoji_file),
-            )
+            await interaction.channel.send(embed=embed, files=self.bot.embed_service.get_brand_files(embed=embed))
             self.bot.logger.info(f"Sent test morning message to {interaction.channel.name} in {interaction.guild.name}")
 
         except Exception as e:
             embed = self.bot.embed_service.create_error_embed(f"Failed to transmit morning message: {e}")
-            await interaction.followup.send(embed=embed)
+            await interaction.followup.send(embed=embed, files=self.bot.embed_service.get_brand_files(embed=embed))
             self.bot.logger.error(f"Error in test morning message: {e}")
 
     @app_commands.command(
@@ -267,11 +260,11 @@ class SchedulerCog(commands.Cog):
         common_timezones = ["UTC", "US/Eastern", "US/Central", "US/Mountain", "US/Pacific", "Europe/London", "Europe/Berlin", "Europe/Moscow", "Asia/Tokyo", "Asia/Shanghai", "Australia/Sydney", "Pacific/Auckland"]
 
         timezone_list = "\n".join([f"• `{tz}`" for tz in common_timezones])
-        message = f"**Available Chronos Zones:**\n{timezone_list}\n\n*Refer to [TZ Database](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) for more.*"
+        message = f"**Available time zones:**\n{timezone_list}\n\n*Refer to [TZ Database](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) for more.*"
 
-        embed = self.bot.embed_service.create_base_embed(title="🕒 Temporal Regions", description=message)
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        embed = self.bot.embed_service.create_info_embed(title="Time Zones", description=message)
+        await interaction.followup.send(embed=embed, ephemeral=True, files=self.bot.embed_service.get_brand_files(embed=embed))
 
 
-async def setup(bot: "Juno"):
+async def setup(bot: "BruhBot"):
     await bot.add_cog(SchedulerCog(bot))

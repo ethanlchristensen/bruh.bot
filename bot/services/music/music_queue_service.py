@@ -5,11 +5,11 @@ import discord
 from .music_player import MusicPlayer
 
 if TYPE_CHECKING:
-    from bot.juno import Juno
+    from bot.bruh_bot import BruhBot
 
 
 class MusicQueueService:
-    def __init__(self, bot: "Juno"):
+    def __init__(self, bot: "BruhBot"):
         self.bot = bot
         self.players: dict[int, MusicPlayer] = {}
 

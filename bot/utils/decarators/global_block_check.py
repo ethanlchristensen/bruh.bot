@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 embed_service = EmbedService()
 
 if TYPE_CHECKING:
-    from bot.juno import Juno
+    from bot.bruh_bot import BruhBot
 
 
 def is_globally_blocked() -> Callable[[Callable[P, Awaitable[T]]], Callable[P, Awaitable[T]]]:
@@ -35,7 +35,7 @@ def is_globally_blocked() -> Callable[[Callable[P, Awaitable[T]]], Callable[P, A
                 # If there's no interaction, just call the original function
                 return await func(*args, **kwargs)
 
-            bot: Juno = interaction.client
+            bot: BruhBot = interaction.client
 
             config = await bot.config_service.get_config(str(interaction.guild.id))
 
@@ -46,7 +46,7 @@ def is_globally_blocked() -> Callable[[Callable[P, Awaitable[T]]], Callable[P, A
                 embed = embed_service.create_error_embed(error_message="You don't have permission to use this command.")
                 if not interaction.response.is_done():
                     await interaction.response.defer(ephemeral=True)
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed, ephemeral=True, files=embed_service.get_brand_files(embed=embed))
                 return cast(T, None)
 
         return wrapper

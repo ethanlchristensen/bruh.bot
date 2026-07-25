@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from bot.juno import Juno
+    from bot.bruh_bot import BruhBot
 
 import discord
 from discord import app_commands
@@ -29,18 +29,14 @@ class ImageAdminCommand:
             """Reset a specific user's image generation limit."""
             await interaction.response.defer(ephemeral=True)
 
-            bot: Juno = interaction.client
+            bot: BruhBot = interaction.client
 
             try:
                 bot.image_limit_service.reset_user(user_id=user.id, guild_id=interaction.guild.id)
 
-                embed = discord.Embed(
-                    title="✅ User Limit Reset",
-                    description=f"Image generation limit has been reset for {user.mention}",
-                    color=discord.Color.green(),
-                )
+                embed = interaction.client.embed_service.create_success_embed(f"Image generation limit has been reset for {user.mention}", title="User Limit Reset")
 
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed, ephemeral=True, files=interaction.client.embed_service.get_brand_files(embed=embed))
 
             except Exception as e:
                 bot.logger.error(f"Error resetting user image limit: {e}")
@@ -56,18 +52,14 @@ class ImageAdminCommand:
             """Reset all users' image generation limits."""
             await interaction.response.defer(ephemeral=True)
 
-            bot: Juno = interaction.client
+            bot: BruhBot = interaction.client
 
             try:
                 count = bot.image_limit_service.reset_all_users(guild_id=interaction.guild.id)
 
-                embed = discord.Embed(
-                    title="✅ All Limits Reset",
-                    description=f"Image generation limits have been reset for {count} user(s)",
-                    color=discord.Color.green(),
-                )
+                embed = interaction.client.embed_service.create_success_embed(f"Image generation limits have been reset for {count} user(s)", title="All Limits Reset")
 
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed, ephemeral=True, files=interaction.client.embed_service.get_brand_files(embed=embed))
 
             except Exception as e:
                 bot.logger.error(f"Error resetting all image limits: {e}")
@@ -84,7 +76,7 @@ class ImageAdminCommand:
             """Set the daily image generation limit for a specific user."""
             await interaction.response.defer(ephemeral=True)
 
-            bot: Juno = interaction.client
+            bot: BruhBot = interaction.client
 
             try:
                 if limit < 1:
@@ -94,19 +86,11 @@ class ImageAdminCommand:
                 success = bot.image_limit_service.set_user_limit(user.id, interaction.guild.id, limit)
 
                 if success:
-                    embed = discord.Embed(
-                        title="✅ User Limit Updated",
-                        description=f"Daily image limit for {user.mention} set to **{limit}** images",
-                        color=discord.Color.green(),
-                    )
+                    embed = interaction.client.embed_service.create_success_embed(f"Daily image limit for {user.mention} set to **{limit}** images", title="User Limit Updated")
                 else:
-                    embed = discord.Embed(
-                        title="❌ Update Failed",
-                        description=f"Failed to update limit for {user.mention}",
-                        color=discord.Color.red(),
-                    )
+                    embed = interaction.client.embed_service.create_error_embed(f"Failed to update limit for {user.mention}")
 
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed, ephemeral=True, files=interaction.client.embed_service.get_brand_files(embed=embed))
 
             except Exception as e:
                 bot.logger.error(f"Error setting user image limit: {e}")
@@ -123,7 +107,7 @@ class ImageAdminCommand:
             """Set the daily image generation limit for all users in the guild."""
             await interaction.response.defer(ephemeral=True)
 
-            bot: Juno = interaction.client
+            bot: BruhBot = interaction.client
 
             try:
                 if limit < 1:
@@ -132,14 +116,10 @@ class ImageAdminCommand:
 
                 count = bot.image_limit_service.set_guild_limit(interaction.guild.id, limit)
 
-                embed = discord.Embed(
-                    title="✅ Guild Limit Updated",
-                    description=f"Daily image limit set to **{limit}** for {count} user(s) in this server",
-                    color=discord.Color.green(),
-                )
+                embed = interaction.client.embed_service.create_success_embed(f"Daily image limit set to **{limit}** for {count} user(s) in this server", title="Guild Limit Updated")
                 embed.add_field(name="Note", value="New users will receive the default limit from config unless changed individually.", inline=False)
 
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed, ephemeral=True, files=interaction.client.embed_service.get_brand_files(embed=embed))
 
             except Exception as e:
                 bot.logger.error(f"Error setting guild image limit: {e}")
@@ -156,7 +136,7 @@ class ImageAdminCommand:
             """View the daily image generation limit for a specific user."""
             await interaction.response.defer(ephemeral=True)
 
-            bot: Juno = interaction.client
+            bot: BruhBot = interaction.client
 
             try:
                 stats = bot.image_limit_service.get_user_stats(user.id, interaction.guild.id)
@@ -164,15 +144,17 @@ class ImageAdminCommand:
                 count = stats["count"]
                 remaining = stats["remaining"]
 
-                embed = discord.Embed(
-                    title=f"📊 Image Limit for {user.display_name}",
-                    color=discord.Color.blue(),
+                embed = interaction.client.embed_service.create_info_embed(
+                    title=f"Image Limit for {user.display_name}",
+                    description=f"Current usage and limits for {user.mention}.",
+                    fields=[
+                        ("Daily Limit", str(user_limit), True),
+                        ("Used Today", str(count), True),
+                        ("Remaining", str(remaining), True),
+                    ],
                 )
-                embed.add_field(name="Daily Limit", value=str(user_limit), inline=True)
-                embed.add_field(name="Used Today", value=str(count), inline=True)
-                embed.add_field(name="Remaining", value=str(remaining), inline=True)
 
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed, ephemeral=True, files=interaction.client.embed_service.get_brand_files(embed=embed))
 
             except Exception as e:
                 bot.logger.error(f"Error viewing user image limit: {e}")

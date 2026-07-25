@@ -1,18 +1,15 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from bot.juno import Juno
+    from bot.bruh_bot import BruhBot
 
 import discord
 from discord import app_commands
 
-from bot.services.embed_service import EmbedService
 from bot.services.mongo_memory_service import VALID_CATEGORIES
 from bot.utils.decarators.admin_check import is_admin
 from bot.utils.decarators.command_logging import log_command_usage
 from bot.utils.decarators.global_block_check import is_globally_blocked
-
-embed_service = EmbedService()
 
 MEMORIES_PER_PAGE = 10
 
@@ -34,7 +31,7 @@ class MemoryCommand:
         async def view_memories(interaction: discord.Interaction, page: int = 1):
             await interaction.response.defer(ephemeral=True)
 
-            bot: Juno = interaction.client
+            bot: BruhBot = interaction.client
 
             try:
                 memories = await bot.memory_service.get_memories_for_user(
@@ -54,10 +51,9 @@ class MemoryCommand:
                 current_count = len(memories)
                 config = await bot.config_service.get_config(str(interaction.guild.id))
 
-                embed = discord.Embed(
-                    title=f"🧠 Memories about {interaction.user.display_name}",
-                    description=f"Page {page}/{total_pages} · {current_count} total memories (max {config.memoryConfig.maxMemoriesPerUser})\nThese are AI-generated and may not be fully accurate.",
-                    color=discord.Color.blue(),
+                embed = interaction.client.embed_service.create_info_embed(
+                    title=f"Memories about {interaction.user.display_name}",
+                    description=f"Page {page}/{total_pages} - {current_count} total memories (max {config.memoryConfig.maxMemoriesPerUser})",
                 )
 
                 grouped: dict[str, list[str]] = {}
@@ -78,7 +74,7 @@ class MemoryCommand:
                 if not page_memories:
                     embed.add_field(name="Empty", value="No memories on this page.", inline=False)
 
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed, ephemeral=True, files=interaction.client.embed_service.get_brand_files(embed=embed))
 
             except Exception as e:
                 bot.logger.error(f"Error viewing memories: {e}")
@@ -105,7 +101,7 @@ class MemoryCommand:
         @log_command_usage()
         @is_globally_blocked()
         async def add_memory(interaction: discord.Interaction, user: discord.User, text: str, category: str = "fact", target_user: discord.User | None = None):
-            bot: Juno = interaction.client
+            bot: BruhBot = interaction.client
 
             try:
                 if category not in VALID_CATEGORIES:
@@ -122,12 +118,11 @@ class MemoryCommand:
                     target_user_id=target_user.id if target_user else None,
                 )
 
-                embed = discord.Embed(
-                    title="✅ Memory Added",
-                    description=f"Memory for {user.mention}:\n> {text}\n\nCategory: **{category}** · ID: `{memory_id}`",
-                    color=discord.Color.green(),
+                embed = interaction.client.embed_service.create_success_embed(
+                    f"Memory for {user.mention}:\n> {text}\n\nCategory: **{category}** - ID: `{memory_id}`",
+                    title="Memory Added",
                 )
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed, ephemeral=True, files=interaction.client.embed_service.get_brand_files(embed=embed))
 
             except Exception as e:
                 bot.logger.error(f"Error adding memory: {e}")
@@ -142,7 +137,7 @@ class MemoryCommand:
         @log_command_usage()
         @is_globally_blocked()
         async def remove_memory(interaction: discord.Interaction, memory_id: str):
-            bot: Juno = interaction.client
+            bot: BruhBot = interaction.client
 
             try:
                 memory = await bot.memory_service.get_memory_by_id(memory_id=memory_id, guild_id=interaction.guild.id)
@@ -152,12 +147,11 @@ class MemoryCommand:
 
                 deleted = await bot.memory_service.delete_memory(memory_id=memory_id, guild_id=interaction.guild.id)
                 if deleted:
-                    embed = discord.Embed(
-                        title="🗑️ Memory Removed",
-                        description=f"Removed: *{memory['memory'][:200]}*\nID: `{memory_id}`",
-                        color=discord.Color.orange(),
+                    embed = interaction.client.embed_service.create_warning_embed(
+                        "Memory Removed",
+                        f"Removed: *{memory['memory'][:200]}*\nID: `{memory_id}`",
                     )
-                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    await interaction.followup.send(embed=embed, ephemeral=True, files=interaction.client.embed_service.get_brand_files(embed=embed))
                 else:
                     await interaction.followup.send("Failed to remove memory.", ephemeral=True)
 
@@ -178,7 +172,7 @@ class MemoryCommand:
         @log_command_usage()
         @is_globally_blocked()
         async def list_memories(interaction: discord.Interaction, user: discord.User, category: str | None = None, page: int = 1):
-            bot: Juno = interaction.client
+            bot: BruhBot = interaction.client
 
             try:
                 categories = [category] if category and category in VALID_CATEGORIES else None
@@ -197,20 +191,19 @@ class MemoryCommand:
                 start = (page - 1) * MEMORIES_PER_PAGE
                 page_memories = memories[start : start + MEMORIES_PER_PAGE]
 
-                embed = discord.Embed(
-                    title=f"📋 Memories for {user.display_name}",
-                    description=f"Page {page}/{total_pages} · {len(memories)} total",
-                    color=discord.Color.blurple(),
+                embed = interaction.client.embed_service.create_info_embed(
+                    title=f"Memories for {user.display_name}",
+                    description=f"Page {page}/{total_pages} - {len(memories)} total",
                 )
 
                 for m in page_memories:
                     embed.add_field(
-                        name=f"[{m.get('category', '?')}] {m.get('confidence', 0):.0%} · ID: `{m['_id']}`",
+                        name=f"[{m.get('category', '?')}] {m.get('confidence', 0):.0%} - ID: `{m['_id']}`",
                         value=m["memory"][:1024],
                         inline=False,
                     )
 
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed, ephemeral=True, files=interaction.client.embed_service.get_brand_files(embed=embed))
 
             except Exception as e:
                 bot.logger.error(f"Error listing memories: {e}")
@@ -225,7 +218,7 @@ class MemoryCommand:
         @log_command_usage()
         @is_globally_blocked()
         async def clear_memories(interaction: discord.Interaction, user: discord.User):
-            bot: Juno = interaction.client
+            bot: BruhBot = interaction.client
 
             try:
                 count = await bot.memory_service.clear_user_memories(
@@ -233,12 +226,11 @@ class MemoryCommand:
                     user_id=user.id,
                 )
 
-                embed = discord.Embed(
-                    title="🧹 Memories Cleared",
-                    description=f"Removed **{count}** memories for {user.mention}.",
-                    color=discord.Color.orange(),
+                embed = interaction.client.embed_service.create_warning_embed(
+                    "Memories Cleared",
+                    f"Removed **{count}** memories for {user.mention}.",
                 )
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed, ephemeral=True, files=interaction.client.embed_service.get_brand_files(embed=embed))
 
             except Exception as e:
                 bot.logger.error(f"Error clearing memories: {e}")
@@ -253,7 +245,7 @@ class MemoryCommand:
         @log_command_usage()
         @is_globally_blocked()
         async def toggle_memory(interaction: discord.Interaction, enabled: bool):
-            bot: Juno = interaction.client
+            bot: BruhBot = interaction.client
 
             try:
                 guild_id = str(interaction.guild.id)
@@ -261,12 +253,16 @@ class MemoryCommand:
                 await bot.config_service.update(guild_id, {"memoryConfig": {**config.memoryConfig.model_dump(), "enabled": enabled}})
 
                 status = "enabled" if enabled else "disabled"
-                embed = discord.Embed(
-                    title=f"🔧 Memory Extraction {status.title()}",
-                    description=f"Automatic memory extraction is now **{status}**.",
-                    color=discord.Color.green() if enabled else discord.Color.red(),
-                )
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                if enabled:
+                    embed = interaction.client.embed_service.create_success_embed(
+                        f"Automatic memory extraction is now **{status}**.",
+                        title="Memory Extraction Enabled",
+                    )
+                else:
+                    embed = interaction.client.embed_service.create_error_embed(
+                        f"Automatic memory extraction is now **{status}**.",
+                    )
+                await interaction.followup.send(embed=embed, ephemeral=True, files=interaction.client.embed_service.get_brand_files(embed=embed))
 
             except Exception as e:
                 bot.logger.error(f"Error toggling memory extraction: {e}")
@@ -280,19 +276,18 @@ class MemoryCommand:
         @log_command_usage()
         @is_globally_blocked()
         async def extract_now(interaction: discord.Interaction):
-            bot: Juno = interaction.client
+            bot: BruhBot = interaction.client
 
             try:
                 count = await bot.memory_extraction_service.force_extract_all(
                     guild_id=str(interaction.guild.id),
                 )
 
-                embed = discord.Embed(
-                    title="⚡ Extraction Triggered",
-                    description=f"Memory extraction completed for **{count}** user(s).",
-                    color=discord.Color.green(),
+                embed = interaction.client.embed_service.create_success_embed(
+                    f"Memory extraction completed for **{count}** user(s).",
+                    title="Extraction Triggered",
                 )
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed, ephemeral=True, files=interaction.client.embed_service.get_brand_files(embed=embed))
 
             except Exception as e:
                 bot.logger.error(f"Error force extracting: {e}")
@@ -307,7 +302,7 @@ class MemoryCommand:
         @log_command_usage()
         @is_globally_blocked()
         async def extract_user(interaction: discord.Interaction, user: discord.User):
-            bot: Juno = interaction.client
+            bot: BruhBot = interaction.client
 
             try:
                 success = await bot.memory_extraction_service.force_extract_user(
@@ -316,18 +311,16 @@ class MemoryCommand:
                 )
 
                 if success:
-                    embed = discord.Embed(
-                        title="⚡ User Extraction Complete",
-                        description=f"Memory extraction completed for {user.mention}.",
-                        color=discord.Color.green(),
+                    embed = interaction.client.embed_service.create_success_embed(
+                        f"Memory extraction completed for {user.mention}.",
+                        title="User Extraction Complete",
                     )
                 else:
-                    embed = discord.Embed(
-                        title="⚠️ No Messages Buffered",
-                        description=f"No buffered messages found for {user.mention}. They need to send messages first.",
-                        color=discord.Color.yellow(),
+                    embed = interaction.client.embed_service.create_warning_embed(
+                        "No Messages Buffered",
+                        f"No buffered messages found for {user.mention}. They need to send messages first.",
                     )
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed, ephemeral=True, files=interaction.client.embed_service.get_brand_files(embed=embed))
 
             except Exception as e:
                 bot.logger.error(f"Error force extracting user: {e}")

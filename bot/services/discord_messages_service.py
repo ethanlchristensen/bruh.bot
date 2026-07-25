@@ -8,11 +8,11 @@ from bson import Int64
 from bot.services.ai.gateway.schemas.request import Message, MessagePart
 
 if TYPE_CHECKING:
-    from bot.juno import Juno
+    from bot.bruh_bot import BruhBot
 
 
 class DiscordMessagesService:
-    def __init__(self, bot: "Juno"):
+    def __init__(self, bot: "BruhBot"):
         self.bot = bot
         self.messages_collection = self.bot.config_service.client[self.bot.config_service.base.mongoDiscordScrapeBot.databaseName][self.bot.config_service.base.mongoDiscordScrapeBot.collectionName]
         self.logger = logging.getLogger(__name__)

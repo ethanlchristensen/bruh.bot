@@ -1,6 +1,5 @@
 import logging
 import os
-import random
 from datetime import datetime
 from enum import Enum
 
@@ -8,29 +7,25 @@ import discord
 
 from .music.types import AudioMetaData, AudioSource
 
+STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "static")
+
 
 class BrandColor(Enum):
-    PRIMARY = 0x9B59B6  # Amethyst Purple
-    ACCENT = 0x00D1FF  # Neon Cyan
-    SUCCESS = 0x4BFFAB  # Emerald Mint
-    ERROR = 0xFF4B4B  # Crimson Burst
-    GOLD = 0xF1C40F  # Celestial Gold
+    PRIMARY = 0x5865F2
+    ACCENT = 0x00B0F4
+    SUCCESS = 0x57F287
+    ERROR = 0xED4245
+    WARNING = 0xFEE75C
+
+
+def _asset_url(filename: str) -> str | None:
+    path = os.path.join(STATIC_DIR, filename)
+    return f"attachment://{filename}" if os.path.exists(path) else None
 
 
 class EmbedService:
-    """Service for creating various branded Discord embeds"""
-
     logger = logging.getLogger(__name__)
     source_labels = {AudioSource.SOUNDCLOUD: "Artist", AudioSource.YOUTUBE: "Channel"}
-
-    # Placeholder for AI-generated brand images (URLs or local paths)
-    BRAND_IMAGES = {
-        "NOW_PLAYING": None,
-        "QUEUE": None,
-        "SUCCESS": None,
-        "ERROR": None,
-        "MORNING": None,
-    }
 
     def _create_base_embed(
         self,
@@ -38,15 +33,47 @@ class EmbedService:
         description: str | None = None,
         color: BrandColor = BrandColor.PRIMARY,
     ) -> discord.Embed:
-        """Internal helper to create a consistent base embed"""
         embed = discord.Embed(
             title=title,
             description=description,
             color=color.value,
             timestamp=datetime.now(),
         )
-        embed.set_footer(text="Celestial Juno • AI Powered")
+        embed.set_footer(text="bruh.bot")
+        avatar_url = _asset_url("avatar.png")
+        if avatar_url:
+            embed.set_author(name="bruh.bot", icon_url=avatar_url)
         return embed
+
+    @staticmethod
+    def get_brand_files(embed: discord.Embed | None = None) -> list[discord.File]:
+        if not os.path.isdir(STATIC_DIR):
+            return []
+
+        if embed is not None:
+            needed = set()
+            raw = embed.to_dict()
+            for url in [
+                raw.get("author", {}).get("icon_url", ""),
+                raw.get("thumbnail", {}).get("url", ""),
+                raw.get("image", {}).get("url", ""),
+                raw.get("footer", {}).get("icon_url", ""),
+            ]:
+                if url.startswith("attachment://"):
+                    needed.add(url.replace("attachment://", ""))
+            if not needed:
+                return []
+            return [
+                discord.File(os.path.join(STATIC_DIR, f), filename=f)
+                for f in os.listdir(STATIC_DIR)
+                if f in needed and os.path.isfile(os.path.join(STATIC_DIR, f))
+            ]
+
+        return [
+            discord.File(os.path.join(STATIC_DIR, f), filename=f)
+            for f in os.listdir(STATIC_DIR)
+            if os.path.isfile(os.path.join(STATIC_DIR, f)) and f.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp"))
+        ]
 
     def create_action_embed(
         self,
@@ -55,21 +82,25 @@ class EmbedService:
         is_success: bool = True,
         thumbnail_url: str | None = None,
     ) -> discord.Embed:
-        """Create a standard embed for command results"""
         color = BrandColor.SUCCESS if is_success else BrandColor.ERROR
         embed = self._create_base_embed(title=title, description=message, color=color)
 
         if thumbnail_url:
             embed.set_thumbnail(url=thumbnail_url)
-        elif self.BRAND_IMAGES.get("SUCCESS" if is_success else "ERROR"):
-            embed.set_thumbnail(url=self.BRAND_IMAGES["SUCCESS" if is_success else "ERROR"])
+        elif is_success:
+            icon = _asset_url("success.png")
+            if icon:
+                embed.set_thumbnail(url=icon)
+        else:
+            icon = _asset_url("error.png")
+            if icon:
+                embed.set_thumbnail(url=icon)
 
         return embed
 
     def create_added_to_queue_embed(self, metadata: AudioMetaData, position: int) -> discord.Embed:
-        """Create an embed for when a track is added to the queue"""
         embed = self._create_base_embed(
-            title="✨ Added to Queue",
+            title="Added to Queue",
             description=f"**[{metadata.title}]({metadata.webpage_url})**",
             color=BrandColor.ACCENT,
         )
@@ -87,7 +118,7 @@ class EmbedService:
         embed.add_field(name="Queue Position", value=f"`#{position}`", inline=True)
 
         if metadata.requested_by:
-            embed.set_footer(text=f"Requested by: {metadata.requested_by} • Celestial Juno")
+            embed.set_footer(text=f"Requested by {metadata.requested_by}")
 
         if metadata.thumbnail_url:
             embed.set_thumbnail(url=metadata.thumbnail_url)
@@ -95,16 +126,15 @@ class EmbedService:
         if metadata.filter_preset:
             embed.add_field(
                 name="Active Filter",
-                value=f"🧪 {metadata.filter_preset.display_name}",
+                value=metadata.filter_preset.display_name,
                 inline=False,
             )
 
         return embed
 
     def create_now_playing_embed(self, metadata: AudioMetaData) -> discord.Embed:
-        """Create an embed for currently playing track"""
         embed = self._create_base_embed(
-            title="🎵 Now Playing",
+            title="Now Playing",
             description=f"**[{metadata.title}]({metadata.webpage_url})**",
             color=BrandColor.PRIMARY,
         )
@@ -122,31 +152,23 @@ class EmbedService:
         )
 
         if metadata.likes is not None:
-            embed.add_field(name="Likes", value=f"👍 {metadata.likes:,}", inline=True)
+            embed.add_field(name="Likes", value=f"{metadata.likes:,}", inline=True)
 
-        emoji_filename = None
         if metadata.thumbnail_url:
             embed.set_thumbnail(url=metadata.thumbnail_url)
-        elif self.BRAND_IMAGES.get("NOW_PLAYING"):
-            embed.set_thumbnail(url=self.BRAND_IMAGES["NOW_PLAYING"])
-        else:
-            # Fallback to legacy random emoji if no brand image set
-            try:
-                emoji_path = os.path.join(os.getcwd(), "emojis")
-                if os.path.exists(emoji_path) and os.listdir(emoji_path):
-                    emoji_filename = random.choice(os.listdir(emoji_path))
-                    embed.set_thumbnail(url=f"attachment://{emoji_filename}")
-            except Exception:
-                pass
 
         if metadata.filter_preset:
             embed.add_field(
                 name="Active Filter",
-                value=f"🧪 {metadata.filter_preset.display_name}",
+                value=metadata.filter_preset.display_name,
                 inline=False,
             )
 
-        return embed, emoji_filename
+        banner = _asset_url("nowplaying.png")
+        if banner:
+            embed.set_image(url=banner)
+
+        return embed
 
     def create_queue_embed(
         self,
@@ -155,13 +177,15 @@ class EmbedService:
         page: int = 1,
         items_per_page: int = 5,
     ) -> discord.Embed:
-        """Create an embed displaying the music queue"""
-        embed = self._create_base_embed(title="🌌 Starlight Queue", color=BrandColor.ACCENT)
+        embed = self._create_base_embed(title="Music Queue", color=BrandColor.ACCENT)
+        icon = _asset_url("info.png")
+        if icon:
+            embed.set_thumbnail(url=icon)
 
         if current_track:
             author_text = current_track.author if not current_track.author_url else f"[{current_track.author}]({current_track.author_url})"
             embed.add_field(
-                name="Currently Pulsing",
+                name="Now Playing",
                 value=f"▶️ **[{current_track.title}]({current_track.webpage_url})**\n└ {author_text}",
                 inline=False,
             )
@@ -170,49 +194,48 @@ class EmbedService:
         end_idx = start_idx + items_per_page
 
         if not queue_items:
-            embed.description = "*The queue is currently a silent void. Use /play to bring it to life.*"
+            embed.description = "The queue is empty. Use /play to add tracks."
         else:
             queue_display = []
             for i, item in enumerate(queue_items[start_idx:end_idx], start=start_idx + 1):
                 author_text = item.author if not item.author_url else f"[{item.author}]({item.author_url})"
-                queue_display.append(f"`{i}.` **[{item.title}]({item.webpage_url})**\n└ {author_text} • {self.format_duration(item.duration)}")
+                queue_display.append(f"`{i}.` **[{item.title}]({item.webpage_url})**\n└ {author_text} - {self.format_duration(item.duration)}")
 
             embed.description = "\n\n".join(queue_display)
 
             total_pages = (len(queue_items) + items_per_page - 1) // items_per_page
-            embed.set_footer(text=f"Page {page} of {total_pages} • {len(queue_items)} tracks in orbit")
+            embed.set_footer(text=f"Page {page} of {total_pages} - {len(queue_items)} tracks")
 
         return embed
 
     def create_error_embed(self, error_message: str) -> discord.Embed:
-        """Create an embed for displaying errors"""
-        return self.create_action_embed(title="⚠️ System Error", message=error_message, is_success=False)
+        return self.create_action_embed(title="Error", message=error_message, is_success=False)
 
-    def create_success_embed(self, message: str, title: str = "✅ Success") -> discord.Embed:
-        """Create an embed for displaying success messages"""
+    def create_success_embed(self, message: str, title: str = "Done") -> discord.Embed:
         return self.create_action_embed(title=title, message=message, is_success=True)
 
-    def create_morning_embed(self, message: str, title: str = "🌅 Celestial Sunrise") -> tuple[discord.Embed, str]:
-        """Create an embed for morning messages"""
-        embed = self._create_base_embed(title=title, description=message, color=BrandColor.GOLD)
+    def create_info_embed(self, title: str, description: str, fields: list[tuple[str, str, bool]] | None = None) -> discord.Embed:
+        embed = self._create_base_embed(title=title, description=description, color=BrandColor.ACCENT)
+        icon = _asset_url("info.png")
+        if icon:
+            embed.set_thumbnail(url=icon)
+        if fields:
+            for name, value, inline in fields:
+                embed.add_field(name=name, value=value, inline=inline)
+        return embed
 
-        emoji_filename = None
-        if self.BRAND_IMAGES.get("MORNING"):
-            embed.set_thumbnail(url=self.BRAND_IMAGES["MORNING"])
-        else:
-            try:
-                emoji_path = os.path.join(os.getcwd(), "emojis")
-                if os.path.exists(emoji_path) and os.listdir(emoji_path):
-                    emoji_filename = random.choice(os.listdir(emoji_path))
-                    embed.set_thumbnail(url=f"attachment://{emoji_filename}")
-            except Exception:
-                pass
+    def create_warning_embed(self, title: str, description: str) -> discord.Embed:
+        return self._create_base_embed(title=title, description=description, color=BrandColor.WARNING)
 
-        return embed, emoji_filename
+    def create_morning_embed(self, message: str, title: str = "Good Morning!") -> discord.Embed:
+        embed = self._create_base_embed(title=title, description=message, color=BrandColor.WARNING)
+        banner = _asset_url("morning.png")
+        if banner:
+            embed.set_image(url=banner)
+        return embed
 
     @staticmethod
     def format_duration(seconds: int) -> str:
-        """Convert seconds to a friendly readable format"""
         if not seconds or seconds <= 0:
             return "Live"
 
@@ -235,7 +258,7 @@ class EmbedService:
 
 class QueuePaginationView(discord.ui.View):
     def __init__(self, queue_items, current_track, embed_service):
-        super().__init__(timeout=60)
+        super().__init__(timeout=180)
         self.queue_items = queue_items
         self.current_track = current_track
         self.embed_service = embed_service
@@ -249,7 +272,7 @@ class QueuePaginationView(discord.ui.View):
         self.previous_button.disabled = self.current_page == 1
         self.next_button.disabled = self.current_page == self.total_pages
 
-    @discord.ui.button(label="Previous", style=discord.ButtonStyle.secondary, emoji="⬅️")
+    @discord.ui.button(label="Previous", style=discord.ButtonStyle.primary, emoji="⬅️")
     async def previous_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.current_page = max(1, self.current_page - 1)
         self.update_button_states()
@@ -263,7 +286,7 @@ class QueuePaginationView(discord.ui.View):
 
         await interaction.response.edit_message(embed=embed, view=self)
 
-    @discord.ui.button(label="Next", style=discord.ButtonStyle.secondary, emoji="➡️")
+    @discord.ui.button(label="Next", style=discord.ButtonStyle.primary, emoji="➡️")
     async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.current_page = min(self.total_pages, self.current_page + 1)
         self.update_button_states()
@@ -276,3 +299,51 @@ class QueuePaginationView(discord.ui.View):
         )
 
         await interaction.response.edit_message(embed=embed, view=self)
+
+
+class NowPlayingView(discord.ui.View):
+    def __init__(self, player):
+        super().__init__(timeout=180)
+        self.player = player
+
+    @discord.ui.button(label="Pause", style=discord.ButtonStyle.secondary, emoji="⏸")
+    async def pause_resume(self, interaction: discord.Interaction, button: discord.ui.Button):
+        action = await self.player.pause()
+        if action.is_success:
+            button.label = "Resume"
+            button.emoji = "▶️"
+        else:
+            button.label = "Pause"
+            button.emoji = "⏸"
+        await interaction.response.edit_message(view=self)
+
+    @discord.ui.button(label="Skip", style=discord.ButtonStyle.primary, emoji="⏭")
+    async def skip(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.player.skip()
+        await interaction.response.defer()
+
+    @discord.ui.button(label="Stop", style=discord.ButtonStyle.danger, emoji="⏹")
+    async def stop(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.player.queue._queue.clear()
+        await self.player.skip()
+        self.stop()
+        await interaction.response.defer()
+
+
+class ConfirmView(discord.ui.View):
+    def __init__(self, confirm_message: str = "Are you sure?"):
+        super().__init__(timeout=60)
+        self.confirmed = False
+        self.confirm_message = confirm_message
+
+    @discord.ui.button(label="Confirm", style=discord.ButtonStyle.danger, emoji="✔️")
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.confirmed = True
+        self.stop()
+        await interaction.response.defer()
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="✖️")
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.confirmed = False
+        self.stop()
+        await interaction.response.defer()

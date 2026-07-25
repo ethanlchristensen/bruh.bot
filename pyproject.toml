@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "juno"
+name = "bruh-bot"
 version = "0.1.0"
 description = "Discord Bot"
 authors = ["ethanlchristensen <ethanlchristensen@outlook.com>"]

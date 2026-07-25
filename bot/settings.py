@@ -63,7 +63,7 @@ def print_startup_banner():
 
     panel = Panel(
         renderable=subtitle,
-        title="Juno",
+        title="bruh.bot",
         subtitle=version,
         border_style="blue",
     )

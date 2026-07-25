@@ -10,13 +10,13 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from .types import FilterPreset
 
 if TYPE_CHECKING:
-    from bot.juno import Juno
+    from bot.bruh_bot import BruhBot
 
 logger = logging.getLogger(__name__)
 
 
 class MusicWebSocketService:
-    def __init__(self, bot: "Juno"):
+    def __init__(self, bot: "BruhBot"):
         self.bot = bot
         self.active_connections: dict[str, list[WebSocket]] = {}
         self.app = FastAPI()

@@ -11,7 +11,7 @@ from bot.services.ai.gateway.schemas.request import Message, MessagePart, Normal
 from .types import ImageGenerationResponse
 
 if TYPE_CHECKING:
-    from bot.juno import Juno
+    from bot.bruh_bot import BruhBot
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class ImageGenerationService:
     """Service for generating and editing images using Gemini AI."""
 
-    def __init__(self, bot: "Juno"):
+    def __init__(self, bot: "BruhBot"):
         self.bot = bot
         self.base_prompt = "You must generate an image with the following user prompt. Do not ask follow questions to get the user to refine the prompt."
 

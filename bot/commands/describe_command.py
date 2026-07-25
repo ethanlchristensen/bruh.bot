@@ -103,7 +103,7 @@ class DescribeCommand:
                 result = DescribeResponse.model_validate_json(content)
 
                 # Create elegant embed
-                embed = interaction.client.embed_service.create_success_embed(message=(f"1️⃣ {result.description1}\n\n2️⃣ {result.description2}\n\n3️⃣ {result.description3}\n\n4️⃣ {result.description4}"), title="🎨 Image Descriptions")
+                embed = interaction.client.embed_service.create_success_embed(message=(f"1. {result.description1}\n\n2. {result.description2}\n\n3. {result.description3}\n\n4. {result.description4}"), title="Image Descriptions")
                 embed.set_image(url=image.url)
                 embed.set_footer(text=f"Described using {preferred_model} via {provider}")
 
@@ -118,6 +118,6 @@ class DescribeCommand:
 async def _send_reply_or_followup(interaction: discord.Interaction, embed: discord.Embed):
     if interaction.is_expired():
         # Session expired, send as channel message
-        await interaction.channel.send(embed=embed)
+        await interaction.channel.send(embed=embed, files=interaction.client.embed_service.get_brand_files(embed=embed))
     else:
-        await interaction.followup.send(embed=embed)
+        await interaction.followup.send(embed=embed, files=interaction.client.embed_service.get_brand_files(embed=embed))

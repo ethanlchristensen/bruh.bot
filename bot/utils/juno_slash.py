@@ -8,7 +8,7 @@ from bot import settings
 logger = logging.getLogger("bot")
 
 
-class JunoSlash:
+class SlashLoader:
     def __init__(self, tree: app_commands.CommandTree):
         self.path = os.path.join(os.getcwd(), "bot", "commands")
         self.tree = tree

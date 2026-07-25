@@ -5,11 +5,11 @@ from typing import TYPE_CHECKING
 import discord
 
 if TYPE_CHECKING:
-    from bot.juno import Juno
+    from bot.bruh_bot import BruhBot
 
 
 class ResponseService:
-    def __init__(self, bot: "Juno"):
+    def __init__(self, bot: "BruhBot"):
         self.bot = bot
         self.logger = logging.getLogger(__name__)
 

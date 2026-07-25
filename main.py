@@ -5,7 +5,7 @@ import os
 import discord
 
 from bot import settings
-from bot.juno import Juno
+from bot.bruh_bot import BruhBot
 from bot.services import get_config_service
 
 logger = logging.getLogger("bot")
@@ -19,7 +19,7 @@ async def main():
     config_service = get_config_service("config/base_config.yaml")
     await config_service.initialize(environment=environment)
 
-    client = Juno(intents=discord.Intents.all(), config_service=config_service)
+    client = BruhBot(intents=discord.Intents.all(), config_service=config_service)
 
     await config_service.start_watcher(interval=5)
 

@@ -9,7 +9,7 @@ from .ai.types import ImageGenerationResponse, UserIntent
 from .config_service import BaseConfig, ConfigService, DynamicConfig, MemoryConfig, get_config_service
 from .cooldown_service import CooldownService
 from .discord_messages_service import DiscordMessagesService
-from .embed_service import EmbedService, QueuePaginationView
+from .embed_service import ConfirmView, EmbedService, NowPlayingView, QueuePaginationView
 from .memory_extraction_service import MemoryExtractionService
 from .message_service import MessageService
 from .mongo_chat_service import MongoChatService
@@ -30,6 +30,8 @@ __all__ = [
     "AudioSource",
     "FilterPreset",
     "QueuePaginationView",
+    "NowPlayingView",
+    "ConfirmView",
     "AiOrchestrator",
     "UserIntent",
     "ImageGenerationService",

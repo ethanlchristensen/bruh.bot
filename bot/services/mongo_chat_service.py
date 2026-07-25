@@ -5,13 +5,13 @@ from typing import TYPE_CHECKING
 from bson import Int64
 
 if TYPE_CHECKING:
-    from bot.juno import Juno
+    from bot.bruh_bot import BruhBot
 
 
 class MongoChatService:
     """Service for managing stateful chat conversations in MongoDB using a parent-pointer tree."""
 
-    def __init__(self, bot: "Juno"):
+    def __init__(self, bot: "BruhBot"):
         self.bot = bot
         self.collection = self.bot.config_service.db[self.bot.config_service.base.mongoChatThreadsCollectionName]
         self.logger = logging.getLogger(__name__)

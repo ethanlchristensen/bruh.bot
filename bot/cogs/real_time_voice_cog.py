@@ -13,7 +13,7 @@ from bot.utils.decarators.global_block_check import is_globally_blocked
 from bot.utils.decarators.voice_check import require_voice_channel
 
 if TYPE_CHECKING:
-    from bot.juno import Juno
+    from bot.bruh_bot import BruhBot
 
 
 class QueuedAudioSource(discord.AudioSource):
@@ -144,7 +144,7 @@ class StreamingAudioSource(discord.AudioSource):
 class RealTimeVoiceCog(commands.Cog):
     """Cog for real-time voice conversations with OpenAI."""
 
-    def __init__(self, bot: "Juno"):
+    def __init__(self, bot: "BruhBot"):
         self.bot = bot
         self.logger = logging.getLogger(__name__)
 
@@ -233,7 +233,7 @@ class RealTimeVoiceCog(commands.Cog):
         finally:
             self.logger.info(f"Stopped audio playback task for guild {guild_id}")
 
-    @app_commands.command(name="voice_join", description="Have Juno join your voice channel for conversation.")
+    @app_commands.command(name="voice_join", description="Have the bot join your voice channel for conversation.")
     @log_command_usage()
     @require_voice_channel(ephemeral=True, allow_admin_bypass=True)
     @is_admin()
@@ -263,7 +263,7 @@ class RealTimeVoiceCog(commands.Cog):
             self.logger.error(f"Error joining voice channel: {e}")
             await interaction.followup.send(f"Failed to join voice channel: {e}", ephemeral=True)
 
-    @app_commands.command(name="voice_start", description="Start a real-time conversation with Juno.")
+    @app_commands.command(name="voice_start", description="Start a real-time conversation with the bot.")
     @app_commands.describe(listen_to="Optional: Specific user to listen to (leave empty to listen to everyone)")
     @log_command_usage()
     @is_admin()
@@ -292,7 +292,7 @@ class RealTimeVoiceCog(commands.Cog):
             await service.connect()
 
             # Configure session
-            instructions = "You are Juno, a friendly Discord bot assistant. "
+            instructions = "You are bruh.bot, a Discord bot assistant. "
             instructions += "Keep responses brief and conversational. "
             instructions += "You're talking to people in a Discord voice channel."
 
@@ -384,7 +384,7 @@ class RealTimeVoiceCog(commands.Cog):
             self.logger.error(f"Error stopping conversation: {e}")
             await interaction.followup.send(f"Error stopping conversation: {e}", ephemeral=True)
 
-    @app_commands.command(name="voice_leave", description="Have Juno leave the voice channel.")
+    @app_commands.command(name="voice_leave", description="Have the bot leave the voice channel.")
     @log_command_usage()
     @is_admin()
     @require_voice_channel(ephemeral=True, allow_admin_bypass=True)
@@ -442,5 +442,5 @@ class RealTimeVoiceCog(commands.Cog):
         self.active_sessions.clear()
 
 
-async def setup(bot: "Juno"):
+async def setup(bot: "BruhBot"):
     await bot.add_cog(RealTimeVoiceCog(bot))

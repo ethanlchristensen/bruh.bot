@@ -1,8 +1,8 @@
-# Juno Discord Bot — Architecture & Feature Reference
+# bruh.bot — Architecture & Feature Reference
 
 ## Overview
 
-Juno is a multi-featured Discord bot written in Python (`discord.py`), with a dashboard frontend in React/TanStack. It supports AI chat via multiple LLM providers, real-time voice conversation, image generation, music playback, and a user memory system — all with per-guild configuration stored in MongoDB.
+bruh.bot is a multi-featured Discord bot written in Python (`discord.py`), with a dashboard frontend in React/TanStack. It supports AI chat via multiple LLM providers, real-time voice conversation, image generation, music playback, and a user memory system — all with per-guild configuration stored in MongoDB.
 
 **Stack:**
 - **Bot:** Python 3.13, `discord.py` (GitHub), `openai`, `anthropic`, `ollama`, `google-genai`
@@ -17,7 +17,7 @@ Juno is a multi-featured Discord bot written in Python (`discord.py`), with a da
 
 ```
 bruh.bot/
-├── main.py                          # Entry point — creates Juno client and runs it
+├── main.py                          # Entry point — creates BruhBot client and runs it
 ├── pyproject.toml                   # Python dependencies (Poetry)
 ├── Makefile                         # Shortcuts: install, bot, api, frontend
 ├── config.sample.yaml               # Template for secrets (tokens, MongoDB URI, encryption key)
@@ -26,7 +26,7 @@ bruh.bot/
 ├── Dockerfile.api                   # API container
 │
 ├── bot/
-│   ├── juno.py                      # Main bot class (Juno) — extends commands.Bot
+│   ├── bruh_bot.py                  # Main bot class (BruhBot) — extends commands.Bot
 │   ├── settings.py                  # Startup banner, logging config
 │   │
 │   ├── api/
@@ -166,8 +166,8 @@ bruh.bot/
 main.py:
   1. Load YAML config → ConfigService.initialize()
   2. Start config file watcher (reloads on YAML changes)
-  3. Create Juno(client) with all intents
-  4. Juno.setup_hook():
+  3. Create BruhBot(client) with all intents
+  4. BruhBot.setup_hook():
      a. Initialize MongoDB services (image limits, morning configs, chat, memory)
      b. Start memory extraction background loops
      c. JunoSlash.load_commands() → registers all slash commands
@@ -176,7 +176,7 @@ main.py:
   5. client.start(token)
 ```
 
-### Message Processing Flow (`bot/juno.py:144 on_message`)
+### Message Processing Flow (`bot/bruh_bot.py:150 on_message`)
 
 ```
 User sends message
@@ -213,7 +213,7 @@ A provider-agnostic abstraction layer. All LLM calls route through `MeshGateway`
 
 ## Features
 
-### 1. AI Chat (`bot/juno.py:219 _handle_chat_intent`)
+### 1. AI Chat (`bot/bruh_bot.py:211 _handle_chat_intent`)
 
 - Triggered by @mentioning the bot or replying to its messages
 - Intent detection via `AiOrchestrator` classifies message as `chat` or `image_generation`
@@ -375,7 +375,7 @@ docker compose up -d
 
 1. **Per-guild config** — all behavior is configurable per Discord guild via MongoDB, with the ConfigService abstracting YAML secrets vs. dynamic data.
 
-2. **Service dependency injection** — Instantiated in `Juno.__init__()`, keyed by bot object. Every service is a dedicated class within `bot/services/`.
+2. **Service dependency injection** — Instantiated in `BruhBot.__init__()`, keyed by bot object. Every service is a dedicated class within `bot/services/`.
 
 3. **Provider abstraction** — The AI Gateway normalizes all LLM calls across providers into a single `NormalizedRequest`/`NormalizedResponse` interface.
 

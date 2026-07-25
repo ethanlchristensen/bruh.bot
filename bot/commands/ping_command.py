@@ -13,4 +13,4 @@ class PingCommand:
         async def ping(interaction: discord.Interaction):
             latency = round(interaction.client.latency * 1000)
             embed = interaction.client.embed_service.create_success_embed(f"📡 Signal Latency: **{latency}ms**", title="Pong!")
-            await interaction.response.send_message(embed=embed)
+            await interaction.response.send_message(embed=embed, files=interaction.client.embed_service.get_brand_files(embed=embed))

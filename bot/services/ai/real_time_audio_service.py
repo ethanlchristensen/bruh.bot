@@ -12,11 +12,11 @@ from discord.ext import voice_recv
 from ..config_service import DynamicConfig
 
 if TYPE_CHECKING:
-    from bot.juno import Juno
+    from bot.bruh_bot import BruhBot
 
 
 class RealTimeAudioService:
-    def __init__(self, bot: "Juno", config: DynamicConfig):
+    def __init__(self, bot: "BruhBot", config: DynamicConfig):
         self.bot = bot
         self.config = config
         self.model = config.aiConfig.realTimeConfig.realTimeModel

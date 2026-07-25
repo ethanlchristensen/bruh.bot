@@ -8,11 +8,11 @@ import discord
 from bot.services.ai.gateway.schemas.request import Message, MessagePart
 
 if TYPE_CHECKING:
-    from bot.juno import Juno
+    from bot.bruh_bot import BruhBot
 
 
 class MessageService:
-    def __init__(self, bot: "Juno"):
+    def __init__(self, bot: "BruhBot"):
         self.bot = bot
         self.logger = logging.getLogger(__name__)
 
@@ -163,7 +163,7 @@ MULTI-USER CHAT CONTEXT:
         return messages
 
     def replace_mentions(self, text: str) -> str:
-        """Replace bot mentions with empty string or 'Juno'."""
+        """Replace bot mentions with empty string or 'bruh.bot'."""
         if not self.bot.user:
             return text
 

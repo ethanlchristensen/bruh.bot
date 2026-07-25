@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 embed_service = EmbedService()
 
 if TYPE_CHECKING:
-    from bot.juno import Juno
+    from bot.bruh_bot import BruhBot
 
 
 def is_admin() -> Callable[[Callable[P, Awaitable[T]]], Callable[P, Awaitable[T]]]:
@@ -37,7 +37,7 @@ def is_admin() -> Callable[[Callable[P, Awaitable[T]]], Callable[P, Awaitable[T]
 
             await interaction.response.defer(ephemeral=True)
 
-            bot: Juno = interaction.client
+            bot: BruhBot = interaction.client
 
             config = await bot.config_service.get_config(str(interaction.guild.id))
 
@@ -46,7 +46,7 @@ def is_admin() -> Callable[[Callable[P, Awaitable[T]]], Callable[P, Awaitable[T]
             else:
                 logger.warning(f"User '{interaction.user.name}' of '{interaction.guild.name}' attempted to run an Admin command.")
                 embed = embed_service.create_error_embed(error_message="You don't have permission to use this command.")
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed, ephemeral=True, files=embed_service.get_brand_files(embed=embed))
                 return cast(T, None)
 
         return wrapper

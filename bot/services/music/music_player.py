@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import os
 import time
 from typing import TYPE_CHECKING
 
@@ -11,11 +10,11 @@ from .priority_music_queue import PriorityMusicQueue
 from .types import AudioMetaData, FilterPreset, MusicPlayerActionResponse
 
 if TYPE_CHECKING:
-    from bot.juno import Juno
+    from bot.bruh_bot import BruhBot
 
 
 class MusicPlayer:
-    def __init__(self, bot: "Juno", guild: discord.Guild):
+    def __init__(self, bot: "BruhBot", guild: discord.Guild):
         self.bot = bot
         self.guild = guild
         self.queue = PriorityMusicQueue()
@@ -255,8 +254,5 @@ class MusicPlayer:
     async def _send_now_playing_embed(self, song: AudioMetaData):
         if not song.text_channel:
             return
-        now_playing_embed, emoji_file = self.bot.embed_service.create_now_playing_embed(song)
-        discord_file = None
-        if emoji_file:
-            discord_file = discord.File(os.path.join(os.getcwd(), "emojis", emoji_file), emoji_file)
-        await song.text_channel.send(embed=now_playing_embed, file=discord_file)
+        now_playing_embed = self.bot.embed_service.create_now_playing_embed(song)
+        await song.text_channel.send(embed=now_playing_embed, files=self.bot.embed_service.get_brand_files(embed=now_playing_embed))

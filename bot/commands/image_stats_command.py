@@ -7,7 +7,7 @@ from bot.utils.decarators.command_logging import log_command_usage
 from bot.utils.decarators.global_block_check import is_globally_blocked
 
 if TYPE_CHECKING:
-    from bot.juno import Juno
+    from bot.bruh_bot import BruhBot
 
 
 class ImageStatsCommand:
@@ -22,23 +22,19 @@ class ImageStatsCommand:
             """Check the user's image generation stats."""
             await interaction.response.defer(ephemeral=True)
 
-            bot: Juno = interaction.client
+            bot: BruhBot = interaction.client
 
             try:
                 stats = await bot.image_limit_service.get_user_stats(user_id=interaction.user.id, guild_id=interaction.guild.id)
 
-                embed = discord.Embed(
-                    title="📊 Image Generation Stats",
-                    color=discord.Color.blue(),
+                embed = interaction.client.embed_service.create_info_embed(
+                    title="Image Generation Stats",
+                    description="Your daily usage for this server.",
+                    fields=[
+                        ("Images Generated Today", f"{stats['count']}/{stats['max_daily_images']}", True),
+                        ("Remaining", f"{stats['remaining']} images", True),
+                    ],
                 )
-
-                embed.add_field(
-                    name="Images Generated Today",
-                    value=f"{stats['count']}/{stats['max_daily_images']}",
-                    inline=True,
-                )
-
-                embed.add_field(name="Remaining", value=f"{stats['remaining']} images", inline=True)
 
                 if stats["reset_time"]:
                     reset_time = stats["reset_time"]
@@ -48,9 +44,7 @@ class ImageStatsCommand:
                         reset_str = str(reset_time)
                     embed.add_field(name="Resets At", value=reset_str, inline=False)
 
-                embed.set_footer(text=f"Requested by {interaction.user.name}")
-
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed, ephemeral=True, files=interaction.client.embed_service.get_brand_files(embed=embed))
 
             except Exception as e:
                 bot.logger.error(f"Error fetching image stats: {e}")

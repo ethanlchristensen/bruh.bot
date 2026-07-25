@@ -18,14 +18,8 @@ class SyncCommand(app_commands.Group):
         async def sync(interaction: discord.Interaction):
             try:
                 await tree.sync()
-                embed = discord.Embed()
-                embed.color = 0x00FF00
-                embed.title = "Command Tree synced!"
-                embed.description = ""
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                embed = interaction.client.embed_service.create_success_embed("Commands synced successfully.", title="Commands Synced")
+                await interaction.followup.send(embed=embed, ephemeral=True, files=interaction.client.embed_service.get_brand_files(embed=embed))
             except Exception as e:
-                embed = discord.Embed()
-                embed.color = 0xFF0000
-                embed.title = "Command Tree failed to sync!"
-                embed.description = str(e)
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                embed = interaction.client.embed_service.create_error_embed(str(e))
+                await interaction.followup.send(embed=embed, ephemeral=True, files=interaction.client.embed_service.get_brand_files(embed=embed))

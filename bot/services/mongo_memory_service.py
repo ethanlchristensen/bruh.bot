@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from bson import Int64, ObjectId
 
 if TYPE_CHECKING:
-    from bot.juno import Juno
+    from bot.bruh_bot import BruhBot
 
 CATEGORY_TTL_DAYS: dict[str, int | None] = {
     "identity": None,
@@ -29,7 +29,7 @@ def _expires_at_for_category(category: str) -> datetime | None:
 
 
 class MongoMemoryService:
-    def __init__(self, bot: "Juno"):
+    def __init__(self, bot: "BruhBot"):
         self.bot = bot
         self.collection = self.bot.config_service.db[self.bot.config_service.base.mongoUserMemoriesCollectionName]
         self.logger = logging.getLogger(__name__)

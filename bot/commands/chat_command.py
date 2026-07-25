@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from bot.juno import Juno
+    from bot.bruh_bot import BruhBot
 
 import discord
 from discord import app_commands
@@ -20,7 +20,7 @@ class ChatCommand(app_commands.Command):
         async def chat(interaction: discord.Interaction, message: str):
             await interaction.response.defer(ephemeral=False)
 
-            client: Juno = interaction.client
+            client: BruhBot = interaction.client
             config = (await client.config_service.get_config(str(interaction.guild.id))).aiConfig
 
             provider = config.preferredAiProvider

@@ -7,11 +7,11 @@ from bot.services.ai.gateway.schemas.request import Message, MessagePart, Normal
 from .types import UserIntent
 
 if TYPE_CHECKING:
-    from bot.juno import Juno
+    from bot.bruh_bot import BruhBot
 
 
 class AiOrchestrator:
-    def __init__(self, bot: "Juno"):
+    def __init__(self, bot: "BruhBot"):
         self.bot = bot
         self.logger = logging.getLogger(__name__)
 

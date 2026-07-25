@@ -8,7 +8,7 @@ P = ParamSpec("P")
 T = TypeVar("T")
 
 if TYPE_CHECKING:
-    from bot.juno import Juno
+    from bot.bruh_bot import BruhBot
 
 
 def require_voice_channel(ephemeral: bool = True, allow_admin_bypass: bool = False) -> Callable[[Callable[P, Awaitable[T]]], Callable[P, Awaitable[T]]]:
@@ -32,7 +32,7 @@ def require_voice_channel(ephemeral: bool = True, allow_admin_bypass: bool = Fal
                 # If there's no interaction, just call the original function
                 return await func(*args, **kwargs)
 
-            bot: Juno = interaction.client
+            bot: BruhBot = interaction.client
 
             config = await bot.config_service.get_config(str(interaction.guild.id))
 

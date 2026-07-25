@@ -11,7 +11,7 @@ from bot.services.mongo_memory_service import CATEGORY_TTL_DAYS, VALID_CATEGORIE
 if TYPE_CHECKING:
     import discord
 
-    from bot.juno import Juno
+    from bot.bruh_bot import BruhBot
 
 EXTRACTION_SYSTEM_PROMPT = """You are a memory extraction system for a Discord bot. Your job is to analyze chat messages from a user and extract structured memories about them.
 
@@ -50,7 +50,7 @@ If no changes are needed, return: {"actions": []}"""
 
 
 class MemoryExtractionService:
-    def __init__(self, bot: "Juno"):
+    def __init__(self, bot: "BruhBot"):
         self.bot = bot
         self.logger = logging.getLogger(__name__)
         self._message_buffers: dict[str, dict[int, list[dict]]] = {}

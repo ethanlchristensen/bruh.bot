@@ -63,17 +63,9 @@ class EmbedService:
                     needed.add(url.replace("attachment://", ""))
             if not needed:
                 return []
-            return [
-                discord.File(os.path.join(STATIC_DIR, f), filename=f)
-                for f in os.listdir(STATIC_DIR)
-                if f in needed and os.path.isfile(os.path.join(STATIC_DIR, f))
-            ]
+            return [discord.File(os.path.join(STATIC_DIR, f), filename=f) for f in os.listdir(STATIC_DIR) if f in needed and os.path.isfile(os.path.join(STATIC_DIR, f))]
 
-        return [
-            discord.File(os.path.join(STATIC_DIR, f), filename=f)
-            for f in os.listdir(STATIC_DIR)
-            if os.path.isfile(os.path.join(STATIC_DIR, f)) and f.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp"))
-        ]
+        return [discord.File(os.path.join(STATIC_DIR, f), filename=f) for f in os.listdir(STATIC_DIR) if os.path.isfile(os.path.join(STATIC_DIR, f)) and f.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp"))]
 
     def create_action_embed(
         self,

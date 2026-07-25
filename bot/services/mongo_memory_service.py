@@ -29,7 +29,6 @@ def _expires_at_for_category(category: str) -> datetime | None:
 
 
 class MongoMemoryService:
-
     def __init__(self, bot: "Juno"):
         self.bot = bot
         self.collection = self.bot.config_service.db[self.bot.config_service.base.mongoUserMemoriesCollectionName]
@@ -62,9 +61,7 @@ class MongoMemoryService:
         if not memory or category not in VALID_CATEGORIES:
             raise ValueError(f"Invalid category: {category}")
 
-        existing = await self.collection.find_one(
-            {"guild_id": Int64(guild_id), "user_id": Int64(user_id), "memory": memory}
-        )
+        existing = await self.collection.find_one({"guild_id": Int64(guild_id), "user_id": Int64(user_id), "memory": memory})
         now = datetime.now(UTC)
         expires_at = _expires_at_for_category(category)
 

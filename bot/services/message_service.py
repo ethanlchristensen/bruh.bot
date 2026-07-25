@@ -116,13 +116,7 @@ class MessageService:
                             else:
                                 lines.append(f"- [{name}]: {mem['memory']} ({mem['category']})")
                     if lines:
-                        memories_section = (
-                            "\n## GROUNDING MEMORIES:\n"
-                            "These are known facts and observations about users in this conversation. "
-                            "Use them to personalize responses naturally.\n\n"
-                            + "\n".join(lines)
-                            + "\n"
-                        )
+                        memories_section = "\n## GROUNDING MEMORIES:\nThese are known facts and observations about users in this conversation. Use them to personalize responses naturally.\n\n" + "\n".join(lines) + "\n"
         except Exception:
             self.logger.exception("Error retrieving user memories for context")
 

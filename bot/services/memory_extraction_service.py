@@ -161,7 +161,7 @@ class MemoryExtractionService:
                             if len(messages) < (mem_cfg.minMessagesForExtraction if category_filter != ["mood"] else 3):
                                 continue
 
-                            messages_to_process = messages[-mem_cfg.maxMessagesPerExtraction:]
+                            messages_to_process = messages[-mem_cfg.maxMessagesPerExtraction :]
                             await self._extract_for_user(
                                 guild_id=guild_id,
                                 user_id=user_id,
@@ -371,9 +371,7 @@ Analyze these messages and return the JSON actions."""
         for m in memories:
             ttl = CATEGORY_TTL_DAYS.get(m.get("category", "fact"))
             expiry = f"expires in {ttl}d" if ttl else "permanent"
-            lines.append(
-                f"  [id={m['_id']}] [{m.get('category', 'fact')}, confidence={m.get('confidence', 0.5):.2f}, {expiry}] {m['memory']}"
-            )
+            lines.append(f"  [id={m['_id']}] [{m.get('category', 'fact')}, confidence={m.get('confidence', 0.5):.2f}, {expiry}] {m['memory']}")
         return "\n".join(lines)
 
     @staticmethod
@@ -402,7 +400,7 @@ Analyze these messages and return the JSON actions."""
             if not messages:
                 continue
 
-            messages_to_process = messages[-mem_cfg.maxMessagesPerExtraction:]
+            messages_to_process = messages[-mem_cfg.maxMessagesPerExtraction :]
             try:
                 await self._extract_for_user(
                     guild_id=guild_id,
@@ -428,7 +426,7 @@ Analyze these messages and return the JSON actions."""
         if not messages:
             return False
 
-        messages_to_process = messages[-mem_cfg.maxMessagesPerExtraction:]
+        messages_to_process = messages[-mem_cfg.maxMessagesPerExtraction :]
         await self._extract_for_user(
             guild_id=guild_id,
             user_id=user_id,

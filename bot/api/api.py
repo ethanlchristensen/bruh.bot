@@ -311,9 +311,13 @@ async def get_version(guild_id: str = Depends(get_guild_id), authorized: bool = 
 
 
 @app.get("/config/models")
-async def get_models(provider: str, endpoint: str | None = None, image_gen: bool = False, structured_outputs: bool = False, guild_id: str = Depends(get_guild_id), authorized: bool = Depends(verify_admin)):
+async def get_models(provider: str, endpoint: str | None = None, image_gen: bool = False, structured_outputs: bool = False, refresh: bool = False, guild_id: str = Depends(get_guild_id), authorized: bool = Depends(verify_admin)):
     """Fetch available models for a provider using MeshGateway."""
     try:
+        if refresh:
+            from bot.services.ai.gateway.providers.openrouter_provider import OpenRouterAdapter
+
+            OpenRouterAdapter.invalidate_model_cache()
         config_obj = await config_service.get_config(guild_id)
         ai_cfg = config_obj.aiConfig
         provider_cfg = getattr(ai_cfg, provider, None) or ai_cfg.openrouter

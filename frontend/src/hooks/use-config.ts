@@ -105,6 +105,17 @@ export function useModels(provider: string, endpoint?: string, imageGen?: boolea
     queryKey: ['models', provider, endpoint, imageGen, structuredOutputs],
     queryFn: () => apiClient.getModels(provider, endpoint, imageGen, structuredOutputs),
     enabled: !!provider,
-    staleTime: 30000, // Reduced to 30s for reactive typed changes
+    staleTime: 30000,
+  });
+}
+
+export function useRefreshModels() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (params: { provider: string; endpoint?: string; imageGen?: boolean; structuredOutputs?: boolean }) =>
+      apiClient.getModels(params.provider, params.endpoint, params.imageGen, params.structuredOutputs, true),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['models'] });
+    },
   });
 }

@@ -1,4 +1,5 @@
 import json
+import time
 from collections.abc import AsyncIterator
 
 import httpx
@@ -11,6 +12,8 @@ from bot.services.ai.gateway.schemas.request import NormalizedRequest
 from bot.services.ai.gateway.schemas.response import NormalizedResponse, ResponsePart
 
 _cached_models: list[ModelInfo] | None = None
+_cache_timestamp: float = 0
+MODELS_CACHE_TTL = 300
 
 
 class OpenRouterAdapter(OllamaAdapter):
@@ -293,8 +296,8 @@ class OpenRouterAdapter(OllamaAdapter):
             )
 
     async def get_models(self, api_key: str) -> list[ModelInfo]:
-        global _cached_models
-        if _cached_models:
+        global _cached_models, _cache_timestamp
+        if _cached_models and (time.monotonic() - _cache_timestamp) < MODELS_CACHE_TTL:
             return _cached_models
 
         headers = {
@@ -359,6 +362,13 @@ class OpenRouterAdapter(OllamaAdapter):
 
                 sorted_models = sorted(models, key=lambda x: x.id)
                 _cached_models = sorted_models
+                _cache_timestamp = time.monotonic()
                 return sorted_models
             except Exception:
                 return []
+
+    @staticmethod
+    def invalidate_model_cache():
+        global _cached_models, _cache_timestamp
+        _cached_models = None
+        _cache_timestamp = 0

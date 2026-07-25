@@ -257,12 +257,13 @@ export class ConfigAPIClient {
   }
 
   // Get available models for a provider
-  async getModels(provider: string, endpoint?: string, imageGen?: boolean, structuredOutputs?: boolean): Promise<{ success: boolean; models: string[]; error?: string }> {
+  async getModels(provider: string, endpoint?: string, imageGen?: boolean, structuredOutputs?: boolean, refresh?: boolean): Promise<{ success: boolean; models: string[]; error?: string }> {
     const ep = endpoint ? encodeURIComponent(endpoint) : '';
     const ig = imageGen ? '&image_gen=true' : '';
     const so = structuredOutputs ? '&structured_outputs=true' : '';
+    const rf = refresh ? '&refresh=true' : '';
     return this.fetch<{ success: boolean; models: string[]; error?: string }>(
-      `/config/models?provider=${provider}&endpoint=${ep}${ig}${so}`,
+      `/config/models?provider=${provider}&endpoint=${ep}${ig}${so}${rf}`,
       {
         method: 'GET',
       }

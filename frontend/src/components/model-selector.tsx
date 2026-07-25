@@ -12,7 +12,8 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { ProviderIconRenderer } from '@/components/provider-icon-renderer';
-import { ChevronDown, Search, Sparkles, BrainCircuit } from 'lucide-react';
+import { useRefreshModels } from '@/hooks/use-config';
+import { ChevronDown, RefreshCw, Search, Sparkles, BrainCircuit } from 'lucide-react';
 
 const POPULAR_MODELS = {
   ollama: ['llama3.1', 'llama3.2', 'gemma2', 'mistral', 'phi3'],
@@ -60,6 +61,22 @@ export function ModelSelector({ selectedProvider, selectedModel, onSelect, group
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'ollama' | 'openrouter'>('all');
   const [filterCapability, setFilterCapability] = useState<'all' | 'vision' | 'tools' | 'reasoning'>('all');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const refreshModels = useRefreshModels();
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        refreshModels.mutateAsync({ provider: 'openrouter' }),
+        refreshModels.mutateAsync({ provider: 'ollama' }),
+      ]);
+    } catch {
+      // refresh failed — models stay as-is
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const filterModel = (m: string) => {
     const matchesSearch = m.toLowerCase().includes(search.toLowerCase());
@@ -164,6 +181,16 @@ export function ModelSelector({ selectedProvider, selectedModel, onSelect, group
                 {f.label}
               </Button>
             ))}
+            <div className="flex-1" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="rounded-full h-8 w-8 p-0"
+            >
+              <RefreshCw className={`size-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </Button>
           </div>
         </div>
 

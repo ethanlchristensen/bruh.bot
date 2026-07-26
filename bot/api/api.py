@@ -749,6 +749,8 @@ async def get_economy_leaderboard(sort_by: str = "xp", limit: int = 25, guild_id
                     "level": entry["level"],
                     "bruh_coins": entry["bruh_coins"],
                     "total_messages": entry.get("total_messages", 0),
+                    "total_images": entry.get("total_images", 0),
+                    "total_reactions_given": entry.get("total_reactions_given", 0),
                     "rank": entry["rank"],
                 }
             )

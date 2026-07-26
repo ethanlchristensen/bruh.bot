@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { Coins, TrendingUp, Trophy, Zap } from 'lucide-react';
+import { Coins, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useConfig, useUpdateConfig } from '@/hooks/use-config';
-import { useEconomyLeaderboard } from '@/hooks/use-economy';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardIcon } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,7 +21,6 @@ function EconomyConfigComponent() {
   const { data, isLoading } = useConfig();
   const updateConfig = useUpdateConfig();
   const queryClient = useQueryClient();
-  const { data: leaderboardData } = useEconomyLeaderboard('xp', 10);
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -199,7 +197,7 @@ function EconomyConfigComponent() {
 
       <StickySaveBar onSave={handleSave} isSaving={isSaving} hasChanges={hasChanges} />
 
-      <div className="grid gap-8 xl:grid-cols-3">
+      <div className="grid gap-8 xl:grid-cols-2">
         {/* XP & Leveling */}
         <Card variant="hero">
           <CardHeader>
@@ -343,48 +341,7 @@ function EconomyConfigComponent() {
           </CardContent>
         </Card>
 
-        {/* Leaderboard */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-4">
-              <CardIcon><Trophy /></CardIcon>
-              <div>
-                <CardTitle>Leaderboard</CardTitle>
-                <CardDescription>Top 10 by XP.</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {leaderboardData?.leaderboard && leaderboardData.leaderboard.length > 0 ? (
-              <div className="space-y-1.5">
-                {leaderboardData.leaderboard.slice(0, 10).map((entry, idx) => (
-                  <div key={entry.user_id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 text-sm">
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-xs text-muted-foreground w-5">{idx + 1}.</span>
-                      {entry.avatar_url && (
-                        <img src={entry.avatar_url} alt="" className="size-6 rounded-full" />
-                      )}
-                      <span className="truncate max-w-[140px]">{entry.username}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <TrendingUp className="h-3 w-3" />
-                        Lv{entry.level}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Coins className="h-3 w-3" />
-                        {entry.bruh_coins.toFixed(1)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-12">No data yet. Start chatting!</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+        </div>
     </div>
   );
 }

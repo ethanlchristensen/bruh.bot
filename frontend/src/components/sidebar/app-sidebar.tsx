@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { BrainCircuit, Coins, Gauge, Music, PanelLeft, Server, Settings, Sparkles, Users } from 'lucide-react';
+import { BrainCircuit, Coins, Gauge, Music, PanelLeft, Server, Settings, Sparkles, Trophy, Users } from 'lucide-react';
 import { Link, useLocation } from '@tanstack/react-router';
 import { useAuth } from '@/hooks/use-auth';
 
@@ -31,6 +31,7 @@ const data = {
         { title: 'Memories', url: '/config/memories', icon: Users },
         { title: 'Usage', url: '/config/usage', icon: Gauge },
         { title: 'Economy', url: '/config/economy', icon: Coins },
+        { title: 'Leaderboard', url: '/config/leaderboard', icon: Trophy },
       ],
     },
     {

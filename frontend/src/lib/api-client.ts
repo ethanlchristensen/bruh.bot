@@ -111,6 +111,8 @@ export interface EconomyLeaderboardEntry {
   level: number;
   bruh_coins: number;
   total_messages: number;
+  total_images: number;
+  total_reactions_given: number;
   rank: number;
 }
 

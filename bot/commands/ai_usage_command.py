@@ -275,7 +275,7 @@ class AiUsageCommand:
         @log_command_usage()
         @is_globally_blocked()
         async def leaderboard(interaction: discord.Interaction, days: int | None = None):
-            await interaction.response.defer(ephemeral=True)
+            await interaction.response.defer()
 
             bot: BruhBot = interaction.client
 
@@ -288,7 +288,7 @@ class AiUsageCommand:
                     start = datetime.now(UTC) - timedelta(days=days)
                     start_date = start.date().isoformat()
 
-                entries = await bot.ai_usage_tracking_service.get_leaderboard(interaction.guild.id, start_date=start_date, end_date=end_date, limit=15)
+                entries = await bot.ai_usage_tracking_service.get_leaderboard(interaction.guild.id, start_date=start_date, end_date=end_date, limit=25)
                 summary = await bot.ai_usage_tracking_service.get_leaderboard_summary(interaction.guild.id, start_date=start_date, end_date=end_date)
 
                 if not entries:
@@ -296,32 +296,30 @@ class AiUsageCommand:
                         title="AI Usage Leaderboard",
                         description="No usage data available yet.",
                     )
-                    await interaction.followup.send(embed=embed, ephemeral=True, files=bot.embed_service.get_brand_files(embed=embed))
+                    await interaction.followup.send(embed=embed, files=bot.embed_service.get_brand_files(embed=embed))
                     return
 
                 period = f"last {days} days" if days else "all time"
-                fields = []
-                for idx, entry in enumerate(entries[:10], 1):
-                    user_id = entry["user_id"]
+                description_lines = []
+                for idx, entry in enumerate(entries[:25], 1):
+                    user_id = int(entry["user_id"])
+                    member = interaction.guild.get_member(user_id)
+                    name = member.display_name if member else f"User {user_id}"
                     total_requests = entry["total_requests"]
                     total_input_tokens = entry["total_input_tokens"]
                     total_output_tokens = entry["total_output_tokens"]
                     cost_str = f"${entry['total_cost']:.4f}" if entry["total_cost"] > 0 else "$0.00"
-                    fields.append(
-                        (
-                            f"#{idx} {entry.get('username', f'User {user_id}')}",
-                            f"Requests: **{total_requests}** | Tokens: **{total_input_tokens}** in / **{total_output_tokens}** out | Cost: **{cost_str}**",
-                            False,
-                        )
-                    )
 
-                embed = bot.embed_service.create_info_embed(
+                    rank_emoji = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else f"`#{idx}`"
+                    line = f"{rank_emoji} **{name}** — {total_requests} reqs · {total_input_tokens:,} in / {total_output_tokens:,} out · {cost_str}"
+                    description_lines.append(line)
+
+                embed = bot.embed_service._create_base_embed(
                     title=f"AI Usage Leaderboard ({period})",
-                    description=f"**{summary['total_requests']}** total requests — **${summary['total_cost']:.4f}** total cost",
-                    fields=fields,
+                    description=f"**{summary['total_requests']}** total requests — **${summary['total_cost']:.4f}** total cost\n\n" + "\n".join(description_lines),
                 )
 
-                await interaction.followup.send(embed=embed, ephemeral=True, files=bot.embed_service.get_brand_files(embed=embed))
+                await interaction.followup.send(embed=embed, files=bot.embed_service.get_brand_files(embed=embed))
 
             except Exception as e:
                 bot.logger.error(f"Error fetching leaderboard: {e}")

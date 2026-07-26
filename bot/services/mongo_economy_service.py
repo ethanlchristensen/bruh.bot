@@ -168,7 +168,7 @@ class MongoEconomyService:
         cursor = (
             self.collection.find(
                 {"guild_id": Int64(guild_id)},
-                {"user_id": 1, "xp": 1, "level": 1, "bruh_coins": 1, "total_messages": 1, "_id": 0},
+                {"user_id": 1, "xp": 1, "level": 1, "bruh_coins": 1, "total_messages": 1, "total_images": 1, "total_reactions_given": 1, "_id": 0},
             )
             .sort([(sort_by, sort_order)])
             .limit(limit)
@@ -181,6 +181,8 @@ class MongoEconomyService:
             doc["xp"] = doc.get("xp", 0)
             doc["bruh_coins"] = doc.get("bruh_coins", 0.0)
             doc["total_messages"] = doc.get("total_messages", 0)
+            doc["total_images"] = doc.get("total_images", 0)
+            doc["total_reactions_given"] = doc.get("total_reactions_given", 0)
             doc["xp_for_next_level"] = self._xp_for_next_level(doc["level"])
             results.append(self._serialize_dates(doc))
             rank += 1

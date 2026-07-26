@@ -70,6 +70,26 @@ class MongoEconomyService:
                 "updated_at": now,
             }
             await self.collection.insert_one(doc)
+        else:
+            defaults = {
+                "xp": 0,
+                "level": 0,
+                "bruh_coins": 0.0,
+                "total_messages": 0,
+                "total_images": 0,
+                "total_reactions_given": 0,
+                "total_bot_mentions": 0,
+                "last_xp_grant": None,
+                "last_daily_claim": None,
+                "booster_active_until": None,
+            }
+            missing = {k: v for k, v in defaults.items() if k not in doc}
+            if missing:
+                await self.collection.update_one(
+                    {"_id": doc["_id"]},
+                    {"$set": missing},
+                )
+                doc.update(missing)
         return doc
 
     async def get_profile(self, guild_id: int, user_id: int) -> dict:
@@ -80,8 +100,8 @@ class MongoEconomyService:
 
     async def add_xp(self, guild_id: int, user_id: int, amount: int) -> tuple[int, int, int]:
         doc = await self._get_or_create_profile_raw(guild_id, user_id)
-        old_level = doc["level"]
-        new_xp = doc["xp"] + amount
+        old_level = doc.get("level", 0)
+        new_xp = doc.get("xp", 0) + amount
         new_level = self._calculate_level(new_xp)
         now = datetime.now(UTC)
         await self.collection.update_one(
@@ -153,7 +173,10 @@ class MongoEconomyService:
         rank = 1
         async for doc in cursor:
             doc["rank"] = rank
-            doc["xp_for_next_level"] = self._xp_for_next_level(doc.get("level", 0))
+            doc["level"] = doc.get("level", 0)
+            doc["xp"] = doc.get("xp", 0)
+            doc["bruh_coins"] = doc.get("bruh_coins", 0.0)
+            doc["xp_for_next_level"] = self._xp_for_next_level(doc["level"])
             results.append(self._serialize_dates(doc))
             rank += 1
         return results

@@ -61,6 +61,7 @@ class MongoAIUsageTrackingService:
         elif end_date:
             match["date"] = {"$lte": end_date}
 
+        # Pass 1: aggregate totals across all dates
         pipeline = [
             {"$match": match},
             {
@@ -70,7 +71,6 @@ class MongoAIUsageTrackingService:
                     "total_input_tokens": {"$sum": "$total_input_tokens"},
                     "total_output_tokens": {"$sum": "$total_output_tokens"},
                     "total_cost": {"$sum": "$total_cost"},
-                    "models_used": {"$mergeObjects": "$models_used"},
                 },
             },
             {"$sort": {"total_cost": -1}},
@@ -82,18 +82,61 @@ class MongoAIUsageTrackingService:
                     "total_input_tokens": 1,
                     "total_output_tokens": 1,
                     "total_cost": 1,
-                    "models_used": 1,
                 },
             },
         ]
 
         cursor = self.collection.aggregate(pipeline)
         results = []
+        user_ids: list[str] = []
         async for doc in cursor:
+            doc["models_used"] = {}
             config = await self.bot.config_service.get_config(str(guild_id))
             username = config.idToUsers.get(doc["user_id"])
             doc["username"] = username or f"User {doc['user_id']}"
             results.append(doc)
+            user_ids.append(doc["user_id"])
+
+        if not results:
+            return results
+
+        # Pass 2: aggregate per-model stats for the same users
+        model_match = {**match, "user_id": {"$in": [Int64(int(uid)) for uid in user_ids]}}
+        model_pipeline = [
+            {"$match": model_match},
+            {
+                "$project": {
+                    "user_id": 1,
+                    "models_array": {"$objectToArray": {"$ifNull": ["$models_used", {}]}},
+                }
+            },
+            {"$unwind": "$models_array"},
+            {
+                "$group": {
+                    "_id": {"user_id": "$user_id", "model": "$models_array.k"},
+                    "requests": {"$sum": {"$ifNull": ["$models_array.v.requests", 0]}},
+                    "input_tokens": {"$sum": {"$ifNull": ["$models_array.v.input_tokens", 0]}},
+                    "output_tokens": {"$sum": {"$ifNull": ["$models_array.v.output_tokens", 0]}},
+                    "cost": {"$sum": {"$ifNull": ["$models_array.v.cost", 0]}},
+                },
+            },
+        ]
+
+        model_cursor = self.collection.aggregate(model_pipeline)
+        models_by_user: dict[str, dict] = {}
+        async for doc in model_cursor:
+            uid = str(doc["_id"]["user_id"])
+            if uid not in models_by_user:
+                models_by_user[uid] = {}
+            models_by_user[uid][doc["_id"]["model"]] = {
+                "requests": doc["requests"],
+                "input_tokens": doc["input_tokens"],
+                "output_tokens": doc["output_tokens"],
+                "cost": doc["cost"],
+            }
+
+        for r in results:
+            r["models_used"] = models_by_user.get(r["user_id"], {})
 
         return results
 
@@ -139,6 +182,7 @@ class MongoAIUsageTrackingService:
         elif end_date:
             match["date"] = {"$lte": end_date}
 
+        # Pass 1: aggregate totals across all dates
         pipeline = [
             {"$match": match},
             {
@@ -148,20 +192,52 @@ class MongoAIUsageTrackingService:
                     "total_input_tokens": {"$sum": "$total_input_tokens"},
                     "total_output_tokens": {"$sum": "$total_output_tokens"},
                     "total_cost": {"$sum": "$total_cost"},
-                    "models_used": {"$mergeObjects": "$models_used"},
                 },
             },
         ]
 
         cursor = self.collection.aggregate(pipeline)
+        result = None
         async for doc in cursor:
-            return {
+            result = {
                 "user_id": str(doc["_id"]),
                 "total_requests": doc["total_requests"],
                 "total_input_tokens": doc["total_input_tokens"],
                 "total_output_tokens": doc["total_output_tokens"],
                 "total_cost": doc["total_cost"],
-                "models_used": doc.get("models_used", {}),
+                "models_used": {},
             }
 
-        return {"user_id": str(user_id), "total_requests": 0, "total_input_tokens": 0, "total_output_tokens": 0, "total_cost": 0, "models_used": {}}
+        if not result:
+            return {"user_id": str(user_id), "total_requests": 0, "total_input_tokens": 0, "total_output_tokens": 0, "total_cost": 0, "models_used": {}}
+
+        # Pass 2: aggregate per-model stats
+        model_pipeline = [
+            {"$match": match},
+            {
+                "$project": {
+                    "models_array": {"$objectToArray": {"$ifNull": ["$models_used", {}]}},
+                }
+            },
+            {"$unwind": "$models_array"},
+            {
+                "$group": {
+                    "_id": "$models_array.k",
+                    "requests": {"$sum": {"$ifNull": ["$models_array.v.requests", 0]}},
+                    "input_tokens": {"$sum": {"$ifNull": ["$models_array.v.input_tokens", 0]}},
+                    "output_tokens": {"$sum": {"$ifNull": ["$models_array.v.output_tokens", 0]}},
+                    "cost": {"$sum": {"$ifNull": ["$models_array.v.cost", 0]}},
+                },
+            },
+        ]
+
+        model_cursor = self.collection.aggregate(model_pipeline)
+        async for doc in model_cursor:
+            result["models_used"][doc["_id"]] = {
+                "requests": doc["requests"],
+                "input_tokens": doc["input_tokens"],
+                "output_tokens": doc["output_tokens"],
+                "cost": doc["cost"],
+            }
+
+        return result

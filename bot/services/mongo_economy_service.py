@@ -65,6 +65,7 @@ class MongoEconomyService:
                 "total_bot_mentions": 0,
                 "last_xp_grant": None,
                 "last_daily_claim": None,
+                "booster_active_until": None,
                 "created_at": now,
                 "updated_at": now,
             }
@@ -88,6 +89,15 @@ class MongoEconomyService:
             {"$set": {"xp": new_xp, "level": new_level, "updated_at": now}},
         )
         return new_xp, old_level, new_level
+
+    async def activate_booster(self, guild_id: int, user_id: int, hours: int) -> datetime:
+        until = datetime.now(UTC) + timedelta(hours=hours)
+        await self.collection.update_one(
+            {"guild_id": Int64(guild_id), "user_id": Int64(user_id)},
+            {"$set": {"booster_active_until": until, "updated_at": datetime.now(UTC)}},
+            upsert=True,
+        )
+        return until
 
     async def add_coins(self, guild_id: int, user_id: int, amount: float) -> float:
         now = datetime.now(UTC)
@@ -226,6 +236,7 @@ class MongoEconomyService:
                     "total_bot_mentions": 0,
                     "last_xp_grant": None,
                     "last_daily_claim": None,
+                    "booster_active_until": None,
                     "updated_at": now,
                 },
             },
@@ -250,6 +261,22 @@ class MongoEconomyService:
             coins_awarded += mention_coins
             await self.add_stat(guild_id, user_id, "total_bot_mentions")
 
+        # Check for active XP booster
+        doc = await self._get_or_create_profile_raw(guild_id, user_id)
+        booster = doc.get("booster_active_until")
+        if booster:
+            if isinstance(booster, str):
+                booster = datetime.fromisoformat(booster.replace("Z", "+00:00"))
+            if booster.tzinfo is None:
+                booster = booster.replace(tzinfo=UTC)
+            if datetime.now(UTC) < booster:
+                xp_awarded *= 2
+            else:
+                await self.collection.update_one(
+                    {"guild_id": Int64(guild_id), "user_id": Int64(user_id)},
+                    {"$set": {"booster_active_until": None}},
+                )
+
         new_xp, old_level, new_level = await self.add_xp(guild_id, user_id, xp_awarded)
         await self.add_coins(guild_id, user_id, coins_awarded)
         await self.add_stat(guild_id, user_id, "total_messages")
@@ -267,7 +294,7 @@ class MongoEconomyService:
 
     @staticmethod
     def _serialize_dates(doc: dict) -> dict:
-        for key in ("last_xp_grant", "last_daily_claim", "created_at", "updated_at"):
+        for key in ("last_xp_grant", "last_daily_claim", "booster_active_until", "created_at", "updated_at"):
             val = doc.get(key)
             if isinstance(val, datetime):
                 doc[key] = val.isoformat()

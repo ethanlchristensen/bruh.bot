@@ -357,7 +357,7 @@ class AiUsageCommand:
                 models_used = usage.get("models_used", {})
                 if models_used:
                     top_models = sorted(models_used.items(), key=lambda x: x[1].get("cost", 0), reverse=True)[:3]
-                    models_str = "\n".join(f"• **{m}**: {s['requests']} req — ${s['cost']:.4f}" for m, s in top_models)
+                    models_str = "\n".join(f"• **{m}**: {s.get('requests', 0)} req — ${s.get('cost', 0):.4f}" for m, s in top_models)
 
                 embed = bot.embed_service.create_info_embed(
                     title=f"Your AI Usage ({period})",

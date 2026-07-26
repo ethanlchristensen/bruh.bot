@@ -213,8 +213,10 @@ class BruhBot(commands.Bot):
                     is_bot_mention=is_bot_mention,
                 )
                 if leveled_up and econ_config.levelUpAnnounceInChannel:
+                    profile = await self.economy_service.get_profile(message.guild.id, message.author.id)
+                    next_xp = profile["xp_for_next_level"]
                     embed = self.embed_service.create_success_embed(
-                        f"{message.author.mention} reached **Level {new_level}**! 🎉\nKeep chatting to earn more XP!",
+                        f"{message.author.mention} reached **Level {new_level}**! 🎉\nTotal XP: **{profile['xp']:,}** · Next level: **{next_xp:,} XP**",
                         title="Level Up!",
                     )
                     await message.channel.send(embed=embed)

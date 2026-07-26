@@ -615,10 +615,12 @@ async def get_usage_leaderboard(days: int | None = None, guild_id: str = Depends
         # Second pass: per-model stats (correctly sums across dates)
         model_pipeline = [
             {"$match": {**match, "user_id": {"$in": user_ids_int}}},
-            {"$project": {
-                "user_id": 1,
-                "models_array": {"$objectToArray": {"$ifNull": ["$models_used", {}]}},
-            }},
+            {
+                "$project": {
+                    "user_id": 1,
+                    "models_array": {"$objectToArray": {"$ifNull": ["$models_used", {}]}},
+                }
+            },
             {"$unwind": "$models_array"},
             {
                 "$group": {

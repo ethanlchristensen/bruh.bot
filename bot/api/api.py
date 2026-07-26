@@ -585,7 +585,6 @@ async def get_usage_leaderboard(days: int | None = None, guild_id: str = Depends
                     "total_input_tokens": {"$sum": "$total_input_tokens"},
                     "total_output_tokens": {"$sum": "$total_output_tokens"},
                     "total_cost": {"$sum": "$total_cost"},
-                    "models_used": {"$mergeObjects": "$models_used"},
                 },
             },
             {"$sort": {"total_cost": -1}},
@@ -593,8 +592,10 @@ async def get_usage_leaderboard(days: int | None = None, guild_id: str = Depends
         ]
 
         leaderboard = []
+        user_ids_int: list[int] = []
         async for doc in collection.aggregate(pipeline):
             uid = str(doc["_id"])
+            uid_int = int(doc["_id"])
             member = member_names.get(uid, {})
             username = member.get("username") or id_to_users.get(uid) or f"User {uid}"
             leaderboard.append(
@@ -606,9 +607,41 @@ async def get_usage_leaderboard(days: int | None = None, guild_id: str = Depends
                     "total_input_tokens": doc["total_input_tokens"],
                     "total_output_tokens": doc["total_output_tokens"],
                     "total_cost": round(doc["total_cost"], 6),
-                    "models_used": doc.get("models_used", {}),
+                    "models_used": {},
                 }
             )
+            user_ids_int.append(uid_int)
+
+        # Second pass: per-model stats (correctly sums across dates)
+        model_pipeline = [
+            {"$match": {**match, "user_id": {"$in": user_ids_int}}},
+            {"$project": {
+                "user_id": 1,
+                "models_array": {"$objectToArray": {"$ifNull": ["$models_used", {}]}},
+            }},
+            {"$unwind": "$models_array"},
+            {
+                "$group": {
+                    "_id": {"user_id": "$user_id", "model": "$models_array.k"},
+                    "requests": {"$sum": {"$ifNull": ["$models_array.v.requests", 0]}},
+                    "input_tokens": {"$sum": {"$ifNull": ["$models_array.v.input_tokens", 0]}},
+                    "output_tokens": {"$sum": {"$ifNull": ["$models_array.v.output_tokens", 0]}},
+                    "cost": {"$sum": {"$ifNull": ["$models_array.v.cost", 0]}},
+                },
+            },
+        ]
+
+        async for doc in collection.aggregate(model_pipeline):
+            uid = str(doc["_id"]["user_id"])
+            for entry in leaderboard:
+                if entry["user_id"] == uid:
+                    entry["models_used"][doc["_id"]["model"]] = {
+                        "requests": doc["requests"],
+                        "input_tokens": doc["input_tokens"],
+                        "output_tokens": doc["output_tokens"],
+                        "cost": doc["cost"],
+                    }
+                    break
 
         summary_pipeline = [
             {"$match": match},
@@ -713,7 +746,7 @@ async def get_economy_leaderboard(sort_by: str = "xp", limit: int = 25, guild_id
                     "xp": entry["xp"],
                     "level": entry["level"],
                     "bruh_coins": entry["bruh_coins"],
-                    "total_messages": entry["total_messages"],
+                    "total_messages": entry.get("total_messages", 0),
                     "rank": entry["rank"],
                 }
             )

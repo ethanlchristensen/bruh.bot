@@ -111,11 +111,11 @@ class MongoEconomyService:
         return new_xp, old_level, new_level
 
     async def activate_booster(self, guild_id: int, user_id: int, hours: int) -> datetime:
+        await self._get_or_create_profile_raw(guild_id, user_id)
         until = datetime.now(UTC) + timedelta(hours=hours)
         await self.collection.update_one(
             {"guild_id": Int64(guild_id), "user_id": Int64(user_id)},
             {"$set": {"booster_active_until": until, "updated_at": datetime.now(UTC)}},
-            upsert=True,
         )
         return until
 
@@ -176,6 +176,7 @@ class MongoEconomyService:
             doc["level"] = doc.get("level", 0)
             doc["xp"] = doc.get("xp", 0)
             doc["bruh_coins"] = doc.get("bruh_coins", 0.0)
+            doc["total_messages"] = doc.get("total_messages", 0)
             doc["xp_for_next_level"] = self._xp_for_next_level(doc["level"])
             results.append(self._serialize_dates(doc))
             rank += 1

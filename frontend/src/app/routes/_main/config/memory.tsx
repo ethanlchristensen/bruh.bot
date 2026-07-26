@@ -1,15 +1,16 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useConfig, useUpdateConfig } from '@/hooks/use-config';
 import { Spinner } from '@/components/ui/spinner';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardIcon } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Save, BrainCircuit } from 'lucide-react';
+import { BrainCircuit } from 'lucide-react';
+import { PageHeader } from '@/components/layouts/page-header';
+import { StickySaveBar } from '@/components/layouts/sticky-save-bar';
 
 export const Route = createFileRoute('/_main/config/memory')({
   component: MemoryConfigComponent,
@@ -31,20 +32,66 @@ function MemoryConfigComponent() {
   const [memoryMaxPerUser, setMemoryMaxPerUser] = useState(50);
   const [memoryMaxInjection, setMemoryMaxInjection] = useState(10);
 
+  const initialValuesRef = useRef<{
+    memoryEnabled: boolean;
+    memoryExtractionInterval: number;
+    memoryMoodInterval: number;
+    memoryExtractionModel: string;
+    memoryMaxMessages: number;
+    memoryMinMessages: number;
+    memoryMinLength: number;
+    memoryMaxPerUser: number;
+    memoryMaxInjection: number;
+  } | null>(null);
+
   useEffect(() => {
     if (data?.config && !isSaving) {
       const memCfg = data.config.memoryConfig || {};
-      setMemoryEnabled(memCfg.enabled ?? true);
-      setMemoryExtractionInterval(memCfg.extractionIntervalMinutes ?? 20);
-      setMemoryMoodInterval(memCfg.moodExtractionIntervalMinutes ?? 5);
-      setMemoryExtractionModel(memCfg.extractionModel || 'deepseek/deepseek-v4-flash');
-      setMemoryMaxMessages(memCfg.maxMessagesPerExtraction ?? 50);
-      setMemoryMinMessages(memCfg.minMessagesForExtraction ?? 5);
-      setMemoryMinLength(memCfg.minMessageLength ?? 10);
-      setMemoryMaxPerUser(memCfg.maxMemoriesPerUser ?? 50);
-      setMemoryMaxInjection(memCfg.maxInjectionCount ?? 10);
+      const vals = {
+        memoryEnabled: memCfg.enabled ?? true,
+        memoryExtractionInterval: memCfg.extractionIntervalMinutes ?? 20,
+        memoryMoodInterval: memCfg.moodExtractionIntervalMinutes ?? 5,
+        memoryExtractionModel: memCfg.extractionModel || 'deepseek/deepseek-v4-flash',
+        memoryMaxMessages: memCfg.maxMessagesPerExtraction ?? 50,
+        memoryMinMessages: memCfg.minMessagesForExtraction ?? 5,
+        memoryMinLength: memCfg.minMessageLength ?? 10,
+        memoryMaxPerUser: memCfg.maxMemoriesPerUser ?? 50,
+        memoryMaxInjection: memCfg.maxInjectionCount ?? 10,
+      };
+      if (!initialValuesRef.current) {
+        initialValuesRef.current = vals;
+      }
+      setMemoryEnabled(vals.memoryEnabled);
+      setMemoryExtractionInterval(vals.memoryExtractionInterval);
+      setMemoryMoodInterval(vals.memoryMoodInterval);
+      setMemoryExtractionModel(vals.memoryExtractionModel);
+      setMemoryMaxMessages(vals.memoryMaxMessages);
+      setMemoryMinMessages(vals.memoryMinMessages);
+      setMemoryMinLength(vals.memoryMinLength);
+      setMemoryMaxPerUser(vals.memoryMaxPerUser);
+      setMemoryMaxInjection(vals.memoryMaxInjection);
     }
   }, [data, isSaving]);
+
+  const hasChanges = useMemo(() => {
+    const iv = initialValuesRef.current;
+    if (!iv) return false;
+    return (
+      memoryEnabled !== iv.memoryEnabled ||
+      memoryExtractionInterval !== iv.memoryExtractionInterval ||
+      memoryMoodInterval !== iv.memoryMoodInterval ||
+      memoryExtractionModel !== iv.memoryExtractionModel ||
+      memoryMaxMessages !== iv.memoryMaxMessages ||
+      memoryMinMessages !== iv.memoryMinMessages ||
+      memoryMinLength !== iv.memoryMinLength ||
+      memoryMaxPerUser !== iv.memoryMaxPerUser ||
+      memoryMaxInjection !== iv.memoryMaxInjection
+    );
+  }, [
+    memoryEnabled, memoryExtractionInterval, memoryMoodInterval,
+    memoryExtractionModel, memoryMaxMessages, memoryMinMessages,
+    memoryMinLength, memoryMaxPerUser, memoryMaxInjection,
+  ]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -65,6 +112,11 @@ function MemoryConfigComponent() {
         });
         await queryClient.invalidateQueries({ queryKey: ['config'] });
         setIsSaving(false);
+        initialValuesRef.current = {
+          memoryEnabled, memoryExtractionInterval, memoryMoodInterval,
+          memoryExtractionModel, memoryMaxMessages, memoryMinMessages,
+          memoryMinLength, memoryMaxPerUser, memoryMaxInjection,
+        };
         resolve('Memory configuration saved!');
       } catch (err) {
         setIsSaving(false);
@@ -89,36 +141,31 @@ function MemoryConfigComponent() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto pb-12">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/40 pb-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Memory System</h1>
-          <p className="text-sm text-muted-foreground">
-            AI-powered user memory extraction and context injection.
-          </p>
-        </div>
-        <Button onClick={handleSave} className="gap-2">
-          <Save className="h-4 w-4" />
-          Save Changes
-        </Button>
-      </div>
+    <div className="space-y-8 pb-20" data-page="memory">
+      <PageHeader
+        icon={<BrainCircuit />}
+        title="Memory System"
+        description="AI-powered user memory extraction and context injection."
+      />
 
-      <Card className="border-primary/20 shadow-md">
-        <CardHeader className="flex flex-row items-center gap-4">
-          <div className="p-2 bg-primary/10 rounded-lg text-primary">
-            <BrainCircuit className="h-6 w-6" />
-          </div>
-          <div>
-            <CardTitle>Memory Extraction</CardTitle>
-            <CardDescription>
-              Configure how the bot observes messages and extracts user memories.
-            </CardDescription>
+      <StickySaveBar onSave={handleSave} isSaving={isSaving} hasChanges={hasChanges} />
+
+      <Card variant="hero">
+        <CardHeader>
+          <div className="flex items-center gap-4">
+            <CardIcon><BrainCircuit /></CardIcon>
+            <div>
+              <CardTitle>Memory Extraction</CardTitle>
+              <CardDescription>
+                Configure how the bot observes messages and extracts user memories.
+              </CardDescription>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="flex items-center justify-between p-4 rounded-lg bg-muted/40">
-            <div className="space-y-0.5">
-              <Label htmlFor="memory-enabled" className="font-semibold cursor-pointer">Enable Extraction</Label>
+          <div className="flex items-center justify-between p-5 rounded-xl bg-muted/30">
+            <div className="space-y-1">
+              <Label htmlFor="memory-enabled" className="font-semibold cursor-pointer text-base">Enable Extraction</Label>
               <p className="text-xs text-muted-foreground">Auto-extract memories from user messages</p>
             </div>
             <Switch
@@ -128,7 +175,9 @@ function MemoryConfigComponent() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <Separator label="Scheduling" />
+
+          <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label htmlFor="memory-interval">Extraction Interval (minutes)</Label>
               <Input
@@ -138,6 +187,7 @@ function MemoryConfigComponent() {
                 onChange={(e) => setMemoryExtractionInterval(parseInt(e.target.value) || 20)}
                 min={1}
                 max={1440}
+                className="h-10"
               />
             </div>
             <div className="space-y-2">
@@ -149,9 +199,12 @@ function MemoryConfigComponent() {
                 onChange={(e) => setMemoryMoodInterval(parseInt(e.target.value) || 5)}
                 min={1}
                 max={1440}
+                className="h-10"
               />
             </div>
           </div>
+
+          <Separator label="Model" />
 
           <div className="space-y-2">
             <Label htmlFor="memory-model">Extraction Model</Label>
@@ -161,11 +214,14 @@ function MemoryConfigComponent() {
               value={memoryExtractionModel}
               onChange={(e) => setMemoryExtractionModel(e.target.value)}
               placeholder="deepseek/deepseek-v4-flash"
+              className="h-10"
             />
             <p className="text-xs text-muted-foreground">The LLM used to analyze messages and extract memories. Should be cheap and fast.</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <Separator label="Extraction Behavior" />
+
+          <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label htmlFor="memory-max-msgs">Max Messages Per Batch</Label>
               <Input
@@ -175,6 +231,7 @@ function MemoryConfigComponent() {
                 onChange={(e) => setMemoryMaxMessages(parseInt(e.target.value) || 50)}
                 min={1}
                 max={200}
+                className="h-10"
               />
             </div>
             <div className="space-y-2">
@@ -186,11 +243,12 @@ function MemoryConfigComponent() {
                 onChange={(e) => setMemoryMinMessages(parseInt(e.target.value) || 5)}
                 min={1}
                 max={100}
+                className="h-10"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label htmlFor="memory-min-length">Min Message Length (chars)</Label>
               <Input
@@ -200,6 +258,7 @@ function MemoryConfigComponent() {
                 onChange={(e) => setMemoryMinLength(parseInt(e.target.value) || 10)}
                 min={1}
                 max={500}
+                className="h-10"
               />
             </div>
             <div className="space-y-2">
@@ -211,6 +270,7 @@ function MemoryConfigComponent() {
                 onChange={(e) => setMemoryMaxPerUser(parseInt(e.target.value) || 50)}
                 min={1}
                 max={500}
+                className="h-10"
               />
             </div>
           </div>
@@ -224,6 +284,7 @@ function MemoryConfigComponent() {
               onChange={(e) => setMemoryMaxInjection(parseInt(e.target.value) || 10)}
               min={0}
               max={50}
+              className="h-10"
             />
             <p className="text-xs text-muted-foreground">How many memories to include in the system prompt when users talk to the bot.</p>
           </div>
@@ -238,7 +299,7 @@ function MemoryConfigComponent() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3">
+          <div className="grid gap-3 md:grid-cols-2">
             {[
               { cat: 'identity', retention: 'Permanent', desc: 'Immutable facts like name, age, location' },
               { cat: 'trait', retention: 'Permanent', desc: 'Personality traits, skills, profession' },
@@ -249,12 +310,12 @@ function MemoryConfigComponent() {
               { cat: 'opinion', retention: '30 days', desc: 'Opinions on topics, beliefs' },
               { cat: 'mood', retention: '7 days', desc: 'Current emotional state, feelings' },
             ].map(({ cat, retention, desc }) => (
-              <div key={cat} className="flex items-center justify-between p-3 rounded-lg bg-muted/40">
+              <div key={cat} className="flex items-center justify-between p-4 rounded-xl bg-muted/30">
                 <div>
                   <span className="font-semibold text-sm capitalize">{cat}</span>
                   <p className="text-xs text-muted-foreground">{desc}</p>
                 </div>
-                <span className={`text-xs font-bold px-2 py-1 rounded ${retention === 'Permanent' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${retention === 'Permanent' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
                   {retention}
                 </span>
               </div>
@@ -262,6 +323,16 @@ function MemoryConfigComponent() {
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function Separator({ label }: { label?: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="h-px flex-1 bg-gradient-to-r from-border/60 to-transparent" />
+      {label && <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground shrink-0">{label}</span>}
+      {label && <div className="h-px flex-1 bg-gradient-to-l from-border/60 to-transparent" />}
     </div>
   );
 }

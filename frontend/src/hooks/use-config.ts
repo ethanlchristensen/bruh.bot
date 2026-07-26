@@ -151,3 +151,11 @@ export function useUsers() {
     staleTime: 30000,
   });
 }
+
+export function useUsageLeaderboard(days?: number) {
+  return useQuery({
+    queryKey: ['usage', 'leaderboard', days],
+    queryFn: () => apiClient.getUsageLeaderboard(days),
+    staleTime: 30000,
+  });
+}

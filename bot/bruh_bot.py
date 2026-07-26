@@ -15,7 +15,11 @@ from bot.services import (
     ImageGenerationService,
     MemoryExtractionService,
     MessageService,
+    MongoAIUsageService,
+    MongoAIUsageTrackingService,
     MongoChatService,
+    MongoEconomyService,
+    MongoGuildMemberService,
     MongoImageLimitService,
     MongoMemoryService,
     MongoMorningConfigService,
@@ -60,6 +64,10 @@ class BruhBot(commands.Bot):
         self.music_websocket_service = MusicWebSocketService(self)
         self.memory_service = MongoMemoryService(self)
         self.memory_extraction_service = MemoryExtractionService(self)
+        self.ai_usage_service = MongoAIUsageService(self)
+        self.ai_usage_tracking_service = MongoAIUsageTrackingService(self)
+        self.economy_service = MongoEconomyService(self)
+        self.guild_member_service = MongoGuildMemberService(self)
 
     async def setup_hook(self):
         # Initialize database services
@@ -82,6 +90,26 @@ class BruhBot(commands.Bot):
             await self.memory_service.initialize()
         except Exception as e:
             self.logger.warning(f"Failed to initialize memory_service: {e}")
+
+        try:
+            await self.ai_usage_service.initialize()
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize ai_usage_service: {e}")
+
+        try:
+            await self.ai_usage_tracking_service.initialize()
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize ai_usage_tracking_service: {e}")
+
+        try:
+            await self.economy_service.initialize()
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize economy_service: {e}")
+
+        try:
+            await self.guild_member_service.initialize()
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize guild_member_service: {e}")
 
         try:
             await self.memory_extraction_service.start_extraction_loops()
@@ -145,6 +173,13 @@ class BruhBot(commands.Bot):
             except Exception as e:
                 self.logger.error(f"Failed to update guild name for {guild.name}: {e}")
 
+        # Sync guild members
+        for guild in self.guilds:
+            try:
+                await self.guild_member_service.sync_all_members(guild)
+            except Exception as e:
+                self.logger.error(f"Failed to sync members for {guild.name}: {e}")
+
         self.logger.info("✅ bruh.bot is online!")
 
     async def on_message(self, message: discord.Message):
@@ -165,6 +200,24 @@ class BruhBot(commands.Bot):
 
         if message.guild:
             await self.memory_extraction_service.enqueue_message(message)
+
+            econ_config = config.economyConfig
+            if econ_config.xpEnabled:
+                has_attachment = bool(message.attachments)
+                is_bot_mention = self.user in message.mentions
+                old_level, new_level, leveled_up = await self.economy_service.handle_message_event(
+                    guild_id=message.guild.id,
+                    user_id=message.author.id,
+                    config=econ_config,
+                    has_attachment=has_attachment,
+                    is_bot_mention=is_bot_mention,
+                )
+                if leveled_up and econ_config.levelUpAnnounceInChannel:
+                    embed = self.embed_service.create_success_embed(
+                        f"{message.author.mention} reached **Level {new_level}**! 🎉\nKeep chatting to earn more XP!",
+                        title="Level Up!",
+                    )
+                    await message.channel.send(embed=embed)
 
         if await self.message_service.should_delete_message(message.guild.id, message):
             await self.response_service.send_response(message, "L + RATIO", reply=False)
@@ -207,6 +260,37 @@ class BruhBot(commands.Bot):
                     await player.leave()
                     self.music_queue_service.remove_player(member.guild)
 
+    async def on_reaction_add(self, reaction: discord.Reaction, user: discord.User):
+        if user.bot or not reaction.message.guild:
+            return
+        try:
+            await self.economy_service.handle_reaction_event(
+                guild_id=reaction.message.guild.id,
+                user_id=user.id,
+            )
+        except Exception:
+            self.logger.debug("Failed to handle reaction event", exc_info=True)
+
+    async def on_member_join(self, member: discord.Member):
+        try:
+            await self.guild_member_service.upsert_member(member)
+        except Exception:
+            self.logger.debug("Failed to upsert member on join", exc_info=True)
+
+    async def on_member_update(self, before: discord.Member, after: discord.Member):
+        try:
+            await self.guild_member_service.upsert_member(after)
+        except Exception:
+            self.logger.debug("Failed to upsert member on update", exc_info=True)
+
+    async def on_user_update(self, before: discord.User, after: discord.User):
+        for guild in self.guilds:
+            if guild.get_member(after.id):
+                try:
+                    await self.guild_member_service.upsert_user(after, guild)
+                except Exception:
+                    self.logger.debug("Failed to upsert user on update", exc_info=True)
+
     async def _handle_message_intent(self, message: discord.Message, reference_message):
         """Handle the user's message based on detected intent."""
         is_replying_to_bot_image = await self.message_service.is_replying_to_bot_image(reference_message)
@@ -226,6 +310,14 @@ class BruhBot(commands.Bot):
         """Handle chat intent."""
         self.logger.info(f"Chatting with intent: {user_intent.intent} for reason of: {user_intent.reasoning}")
         aiConfig = (await self.config_service.get_config(str(message.guild.id))).aiConfig
+
+        can_request, limit_msg = await self.ai_usage_service.can_make_request(message.author.id, message.guild.id)
+        if not can_request:
+            await self.response_service.send_response(message, limit_msg)
+            return
+
+        await self.ai_usage_service.increment_usage(message.author.id, message.guild.id)
+
         messages = await self.message_service.build_message_context(message, reference_message, message.author.name)
 
         from bot.services.ai.gateway.gateway import get_mesh_gateway
@@ -271,6 +363,17 @@ class BruhBot(commands.Bot):
         req = NormalizedRequest(provider=provider, model=preferred_model, messages=messages)
         gateway = get_mesh_gateway()
         response = await gateway.complete(req, credentials={"api_key": api_key})
+
+        if response.usage:
+            await self.ai_usage_tracking_service.track_usage(
+                user_id=message.author.id,
+                guild_id=message.guild.id,
+                input_tokens=response.usage.get("input_tokens", 0),
+                output_tokens=response.usage.get("output_tokens", 0),
+                cost=response.usage.get("cost", 0),
+                model=response.model or preferred_model,
+            )
+
         content = "".join(part.content for part in response.parts if part.type == "text")
         sent_msg = await self.response_service.send_response(message, content)
         if sent_msg:
@@ -305,10 +408,11 @@ class BruhBot(commands.Bot):
                 guild_id=message.guild.id,
                 prompt=message.content,
                 image_urls=image_urls,
+                user_id=message.author.id,
             )
         else:
             self.logger.info("No image attachments found, generating image with user prompt.")
-            image_generation_response: ImageGenerationResponse = await self.image_generation_service.generate_image(guild_id=message.guild.id, prompt=message.content)
+            image_generation_response: ImageGenerationResponse = await self.image_generation_service.generate_image(guild_id=message.guild.id, prompt=message.content, user_id=message.author.id)
 
         if image_generation_response.generated_image:
             await self.image_limit_service.increment_usage(message.author.id, message.guild.id)

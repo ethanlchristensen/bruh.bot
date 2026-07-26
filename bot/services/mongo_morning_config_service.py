@@ -13,7 +13,7 @@ class MongoMorningConfigService:
 
     def __init__(self, bot: "BruhBot"):
         self.bot = bot
-        self.collection = self.bot.config_service.db[self.bot.config_service.base.mongoMorningConfigsCollectionName]
+        self.collection = self.bot.config_service.col(self.bot.config_service.base.mongoMorningConfigsCollectionName)
         self.logger = logging.getLogger(__name__)
         try:
             loop = asyncio.get_running_loop()

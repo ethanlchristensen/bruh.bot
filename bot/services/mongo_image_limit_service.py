@@ -15,7 +15,7 @@ class MongoImageLimitService:
 
     def __init__(self, bot: "BruhBot"):
         self.bot = bot
-        self.collection = self.bot.config_service.db[self.bot.config_service.base.mongoImageLimitsCollectionName]
+        self.collection = self.bot.config_service.col(self.bot.config_service.base.mongoImageLimitsCollectionName)
         self.timezone = ZoneInfo("America/Chicago")
         self.logger = logging.getLogger(__name__)
 

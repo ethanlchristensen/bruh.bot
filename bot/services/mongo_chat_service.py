@@ -13,7 +13,7 @@ class MongoChatService:
 
     def __init__(self, bot: "BruhBot"):
         self.bot = bot
-        self.collection = self.bot.config_service.db[self.bot.config_service.base.mongoChatThreadsCollectionName]
+        self.collection = self.bot.config_service.col(self.bot.config_service.base.mongoChatThreadsCollectionName)
         self.logger = logging.getLogger(__name__)
         import asyncio
 

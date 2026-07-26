@@ -51,6 +51,9 @@ export function GuildSelector() {
     queryClient.invalidateQueries({ queryKey: configKeys.all });
     queryClient.invalidateQueries({ queryKey: ['users'] });
     queryClient.invalidateQueries({ queryKey: memoryKeys.all });
+    queryClient.invalidateQueries({ queryKey: ['usage'] });
+    queryClient.invalidateQueries({ queryKey: ['economy'] });
+    queryClient.invalidateQueries({ queryKey: ['members'] });
   };
 
   const selectedGuild = data?.guilds?.find((g) => g.id === selectedGuildId);

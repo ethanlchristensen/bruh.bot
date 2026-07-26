@@ -31,7 +31,7 @@ def _expires_at_for_category(category: str) -> datetime | None:
 class MongoMemoryService:
     def __init__(self, bot: "BruhBot"):
         self.bot = bot
-        self.collection = self.bot.config_service.db[self.bot.config_service.base.mongoUserMemoriesCollectionName]
+        self.collection = self.bot.config_service.col(self.bot.config_service.base.mongoUserMemoriesCollectionName)
         self.logger = logging.getLogger(__name__)
 
     async def initialize(self):

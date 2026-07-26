@@ -18,23 +18,12 @@ import {
 import { useMusic } from '@/contexts/music-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardIcon } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { PageHeader } from '@/components/layouts/page-header';
 
 export const Route = createFileRoute('/_main/music')({
   component: MusicComponent,
@@ -99,14 +88,12 @@ function MusicComponent() {
   const [localPos, setLocalPos] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
 
-  // Sync local position with state position
   useEffect(() => {
     if (!isDragging && state) {
       setLocalPos(state.position);
     }
   }, [state, isDragging]);
 
-  // Interpolate position if playing
   useEffect(() => {
     if (!state || state.is_paused || !state.is_playing || isDragging) return;
 
@@ -126,7 +113,7 @@ function MusicComponent() {
     if (query.trim()) {
       add(query.trim(), filterPreset);
       setQuery('');
-      setFilterPreset('none'); // Reset filter after adding
+      setFilterPreset('none');
     }
   };
 
@@ -134,17 +121,22 @@ function MusicComponent() {
   const duration = currentSong?.duration || 0;
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto w-full pb-10">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-
+    <div className="space-y-8 pb-12" data-page="music">
+      <PageHeader
+        icon={<MusicIcon />}
+        title="Music Queue"
+        description={isConnected ? 'Manage playback and queue.' : 'Connect to a guild to control music.'}
+      >
+        <div className="flex items-center gap-3">
+          <Badge
+            variant={isConnected ? 'outline' : 'destructive'}
+            className="gap-1.5 px-3 py-1.5"
+          >
+            {isConnected ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
+            {isConnected ? 'Connected' : 'Disconnected'}
+          </Badge>
           {isConnected ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={disconnect}
-              className="gap-2"
-            >
+            <Button variant="outline" size="sm" onClick={disconnect} className="gap-2">
               <WifiOff className="h-4 w-4" /> Disconnect
             </Button>
           ) : (
@@ -152,58 +144,49 @@ function MusicComponent() {
               <Wifi className="h-4 w-4" /> Connect to Guild
             </Button>
           )}
-
-          <Badge
-            variant={isConnected ? 'outline' : 'destructive'}
-            className="gap-1"
-          >
-            {isConnected ? (
-              <Wifi className="h-3 w-3" />
-            ) : (
-              <WifiOff className="h-3 w-3" />
-            )}
-            {isConnected ? 'Connected' : 'Disconnected'}
-          </Badge>
         </div>
-        {lastMessage && (
-          <div className="text-sm text-muted-foreground animate-in fade-in slide-in-from-top-1">
-            {lastMessage}
-          </div>
-        )}
-      </div>
+      </PageHeader>
+
+      {lastMessage && (
+        <div className="text-sm text-muted-foreground animate-in fade-in slide-in-from-top-1">
+          {lastMessage}
+        </div>
+      )}
 
       {(error || (state as any)?.error) && (
         <Card className="border-destructive/50 bg-destructive/5">
-          <CardContent className="pt-6 flex items-center gap-3 text-destructive">
+          <CardContent className="py-5 flex items-center gap-3 text-destructive">
             <AlertCircle className="h-5 w-5" />
-            <p>{error || (state as any)?.error}</p>
+            <p className="text-sm">{error || (state as any)?.error}</p>
           </CardContent>
         </Card>
       )}
 
-      <div className="flex flex-col gap-6">
-        {/* Now Playing Section */}
-        <Card className="w-full">
+      <div className="grid gap-8 lg:grid-cols-5">
+        {/* Now Playing — 3/5 width */}
+        <Card variant="hero" className="lg:col-span-3">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MusicIcon className="h-5 w-5" />
-              Now Playing
-            </CardTitle>
-            <CardDescription>
-              {!isConnected
-                ? 'Connect to a guild to view status'
-                : state?.is_playing
-                  ? state.is_paused
-                    ? 'Paused'
-                    : 'Currently playing'
-                  : 'Nothing playing'}
-            </CardDescription>
+            <div className="flex items-center gap-4">
+              <CardIcon><MusicIcon /></CardIcon>
+              <div>
+                <CardTitle>Now Playing</CardTitle>
+                <CardDescription>
+                  {!isConnected
+                    ? 'Connect to a guild to view status'
+                    : state?.is_playing
+                      ? state.is_paused
+                        ? 'Paused'
+                        : 'Currently playing'
+                      : 'Nothing playing'}
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-8">
             {currentSong ? (
-              <div className="flex flex-col md:flex-row gap-6 w-full">
+              <div className="flex flex-col lg:flex-row gap-8">
                 {currentSong.thumbnail_url && (
-                  <div className="aspect-video w-full md:w-64 lg:w-80 shrink-0 overflow-hidden rounded-md border bg-muted/30 relative">
+                  <div className="aspect-video w-full lg:w-72 xl:w-80 shrink-0 overflow-hidden rounded-xl border bg-muted/30 relative shadow-sm">
                     <img
                       src={currentSong.thumbnail_url}
                       alt={currentSong.title}
@@ -211,10 +194,10 @@ function MusicComponent() {
                     />
                     {currentSong.filter_preset &&
                       currentSong.filter_preset !== 'none' && (
-                        <div className="absolute top-2 right-2">
+                        <div className="absolute top-3 right-3">
                           <Badge
                             variant="secondary"
-                            className="bg-black/50 backdrop-blur-md text-white border-none shadow-sm gap-1 hover:bg-black/60"
+                            className="bg-black/50 backdrop-blur-md text-white border-none shadow-sm gap-1.5 hover:bg-black/60"
                           >
                             <Filter className="h-3 w-3" />
                             {FILTER_PRESETS.find(
@@ -226,8 +209,8 @@ function MusicComponent() {
                   </div>
                 )}
 
-                <div className="flex-1 flex flex-col justify-between gap-6">
-                  <div className="space-y-2">
+                <div className="flex-1 flex flex-col justify-between gap-8 min-w-0">
+                  <div className="space-y-3">
                     <h3 className="font-bold text-xl line-clamp-2">
                       {currentSong.webpage_url ? (
                         <a
@@ -242,7 +225,7 @@ function MusicComponent() {
                         currentSong.title
                       )}
                     </h3>
-                    <p className="text-muted-foreground flex items-center gap-1">
+                    <p className="text-muted-foreground flex items-center gap-1.5">
                       <User className="h-4 w-4" />
                       {currentSong.author_url ? (
                         <a
@@ -257,13 +240,13 @@ function MusicComponent() {
                         currentSong.author
                       )}
                     </p>
-                    <Badge variant="secondary" className="mt-2">
+                    <Badge variant="secondary" className="mt-1">
                       Requested by: {currentSong.requested_by}
                     </Badge>
                   </div>
 
-                  <div className="space-y-4">
-                    <div className="space-y-2">
+                  <div className="space-y-5">
+                    <div className="space-y-2.5">
                       <Slider
                         value={[localPos]}
                         max={duration}
@@ -277,6 +260,7 @@ function MusicComponent() {
                           seek(vals[0]);
                         }}
                         disabled={!isConnected}
+                        className="cursor-pointer"
                       />
                       <div className="flex justify-between text-xs text-muted-foreground">
                         <span>{formatTime(localPos)}</span>
@@ -284,31 +268,34 @@ function MusicComponent() {
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap justify-start gap-4">
+                    <div className="flex flex-wrap items-center gap-3">
                       {state.is_paused ? (
                         <Button
-                          size="icon"
+                          size="lg"
                           variant="outline"
                           onClick={resume}
                           disabled={!isConnected}
+                          className="h-12 w-12 rounded-full"
                         >
                           <Play className="h-5 w-5 fill-current" />
                         </Button>
                       ) : (
                         <Button
-                          size="icon"
+                          size="lg"
                           variant="outline"
                           onClick={pause}
                           disabled={!isConnected || !state.is_playing}
+                          className="h-12 w-12 rounded-full"
                         >
                           <Pause className="h-5 w-5 fill-current" />
                         </Button>
                       )}
                       <Button
-                        size="icon"
+                        size="lg"
                         variant="outline"
                         onClick={skip}
                         disabled={!isConnected || !state.is_playing}
+                        className="h-12 w-12 rounded-full"
                       >
                         <SkipForward className="h-5 w-5 fill-current" />
                       </Button>
@@ -318,7 +305,7 @@ function MusicComponent() {
                         onValueChange={(val) => filter(val)}
                         disabled={!isConnected || !state.is_playing}
                       >
-                        <SelectTrigger className="w-[180px]">
+                        <SelectTrigger className="w-[180px] h-10">
                           <Filter className="w-4 h-4 mr-2" />
                           <SelectValue placeholder="Audio Filter" />
                         </SelectTrigger>
@@ -335,9 +322,9 @@ function MusicComponent() {
                 </div>
               </div>
             ) : (
-              <div className="h-40 flex flex-col items-center justify-center text-muted-foreground bg-muted/30 rounded-lg border border-dashed">
-                <MusicIcon className="h-10 w-10 mb-2 opacity-20" />
-                <p>{isConnected ? 'No track is active' : 'Disconnected'}</p>
+              <div className="h-48 flex flex-col items-center justify-center text-muted-foreground bg-muted/20 rounded-xl border border-dashed">
+                <MusicIcon className="h-12 w-12 mb-3 opacity-20" />
+                <p className="text-sm">{isConnected ? 'No track is active' : 'Disconnected'}</p>
               </div>
             )}
 
@@ -345,26 +332,24 @@ function MusicComponent() {
 
             <form onSubmit={handleAdd} className="space-y-3">
               <label className="text-sm font-medium">Add to Queue</label>
-
               <div className="flex flex-col gap-2">
                 <div className="relative">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search or URL..."
-                    className="pl-9"
+                    className="pl-10 h-11"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     disabled={!isConnected}
                   />
                 </div>
-
                 <div className="flex gap-2">
                   <Select
                     value={filterPreset}
                     onValueChange={setFilterPreset}
                     disabled={!isConnected}
                   >
-                    <SelectTrigger className="flex-1">
+                    <SelectTrigger className="flex-1 h-11">
                       <SelectValue placeholder="Audio Filter" />
                     </SelectTrigger>
                     <SelectContent>
@@ -375,13 +360,8 @@ function MusicComponent() {
                       ))}
                     </SelectContent>
                   </Select>
-
-                  <Button
-                    type="submit"
-                    size="icon"
-                    disabled={!isConnected || !query.trim()}
-                  >
-                    <Plus className="h-4 w-4" />
+                  <Button type="submit" size="lg" disabled={!isConnected || !query.trim()} className="h-11 w-11 p-0">
+                    <Plus className="h-5 w-5" />
                   </Button>
                 </div>
               </div>
@@ -389,16 +369,16 @@ function MusicComponent() {
           </CardContent>
         </Card>
 
-        {/* Queue Section */}
-        <Card className="w-full">
+        {/* Queue — 2/5 width */}
+        <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Queue
-            </CardTitle>
-            <CardDescription>
-              {state?.queue.length || 0} tracks in queue
-            </CardDescription>
+            <div className="flex items-center gap-4">
+              <CardIcon><Clock /></CardIcon>
+              <div>
+                <CardTitle>Queue</CardTitle>
+                <CardDescription>{state?.queue.length || 0} tracks in queue</CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
@@ -406,11 +386,11 @@ function MusicComponent() {
                 state.queue.map((item, i) => (
                   <div
                     key={`${item.title}-${i}`}
-                    className="flex items-center justify-between p-3 rounded-md hover:bg-accent group transition-colors"
+                    className="flex items-center justify-between p-3 rounded-lg hover:bg-accent/50 group transition-colors"
                   >
-                    <div className="flex items-center gap-3 overflow-hidden">
+                    <div className="flex items-center gap-3 overflow-hidden min-w-0">
                       {item.thumbnail_url ? (
-                        <div className="h-10 w-16 flex-shrink-0 overflow-hidden rounded bg-muted/30 relative">
+                        <div className="h-12 w-20 flex-shrink-0 overflow-hidden rounded-lg bg-muted/30 relative">
                           <img
                             src={item.thumbnail_url}
                             alt=""
@@ -419,16 +399,14 @@ function MusicComponent() {
                           {item.filter_preset &&
                             item.filter_preset !== 'none' && (
                               <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                                <Filter className="h-3 w-3 text-white" />
+                                <Filter className="h-3.5 w-3.5 text-white" />
                               </div>
                             )}
                         </div>
                       ) : (
-                        <span className="text-sm text-muted-foreground w-4 text-center">
-                          {i + 1}
-                        </span>
+                        <span className="text-sm text-muted-foreground w-6 text-center">{i + 1}</span>
                       )}
-                      <div className="overflow-hidden ml-2">
+                      <div className="overflow-hidden min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="font-medium truncate text-sm">
                             {item.webpage_url ? (
@@ -448,16 +426,16 @@ function MusicComponent() {
                             item.filter_preset !== 'none' && (
                               <Badge
                                 variant="outline"
-                                className="text-[10px] h-4 px-1 py-0 border-primary/20 bg-primary/5"
+                                className="text-[10px] h-4 px-1.5 py-0 border-primary/20 bg-primary/5 hidden sm:inline-flex"
                               >
-                                <Filter className="h-2 w-2 mr-1" />
+                                <Filter className="h-2.5 w-2.5 mr-1" />
                                 {FILTER_PRESETS.find(
                                   (p) => p.value === item.filter_preset,
                                 )?.label || item.filter_preset}
                               </Badge>
                             )}
                         </div>
-                        <p className="text-xs text-muted-foreground truncate">
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">
                           {item.author_url ? (
                             <a
                               href={item.author_url}
@@ -473,14 +451,12 @@ function MusicComponent() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4 flex-shrink-0">
-                      <span className="text-xs text-muted-foreground">
-                        {formatTime(item.duration)}
-                      </span>
+                    <div className="flex items-center gap-3 flex-shrink-0 ml-3">
+                      <span className="text-xs text-muted-foreground">{formatTime(item.duration)}</span>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                         onClick={() => remove(i)}
                         disabled={!isConnected}
                       >
@@ -491,7 +467,7 @@ function MusicComponent() {
                 ))
               ) : (
                 <div className="py-20 text-center text-muted-foreground">
-                  <p>
+                  <p className="text-sm">
                     {isConnected
                       ? 'Queue is empty'
                       : 'Connect to a guild to view queue'}

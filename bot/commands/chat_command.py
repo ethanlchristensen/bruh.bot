@@ -33,6 +33,20 @@ class ChatCommand(app_commands.Command):
 
             gateway = get_mesh_gateway()
             response = await gateway.complete(req, credentials={"api_key": api_key})
+
+            if response.usage:
+                try:
+                    client.ai_usage_tracking_service.track_usage(
+                        user_id=interaction.user.id,
+                        guild_id=interaction.guild.id,
+                        input_tokens=response.usage.get("input_tokens", 0),
+                        output_tokens=response.usage.get("output_tokens", 0),
+                        cost=response.usage.get("cost", 0),
+                        model=response.model or preferred_model,
+                    )
+                except Exception:
+                    pass
+
             content = "".join(part.content for part in response.parts if part.type == "text")
 
             await interaction.followup.send(content)

@@ -23,6 +23,12 @@ export interface ImageGenerationConfig {
   boostImagePrompts?: boolean;
 }
 
+export interface AIUsageLimitConfig {
+  enabled: boolean;
+  maxRequestsPerMinute: number;
+  maxRequestsPerHour: number;
+}
+
 export interface AIConfig {
   preferredAiProvider: AIProvider;
   ollama: ProviderConfig;
@@ -36,6 +42,7 @@ export interface AIConfig {
   systemPrompt?: string;
   realtimePrompt?: string;
   imageGeneration?: ImageGenerationConfig;
+  usageLimits?: AIUsageLimitConfig;
 }
 
 export interface DeleteUserMessagesConfig {
@@ -59,6 +66,97 @@ export interface MemoryConfig {
   enabledCategories: Array<string>;
 }
 
+export interface EconomyConfig {
+  xpEnabled: boolean;
+  coinsEnabled: boolean;
+  baseXpRange: [number, number];
+  imageXpBonus: number;
+  reactionXp: number;
+  mentionXpRange: [number, number];
+  messageCoinRange: [number, number];
+  imageCoinBonus: number;
+  reactionCoin: number;
+  mentionCoinRange: [number, number];
+  dailyCoinMin: number;
+  dailyCoinMax: number;
+  levelUpAnnounceInChannel: boolean;
+}
+
+export interface EconomyProfile {
+  user_id: string;
+  guild_id: number;
+  xp: number;
+  level: number;
+  bruh_coins: number;
+  total_messages: number;
+  total_images: number;
+  total_reactions_given: number;
+  total_bot_mentions: number;
+  last_xp_grant: string | null;
+  last_daily_claim: string | null;
+  xp_for_next_level: number;
+  xp_for_current_level: number;
+  rank?: number;
+}
+
+export interface EconomyLeaderboardEntry {
+  user_id: string;
+  username: string;
+  avatar_url: string;
+  xp: number;
+  level: number;
+  bruh_coins: number;
+  total_messages: number;
+  rank: number;
+}
+
+export interface EconomyLeaderboardResponse {
+  success: boolean;
+  guild_id: string;
+  sort_by: string;
+  leaderboard: Array<EconomyLeaderboardEntry>;
+}
+
+export interface EconomyProfileResponse {
+  success: boolean;
+  guild_id: string;
+  profile: EconomyProfile;
+}
+
+export interface EconomyRankResponse {
+  success: boolean;
+  guild_id: string;
+  user_id: string;
+  rank: number;
+}
+
+export interface GuildMember {
+  user_id: string;
+  username: string;
+  display_name: string;
+  global_name: string | null;
+  avatar_url: string;
+}
+
+export interface MembersResponse {
+  success: boolean;
+  guild_id: string;
+  members: Array<GuildMember>;
+  count: number;
+}
+
+export interface UpdateEconomyProfileRequest {
+  xp?: number;
+  bruh_coins?: number;
+  level?: number;
+}
+
+export interface UpdateEconomyProfileResponse {
+  success: boolean;
+  guild_id: string;
+  profile: EconomyProfile;
+}
+
 export interface DynamicConfig {
   configVersion: number;
   lastUpdated: string | null;
@@ -78,6 +176,7 @@ export interface DynamicConfig {
   deleteUserMessages: DeleteUserMessagesConfig;
   globalBlockList: Array<string>;
   memoryConfig: MemoryConfig;
+  economyConfig?: EconomyConfig;
 }
 
 export interface ConfigResponse {
@@ -100,6 +199,7 @@ export interface UpdateConfigRequest {
   usersToId?: Record<string, string>;
   idToUsers?: Record<string, string>;
   memoryConfig?: Partial<MemoryConfig>;
+  economyConfig?: Partial<EconomyConfig>;
 }
 
 export interface UpdateAIProviderRequest {
@@ -116,6 +216,9 @@ export interface UpdateAIProviderRequest {
   maxDailyImages?: number;
   imageGenProvider?: 'google' | 'openrouter';
   imageGenModel?: string;
+  maxRequestsPerMinute?: number;
+  maxRequestsPerHour?: number;
+  aiUsageLimitEnabled?: boolean;
 }
 
 export interface AddAdminRequest {
@@ -165,6 +268,7 @@ export interface DeleteMemoryResponse {
 export interface UserEntry {
   id: string;
   username: string;
+  avatar_url: string;
   memory_count: number;
 }
 
@@ -182,6 +286,25 @@ export interface Guild {
 export interface GuildsResponse {
   success: boolean;
   guilds: Array<Guild>;
+}
+
+export interface LeaderboardEntry {
+  user_id: string;
+  username: string;
+  avatar_url: string;
+  total_requests: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_cost: number;
+  models_used: Record<string, { requests: number; input_tokens: number; output_tokens: number; cost: number }>;
+}
+
+export interface UsageLeaderboardResponse {
+  success: boolean;
+  guild_id: string;
+  days: number | null;
+  leaderboard: Array<LeaderboardEntry>;
+  summary: { total_requests: number; total_cost: number };
 }
 
 export class ConfigAPIClient {
@@ -298,12 +421,12 @@ export class ConfigAPIClient {
   }
 
   // Get available models for a provider
-  async getModels(provider: string, endpoint?: string, imageGen?: boolean, structuredOutputs?: boolean, refresh?: boolean): Promise<{ success: boolean; models: string[]; error?: string }> {
+  async getModels(provider: string, endpoint?: string, imageGen?: boolean, structuredOutputs?: boolean, refresh?: boolean): Promise<{ success: boolean; models: Array<string>; error?: string }> {
     const ep = endpoint ? encodeURIComponent(endpoint) : '';
     const ig = imageGen ? '&image_gen=true' : '';
     const so = structuredOutputs ? '&structured_outputs=true' : '';
     const rf = refresh ? '&refresh=true' : '';
-    return this.fetch<{ success: boolean; models: string[]; error?: string }>(
+    return this.fetch<{ success: boolean; models: Array<string>; error?: string }>(
       `/config/models?provider=${provider}&endpoint=${ep}${ig}${so}${rf}`,
       {
         method: 'GET',
@@ -314,6 +437,14 @@ export class ConfigAPIClient {
   // Get available guilds
   async getGuilds(): Promise<GuildsResponse> {
     return this.fetch<GuildsResponse>('/guilds', {
+      method: 'GET',
+    });
+  }
+
+  // Get usage leaderboard
+  async getUsageLeaderboard(days?: number): Promise<UsageLeaderboardResponse> {
+    const params = days ? `?days=${days}` : '';
+    return this.fetch<UsageLeaderboardResponse>(`/usage/leaderboard${params}`, {
       method: 'GET',
     });
   }
@@ -336,6 +467,44 @@ export class ConfigAPIClient {
   async deleteMemory(memoryId: string): Promise<DeleteMemoryResponse> {
     return this.fetch<DeleteMemoryResponse>(`/memories/${memoryId}`, {
       method: 'DELETE',
+    });
+  }
+
+  // Get economy leaderboard
+  async getEconomyLeaderboard(sortBy: string = 'xp', limit: number = 25): Promise<EconomyLeaderboardResponse> {
+    return this.fetch<EconomyLeaderboardResponse>(
+      `/economy/leaderboard?sort_by=${sortBy}&limit=${limit}`,
+      { method: 'GET' }
+    );
+  }
+
+  // Get economy profile
+  async getEconomyProfile(userId: string): Promise<EconomyProfileResponse> {
+    return this.fetch<EconomyProfileResponse>(`/economy/profile/${userId}`, {
+      method: 'GET',
+    });
+  }
+
+  // Update economy profile
+  async updateEconomyProfile(userId: string, data: UpdateEconomyProfileRequest): Promise<UpdateEconomyProfileResponse> {
+    return this.fetch<UpdateEconomyProfileResponse>(`/economy/profile/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Get economy rank
+  async getEconomyRank(userId: string): Promise<EconomyRankResponse> {
+    return this.fetch<EconomyRankResponse>(`/economy/rank/${userId}`, {
+      method: 'GET',
+    });
+  }
+
+  // Get guild members
+  async getMembers(search?: string): Promise<MembersResponse> {
+    const params = search ? `?search=${encodeURIComponent(search)}` : '';
+    return this.fetch<MembersResponse>(`/members${params}`, {
+      method: 'GET',
     });
   }
 

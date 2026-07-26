@@ -49,6 +49,12 @@ class ImageGenerationConfig(BaseModel):
         return data
 
 
+class AIUsageLimitConfig(BaseModel):
+    enabled: bool = True
+    maxRequestsPerMinute: int = 5
+    maxRequestsPerHour: int = 50
+
+
 def load_default_prompts() -> tuple[str, str]:
     """Helper to load system prompts from local prompts.json if available as initial seed."""
     system_prompt = ""
@@ -78,6 +84,7 @@ class AIConfig(BaseModel):
     orchestrator: OrchestratorConfig = Field(default_factory=lambda: OrchestratorConfig(preferredAiProvider="openrouter", preferredModel="deepseek/deepseek-v4-flash"))
     boostImagePrompts: bool = False
     imageGeneration: ImageGenerationConfig = Field(default_factory=ImageGenerationConfig)
+    usageLimits: AIUsageLimitConfig = Field(default_factory=AIUsageLimitConfig)
     systemPrompt: str = Field(default_factory=lambda: load_default_prompts()[0])
     realtimePrompt: str = Field(default_factory=lambda: load_default_prompts()[1])
 
@@ -103,6 +110,22 @@ class MemoryConfig(BaseModel):
     enabledCategories: list[str] = Field(default_factory=lambda: ["identity", "trait", "preference", "opinion", "relationship", "mood", "fact"])
 
 
+class EconomyConfig(BaseModel):
+    xpEnabled: bool = True
+    coinsEnabled: bool = True
+    baseXpRange: list[int] = [15, 25]
+    imageXpBonus: int = 10
+    reactionXp: int = 5
+    mentionXpRange: list[int] = [10, 15]
+    messageCoinRange: list[float] = [1.0, 3.0]
+    imageCoinBonus: float = 3.0
+    reactionCoin: float = 1.0
+    mentionCoinRange: list[float] = [2.0, 5.0]
+    dailyCoinMin: float = 50.0
+    dailyCoinMax: float = 100.0
+    levelUpAnnounceInChannel: bool = True
+
+
 class DiscordScrapeBotConfig(BaseModel):
     databaseName: str = ""
     collectionName: str = ""
@@ -122,10 +145,16 @@ class BaseConfig(BaseModel):
     mongoDbName: str
     mongoConfigCollectionName: str = "config"
     mongoImageLimitsCollectionName: str = "ImageLimits"
-    mongoMorningConfigsCollectionName: str = "Morningconfigs"
+    mongoMorningConfigsCollectionName: str = "MorningConfigs"
     mongoCooldownCollectionName: str = "Cooldowns"
+    mongoAIUsageCollectionName: str = "AIUsage"
+    mongoAIUsageTrackingCollectionName: str = "AIUsageTracking"
     mongoChatThreadsCollectionName: str = "ChatThreads"
     mongoUserMemoriesCollectionName: str = "UserMemories"
+    mongoUserProfilesCollectionName: str = "UserProfiles"
+    mongoShopItemsCollectionName: str = "ShopItems"
+    mongoUserInventoryCollectionName: str = "UserInventory"
+    mongoGuildMembersCollectionName: str = "GuildMembers"
     mongoDiscordScrapeBot: DiscordScrapeBotConfig = Field(default_factory=DiscordScrapeBotConfig)
 
 
@@ -153,6 +182,7 @@ class DynamicConfig(BaseModel):
     mongoImageLimitsCollectionName: str = "ImageLimits"
     mongoChatThreadsCollectionName: str = "ChatThreads"
     memoryConfig: MemoryConfig = Field(default_factory=MemoryConfig)
+    economyConfig: EconomyConfig = Field(default_factory=EconomyConfig)
 
 
 class ConfigService:
@@ -186,15 +216,29 @@ class ConfigService:
 
         self.client = AsyncIOMotorClient(self.base.mongoUri)
         self.db = self.client[self.base.mongoDbName]
-        logger.info(f"Connected to MongoDB: {self.base.mongoDbName}")
+        logger.info(f"Connected to MongoDB: {self.base.mongoDbName} (env={self.environment})")
 
         await self._ensure_config_indexes()
 
-        logger.info(f"Config initialized: env={environment.upper()}")
+        logger.info(f"Config initialized: env={self.environment.upper()}")
+
+    def col(self, base_name: str):
+        """Get a MongoDB collection reference with per-environment namespacing.
+
+        The 'config' collection is the only one SHARED across environments.
+        All other collections (UserProfiles, AIUsage, UserMemories, etc.)
+        get an environment suffix (e.g. _dev, _prod) to isolate data
+        between development and production bot instances.
+        """
+        if base_name == "config":
+            name = "config"
+        else:
+            name = f"{base_name}_{self.environment}"
+        return self.db[name]
 
     async def _ensure_config_indexes(self):
         try:
-            await self.db["config"].create_index([("guildId", 1)], unique=True)
+            await self.col("config").create_index([("guildId", 1)], unique=True)
             logger.info("Successfully created indexes for config collection.")
         except Exception as e:
             logger.error("Failed to create indexes for config collection.", exc_info=e)
@@ -216,7 +260,7 @@ class ConfigService:
 
     async def _load_from_mongo(self, guild_id: str):
         """Load dynamic config from MongoDB."""
-        collection = self.db[self.base.mongoConfigCollectionName]
+        collection = self.col(self.base.mongoConfigCollectionName)
         doc = await collection.find_one({"guildId": guild_id})
 
         if not doc:
@@ -240,7 +284,7 @@ class ConfigService:
         self._encrypt(data)
         self._clean_secret_strs(data)
 
-        coll = self.db[self.base.mongoConfigCollectionName]
+        coll = self.col(self.base.mongoConfigCollectionName)
         await coll.replace_one({"guildId": guild_id}, data, upsert=True)
         logger.info(f"Saved config for guild {guild_id} (v{config.configVersion})")
 
@@ -294,7 +338,7 @@ class ConfigService:
         if not self._configs:
             return
 
-        coll = self.db[self.base.mongoConfigCollectionName]
+        coll = self.col(self.base.mongoConfigCollectionName)
         cursor = coll.find({"guildId": {"$in": list(self._configs.keys())}}, {"configVersion": 1, "guildId": 1})
 
         async for doc in cursor:

@@ -128,7 +128,7 @@ Be specific and thorough as this description will be used for image editing cont
             logger.error(f"Error downloading image: {e}", exc_info=True)
             return None
 
-    async def generate_image(self, guild_id: int, prompt: str) -> ImageGenerationResponse | None:
+    async def generate_image(self, guild_id: int, prompt: str, user_id: int = 0) -> ImageGenerationResponse | None:
         try:
             config = (await self.bot.config_service.get_config(str(guild_id))).aiConfig
 
@@ -149,6 +149,19 @@ Be specific and thorough as this description will be used for image editing cont
             api_key = provider_config.get_api_key() if provider_config else ""
 
             response = await gateway.complete(req, credentials={"api_key": api_key})
+
+            if response.usage:
+                try:
+                    await self.bot.ai_usage_tracking_service.track_usage(
+                        user_id=user_id,
+                        guild_id=guild_id,
+                        input_tokens=response.usage.get("input_tokens", 0),
+                        output_tokens=response.usage.get("output_tokens", 0),
+                        cost=response.usage.get("cost", 0),
+                        model=response.model or config.imageGeneration.preferredModel,
+                    )
+                except Exception:
+                    pass
 
             image_generation_response = ImageGenerationResponse()
 
@@ -193,7 +206,7 @@ Be specific and thorough as this description will be used for image editing cont
             logger.error(f"Error generating image: {e}", exc_info=True)
             return None
 
-    async def edit_image(self, guild_id: int, prompt: str, source_images: list[Image.Image]) -> ImageGenerationResponse | None:
+    async def edit_image(self, guild_id: int, prompt: str, source_images: list[Image.Image], user_id: int = 0) -> ImageGenerationResponse | None:
         try:
             config = (await self.bot.config_service.get_config(str(guild_id))).aiConfig
 
@@ -230,6 +243,19 @@ Be specific and thorough as this description will be used for image editing cont
             api_key = provider_config.get_api_key() if provider_config else ""
 
             response = await gateway.complete(req, credentials={"api_key": api_key})
+
+            if response.usage:
+                try:
+                    await self.bot.ai_usage_tracking_service.track_usage(
+                        user_id=user_id,
+                        guild_id=guild_id,
+                        input_tokens=response.usage.get("input_tokens", 0),
+                        output_tokens=response.usage.get("output_tokens", 0),
+                        cost=response.usage.get("cost", 0),
+                        model=response.model or config.imageGeneration.preferredModel,
+                    )
+                except Exception:
+                    pass
 
             image_generation_response = ImageGenerationResponse()
 
@@ -280,21 +306,21 @@ Be specific and thorough as this description will be used for image editing cont
                 images.append(image)
         return images
 
-    async def edit_image_from_url(self, guild_id: int, prompt: str, image_url: str) -> ImageGenerationResponse | None:
+    async def edit_image_from_url(self, guild_id: int, prompt: str, image_url: str, user_id: int = 0) -> ImageGenerationResponse | None:
         source_image = await self.download_image_from_url(image_url)
         if source_image is None:
             return None
 
-        return await self.edit_image(guild_id, prompt, [source_image])
+        return await self.edit_image(guild_id, prompt, [source_image], user_id=user_id)
 
-    async def edit_images_from_urls(self, guild_id: int, prompt: str, image_urls: list[str]) -> ImageGenerationResponse | None:
+    async def edit_images_from_urls(self, guild_id: int, prompt: str, image_urls: list[str], user_id: int = 0) -> ImageGenerationResponse | None:
         source_images = await self.download_images_from_urls(image_urls)
         if not source_images:
             logger.error("No images could be downloaded")
             return None
 
         logger.info(f"Successfully downloaded {len(source_images)}/{len(image_urls)} images")
-        return await self.edit_image(guild_id, prompt, source_images)
+        return await self.edit_image(guild_id, prompt, source_images, user_id=user_id)
 
     def image_to_bytes(self, image: Image.Image, format: str = "PNG") -> BytesIO:
         output = BytesIO()

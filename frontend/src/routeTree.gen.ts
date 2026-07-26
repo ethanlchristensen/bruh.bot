@@ -16,9 +16,11 @@ import { Route as AuthCallbackRouteImport } from './app/routes/auth.callback'
 import { Route as MainProfileRouteImport } from './app/routes/_main/profile'
 import { Route as MainMusicRouteImport } from './app/routes/_main/music'
 import { Route as MainConfigIndexRouteImport } from './app/routes/_main/config/index'
+import { Route as MainConfigUsageRouteImport } from './app/routes/_main/config/usage'
 import { Route as MainConfigServerRouteImport } from './app/routes/_main/config/server'
 import { Route as MainConfigMemoryRouteImport } from './app/routes/_main/config/memory'
 import { Route as MainConfigMemoriesRouteImport } from './app/routes/_main/config/memories'
+import { Route as MainConfigEconomyRouteImport } from './app/routes/_main/config/economy'
 import { Route as MainConfigAiRouteImport } from './app/routes/_main/config/ai'
 
 const LoginRoute = LoginRouteImport.update({
@@ -55,6 +57,11 @@ const MainConfigIndexRoute = MainConfigIndexRouteImport.update({
   path: '/config/',
   getParentRoute: () => MainRoute,
 } as any)
+const MainConfigUsageRoute = MainConfigUsageRouteImport.update({
+  id: '/config/usage',
+  path: '/config/usage',
+  getParentRoute: () => MainRoute,
+} as any)
 const MainConfigServerRoute = MainConfigServerRouteImport.update({
   id: '/config/server',
   path: '/config/server',
@@ -70,6 +77,11 @@ const MainConfigMemoriesRoute = MainConfigMemoriesRouteImport.update({
   path: '/config/memories',
   getParentRoute: () => MainRoute,
 } as any)
+const MainConfigEconomyRoute = MainConfigEconomyRouteImport.update({
+  id: '/config/economy',
+  path: '/config/economy',
+  getParentRoute: () => MainRoute,
+} as any)
 const MainConfigAiRoute = MainConfigAiRouteImport.update({
   id: '/config/ai',
   path: '/config/ai',
@@ -83,9 +95,11 @@ export interface FileRoutesByFullPath {
   '/profile': typeof MainProfileRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/config/ai': typeof MainConfigAiRoute
+  '/config/economy': typeof MainConfigEconomyRoute
   '/config/memories': typeof MainConfigMemoriesRoute
   '/config/memory': typeof MainConfigMemoryRoute
   '/config/server': typeof MainConfigServerRoute
+  '/config/usage': typeof MainConfigUsageRoute
   '/config/': typeof MainConfigIndexRoute
 }
 export interface FileRoutesByTo {
@@ -95,9 +109,11 @@ export interface FileRoutesByTo {
   '/profile': typeof MainProfileRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/config/ai': typeof MainConfigAiRoute
+  '/config/economy': typeof MainConfigEconomyRoute
   '/config/memories': typeof MainConfigMemoriesRoute
   '/config/memory': typeof MainConfigMemoryRoute
   '/config/server': typeof MainConfigServerRoute
+  '/config/usage': typeof MainConfigUsageRoute
   '/config': typeof MainConfigIndexRoute
 }
 export interface FileRoutesById {
@@ -109,9 +125,11 @@ export interface FileRoutesById {
   '/_main/profile': typeof MainProfileRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/_main/config/ai': typeof MainConfigAiRoute
+  '/_main/config/economy': typeof MainConfigEconomyRoute
   '/_main/config/memories': typeof MainConfigMemoriesRoute
   '/_main/config/memory': typeof MainConfigMemoryRoute
   '/_main/config/server': typeof MainConfigServerRoute
+  '/_main/config/usage': typeof MainConfigUsageRoute
   '/_main/config/': typeof MainConfigIndexRoute
 }
 export interface FileRouteTypes {
@@ -123,9 +141,11 @@ export interface FileRouteTypes {
     | '/profile'
     | '/auth/callback'
     | '/config/ai'
+    | '/config/economy'
     | '/config/memories'
     | '/config/memory'
     | '/config/server'
+    | '/config/usage'
     | '/config/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -135,9 +155,11 @@ export interface FileRouteTypes {
     | '/profile'
     | '/auth/callback'
     | '/config/ai'
+    | '/config/economy'
     | '/config/memories'
     | '/config/memory'
     | '/config/server'
+    | '/config/usage'
     | '/config'
   id:
     | '__root__'
@@ -148,9 +170,11 @@ export interface FileRouteTypes {
     | '/_main/profile'
     | '/auth/callback'
     | '/_main/config/ai'
+    | '/_main/config/economy'
     | '/_main/config/memories'
     | '/_main/config/memory'
     | '/_main/config/server'
+    | '/_main/config/usage'
     | '/_main/config/'
   fileRoutesById: FileRoutesById
 }
@@ -212,6 +236,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MainConfigIndexRouteImport
       parentRoute: typeof MainRoute
     }
+    '/_main/config/usage': {
+      id: '/_main/config/usage'
+      path: '/config/usage'
+      fullPath: '/config/usage'
+      preLoaderRoute: typeof MainConfigUsageRouteImport
+      parentRoute: typeof MainRoute
+    }
     '/_main/config/server': {
       id: '/_main/config/server'
       path: '/config/server'
@@ -233,6 +264,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MainConfigMemoriesRouteImport
       parentRoute: typeof MainRoute
     }
+    '/_main/config/economy': {
+      id: '/_main/config/economy'
+      path: '/config/economy'
+      fullPath: '/config/economy'
+      preLoaderRoute: typeof MainConfigEconomyRouteImport
+      parentRoute: typeof MainRoute
+    }
     '/_main/config/ai': {
       id: '/_main/config/ai'
       path: '/config/ai'
@@ -247,9 +285,11 @@ interface MainRouteChildren {
   MainMusicRoute: typeof MainMusicRoute
   MainProfileRoute: typeof MainProfileRoute
   MainConfigAiRoute: typeof MainConfigAiRoute
+  MainConfigEconomyRoute: typeof MainConfigEconomyRoute
   MainConfigMemoriesRoute: typeof MainConfigMemoriesRoute
   MainConfigMemoryRoute: typeof MainConfigMemoryRoute
   MainConfigServerRoute: typeof MainConfigServerRoute
+  MainConfigUsageRoute: typeof MainConfigUsageRoute
   MainConfigIndexRoute: typeof MainConfigIndexRoute
 }
 
@@ -257,9 +297,11 @@ const MainRouteChildren: MainRouteChildren = {
   MainMusicRoute: MainMusicRoute,
   MainProfileRoute: MainProfileRoute,
   MainConfigAiRoute: MainConfigAiRoute,
+  MainConfigEconomyRoute: MainConfigEconomyRoute,
   MainConfigMemoriesRoute: MainConfigMemoriesRoute,
   MainConfigMemoryRoute: MainConfigMemoryRoute,
   MainConfigServerRoute: MainConfigServerRoute,
+  MainConfigUsageRoute: MainConfigUsageRoute,
   MainConfigIndexRoute: MainConfigIndexRoute,
 }
 

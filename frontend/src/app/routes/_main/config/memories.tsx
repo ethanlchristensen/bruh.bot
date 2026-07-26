@@ -6,12 +6,13 @@ import type { MemoryItem } from '@/lib/api-client';
 import { useDeleteMemory, useUserMemories, useUsers } from '@/hooks/use-config';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardIcon } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
+import { PageHeader } from '@/components/layouts/page-header';
 
 export const Route = createFileRoute('/_main/config/memories')({
   component: MemoriesViewerComponent,
@@ -103,39 +104,39 @@ function MemoriesViewerComponent() {
   const memories = data?.memories ?? [];
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto pb-12">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/40 pb-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">User Memories</h1>
-          <p className="text-sm text-muted-foreground">
-            View and manage extracted memories for any Discord user.
-          </p>
-        </div>
-      </div>
+    <div className="space-y-8 pb-20" data-page="memories">
+      <PageHeader
+        icon={<Users />}
+        title="User Memories"
+        description="View and manage extracted memories for any Discord user."
+      />
 
       <Card>
-        <CardHeader className="flex flex-row items-center gap-4">
-          <div className="p-2 bg-primary/10 rounded-lg text-primary">
-            <Users className="h-6 w-6" />
-          </div>
-          <div>
-            <CardTitle>Select User</CardTitle>
-            <CardDescription>Choose a known user or enter a Discord ID manually.</CardDescription>
+        <CardHeader>
+          <div className="flex items-center gap-4">
+            <CardIcon><Users /></CardIcon>
+            <div>
+              <CardTitle>Select User</CardTitle>
+              <CardDescription>Choose a known user or enter a Discord ID manually.</CardDescription>
+            </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
           <div className="space-y-2">
             <Label>Users with Memories</Label>
             <Select onValueChange={handleSelectUser} value={searchUserId ?? ''}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full h-10">
                 <SelectValue placeholder={usersLoading ? 'Loading users...' : 'Select a user...'} />
               </SelectTrigger>
               <SelectContent>
                 {users.map((user) => (
                   <SelectItem key={user.id} value={user.id}>
-                    <span className="flex items-center justify-between w-full gap-2">
+                    <span className="flex items-center gap-2">
+                      {user.avatar_url && (
+                        <img src={user.avatar_url} alt="" className="size-5 rounded-full shrink-0" />
+                      )}
                       <span className="truncate">{user.username}</span>
-                      <span className="text-xs text-muted-foreground shrink-0">{user.memory_count} memories</span>
+                      <span className="text-xs text-muted-foreground shrink-0 ml-auto">{user.memory_count} memories</span>
                     </span>
                   </SelectItem>
                 ))}
@@ -162,8 +163,9 @@ function MemoriesViewerComponent() {
                 onChange={(e) => setManualUserId(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleManualSearch(); }}
                 placeholder="Enter Discord user ID..."
+                className="h-10"
               />
-              <Button onClick={handleManualSearch} className="gap-2 shrink-0">
+              <Button onClick={handleManualSearch} className="gap-2 shrink-0 h-10">
                 <Search className="h-4 w-4" />
                 Lookup
               </Button>
@@ -197,7 +199,7 @@ function MemoriesViewerComponent() {
             <CheckCircle className="h-5 w-5 text-emerald-400" />
             <div>
               <p className="text-sm font-medium">
-                User ID: <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{searchUserId}</code>
+                User ID: <code className="text-xs bg-muted px-2 py-0.5 rounded">{searchUserId}</code>
               </p>
               <p className="text-xs text-muted-foreground">
                 {memories.length} {memories.length === 1 ? 'memory' : 'memories'} found
@@ -209,8 +211,8 @@ function MemoriesViewerComponent() {
 
           {memories.length === 0 ? (
             <Card className="border-muted">
-              <CardContent className="py-8 text-center">
-                <BrainCircuit className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+              <CardContent className="py-12 text-center">
+                <BrainCircuit className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-20" />
                 <p className="text-sm text-muted-foreground">No memories found for this user.</p>
               </CardContent>
             </Card>
@@ -220,9 +222,9 @@ function MemoriesViewerComponent() {
                 const expiry = getExpiryStatus(memory);
                 return (
                   <Card key={memory.id} className={`border-border/40 ${memory.is_expired ? 'opacity-50' : ''}`}>
-                    <CardContent className="py-4">
+                    <CardContent className="py-5">
                       <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0 space-y-2">
+                        <div className="flex-1 min-w-0 space-y-2.5">
                           <p className="text-sm leading-relaxed">{memory.memory}</p>
 
                           <div className="flex flex-wrap items-center gap-2">
@@ -275,13 +277,13 @@ function MemoriesViewerComponent() {
           )}
 
           <Card className="border-muted bg-muted/20">
-            <CardHeader className="pb-3">
+            <CardHeader>
               <CardTitle className="text-sm">Category Retention Reference</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {Object.entries(CATEGORY_RETENTION).map(([cat, retention]) => (
-                  <div key={cat} className="flex items-center justify-between p-2 rounded bg-muted/30 text-xs">
+                  <div key={cat} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 text-xs">
                     <span className="capitalize font-medium">{cat}</span>
                     <span className="text-muted-foreground">{retention}</span>
                   </div>

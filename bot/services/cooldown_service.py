@@ -12,7 +12,7 @@ class CooldownService:
     def __init__(self, bot: "BruhBot"):
         self.bot = bot
         self.collection_name = self.bot.config_service.base.mongoCooldownCollectionName
-        self.collection = self.bot.config_service.db[self.collection_name]
+        self.collection = self.bot.config_service.col(self.collection_name)
         self.logger = logging.getLogger(__name__)
 
     async def initialize(self):

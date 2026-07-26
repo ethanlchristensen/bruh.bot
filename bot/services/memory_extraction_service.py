@@ -271,16 +271,33 @@ Analyze the conversation and existing memories above. For each user, determine w
             result = json.loads(content)
             actions = result.get("actions", [])
 
+            valid_author_ids = author_ids_in_batch
+            sanitized_actions = []
+            for action in actions:
+                raw_uid = action.get("user_id")
+                if raw_uid is None:
+                    continue
+                try:
+                    uid_int = int(raw_uid)
+                except (ValueError, TypeError, OverflowError):
+                    self.logger.warning(f"Dropping action with non-integer user_id: {raw_uid}")
+                    continue
+                if uid_int not in valid_author_ids:
+                    self.logger.warning(f"Dropping action with unknown user_id: {uid_int} (not in conversation)")
+                    continue
+                action["user_id"] = uid_int
+                sanitized_actions.append(action)
+
             await self._apply_actions_batch(
                 guild_id=int(guild_id),
-                actions=actions,
+                actions=sanitized_actions,
                 existing_by_user=existing_by_user,
                 mem_cfg=mem_cfg,
                 id_to_users=id_to_users,
             )
 
-            user_ids_in_actions = {a.get("user_id") for a in actions if a.get("user_id")}
-            self.logger.info(f"Extracted {len(actions)} memory actions for {len(user_ids_in_actions)} users in guild {guild_id}")
+            user_ids_in_actions = {a["user_id"] for a in sanitized_actions}
+            self.logger.info(f"Extracted {len(sanitized_actions)} memory actions for {len(user_ids_in_actions)} users in guild {guild_id}")
         except Exception:
             self.logger.exception(f"Error during batch memory extraction for guild {guild_id}")
 

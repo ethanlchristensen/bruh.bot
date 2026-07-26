@@ -140,13 +140,13 @@ class MongoEconomyService:
 
     async def get_leaderboard(self, guild_id: int, sort_by: str = "xp", limit: int = 25) -> list[dict]:
         valid_sorts = {"xp": -1, "level": -1, "bruh_coins": -1}
-        sort_order = valid_sorts.get(sort_by, valid_sorts["xp"])
+        sort_order = valid_sorts.get(sort_by, -1)
         cursor = (
             self.collection.find(
                 {"guild_id": Int64(guild_id)},
                 {"user_id": 1, "xp": 1, "level": 1, "bruh_coins": 1, "total_messages": 1, "_id": 0},
             )
-            .sort(sort_by, sort_order)
+            .sort([(sort_by, sort_order)])
             .limit(limit)
         )
         results = []

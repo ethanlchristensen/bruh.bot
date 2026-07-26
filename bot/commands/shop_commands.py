@@ -170,17 +170,17 @@ class ShopCommands:
         @log_command_usage()
         @is_globally_blocked()
         async def coinflip(interaction: discord.Interaction, amount: int, choice: str):
-            await interaction.response.defer(ephemeral=True)
+            await interaction.response.defer()
             bot = _get_bot(interaction)
             guild_id = interaction.guild.id
             user_id = interaction.user.id
 
             if amount < COINFLIP_MIN or amount > COINFLIP_MAX:
-                return await interaction.followup.send(embed=_coins_embed("Invalid Bet", f"Bet must be between **{COINFLIP_MIN}** and **{COINFLIP_MAX}** coins."), ephemeral=True)
+                return await interaction.followup.send(embed=_coins_embed("Invalid Bet", f"Bet must be between **{COINFLIP_MIN}** and **{COINFLIP_MAX}** coins."))
 
             success, _ = await bot.economy_service.deduct_coins(guild_id, user_id, amount)
             if not success:
-                return await interaction.followup.send(embed=_coins_embed("Not Enough Coins", "You don't have enough coins for that bet."), ephemeral=True)
+                return await interaction.followup.send(embed=_coins_embed("Not Enough Coins", "You don't have enough coins for that bet."))
 
             result = random.choice(["heads", "tails"])
             won = result == choice
@@ -188,18 +188,13 @@ class ShopCommands:
 
             if won:
                 await bot.economy_service.add_coins(guild_id, user_id, payout)
-                profile = await bot.economy_service.get_profile(guild_id, user_id)
-                embed = _coins_embed(
-                    "🪙 Coin Flip — You Won!",
-                    f"The coin landed on **{result.upper()}**!\nYou chose **{choice.upper()}**\n\n**+🪙 {payout:.2f}**\nNew balance: **🪙 {profile['bruh_coins']:.2f}**",
-                )
-            else:
-                embed = _coins_embed(
-                    "🪙 Coin Flip — Lost",
-                    f"The coin landed on **{result.upper()}**.\nYou chose **{choice.upper()}**\n\nLost **🪙 {amount:.2f}**",
-                )
+            profile = await bot.economy_service.get_profile(guild_id, user_id)
 
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            embed = _coins_embed(
+                f"🪙 Coin Flip — {'You Won!' if won else 'Lost'}",
+                f"Coin landed **{result.upper()}** · You chose **{choice.upper()}**\n{interaction.user.mention}\n\n{'**+🪙 ' + f'{payout:.2f}' + '**' if won else 'Lost **🪙 ' + f'{amount:.2f}' + '**'}\nBalance: **🪙 {profile['bruh_coins']:.2f}**",
+            )
+            await interaction.followup.send(embed=embed)
 
         # ── /dice ──────────────────────────────────────────────
         @tree.command(name="dice", description="Roll a die against the bot!")
@@ -207,17 +202,17 @@ class ShopCommands:
         @log_command_usage()
         @is_globally_blocked()
         async def dice(interaction: discord.Interaction, bet: int):
-            await interaction.response.defer(ephemeral=True)
+            await interaction.response.defer()
             bot = _get_bot(interaction)
             guild_id = interaction.guild.id
             user_id = interaction.user.id
 
             if bet < DICE_MIN or bet > DICE_MAX:
-                return await interaction.followup.send(embed=_coins_embed("Invalid Bet", f"Bet must be between **{DICE_MIN}** and **{DICE_MAX}** coins."), ephemeral=True)
+                return await interaction.followup.send(embed=_coins_embed("Invalid Bet", f"Bet must be between **{DICE_MIN}** and **{DICE_MAX}** coins."))
 
             success, _ = await bot.economy_service.deduct_coins(guild_id, user_id, bet)
             if not success:
-                return await interaction.followup.send(embed=_coins_embed("Not Enough Coins", "You don't have enough coins for that bet."), ephemeral=True)
+                return await interaction.followup.send(embed=_coins_embed("Not Enough Coins", "You don't have enough coins for that bet."))
 
             user_roll = random.randint(1, 6)
             bot_roll = random.randint(1, 6)
@@ -225,27 +220,28 @@ class ShopCommands:
 
             if diff >= 3:
                 multiplier = 3
-                title = "🎲 Dice — Crushing Victory!"
+                title = "🎲 Crushing Victory!"
             elif diff >= 1:
                 multiplier = 1.5
-                title = "🎲 Dice — You Win!"
+                title = "🎲 You Win!"
             elif diff == 0:
                 multiplier = 1.0
-                title = "🎲 Dice — Tie!"
+                title = "🎲 Tie!"
             else:
                 multiplier = 0.0
-                title = "🎲 Dice — You Lost"
+                title = "🎲 You Lost"
 
             payout = round(bet * multiplier, 2)
             if payout > 0:
                 await bot.economy_service.add_coins(guild_id, user_id, payout)
+            profile = await bot.economy_service.get_profile(guild_id, user_id)
 
             payout_line = f"**+🪙 {payout:.2f}**" if payout > 0 else f"Lost **🪙 {bet:.2f}**"
             embed = _coins_embed(
                 title,
-                f"**Your roll:** {user_roll}\n**Bot's roll:** {bot_roll}\n\n{payout_line}",
+                f"{interaction.user.mention}\n**Your roll:** {user_roll}\n**Bot's roll:** {bot_roll}\n\n{payout_line}\nBalance: **🪙 {profile['bruh_coins']:.2f}**",
             )
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed)
 
         # ── /slots ─────────────────────────────────────────────
         @tree.command(name="slots", description="Play the slot machine!")
@@ -253,22 +249,21 @@ class ShopCommands:
         @log_command_usage()
         @is_globally_blocked()
         async def slots(interaction: discord.Interaction, bet: int):
-            await interaction.response.defer(ephemeral=True)
+            await interaction.response.defer()
             bot = _get_bot(interaction)
             guild_id = interaction.guild.id
             user_id = interaction.user.id
 
             if bet < SLOTS_MIN or bet > SLOTS_MAX:
-                return await interaction.followup.send(embed=_coins_embed("Invalid Bet", f"Bet must be between **{SLOTS_MIN}** and **{SLOTS_MAX}** coins."), ephemeral=True)
+                return await interaction.followup.send(embed=_coins_embed("Invalid Bet", f"Bet must be between **{SLOTS_MIN}** and **{SLOTS_MAX}** coins."))
 
             success, _ = await bot.economy_service.deduct_coins(guild_id, user_id, bet)
             if not success:
-                return await interaction.followup.send(embed=_coins_embed("Not Enough Coins", "You don't have enough coins for that bet."), ephemeral=True)
+                return await interaction.followup.send(embed=_coins_embed("Not Enough Coins", "You don't have enough coins for that bet."))
 
             reels = [random.choice(SLOTS_EMOJIS) for _ in range(3)]
             display = " | ".join(reels)
 
-            # Pay table
             unique = len(set(reels))
             jackpot = reels[0] == "💎"
             seven = reels[0] == "7️⃣"
@@ -277,13 +272,13 @@ class ShopCommands:
             if unique == 1:
                 if jackpot:
                     multiplier = 50
-                    title = "🎰 JACKPOT! 💎💎💎"
+                    title = "💎💎💎 JACKPOT! 💎💎💎"
                 elif seven:
                     multiplier = 25
-                    title = "🎰 SEVENS! 7️⃣7️⃣7️⃣"
+                    title = "7️⃣7️⃣7️⃣ SEVENS! 7️⃣7️⃣7️⃣"
                 elif slot:
                     multiplier = 10
-                    title = "🎰 GRAND PRIZE!"
+                    title = "🎰🎰🎰 GRAND PRIZE! 🎰🎰🎰"
                 else:
                     multiplier = 5
                     title = "🎰 Triple Match!"
@@ -297,10 +292,14 @@ class ShopCommands:
             payout = round(bet * multiplier, 2)
             if payout > 0:
                 await bot.economy_service.add_coins(guild_id, user_id, payout)
+            profile = await bot.economy_service.get_profile(guild_id, user_id)
 
             payout_line = f"**+🪙 {payout:.2f}**" if payout > 0 else f"Lost **🪙 {bet:.2f}**"
-            embed = _coins_embed(title, f"`{display}`\n\n{payout_line}")
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            embed = _coins_embed(
+                title,
+                f"{interaction.user.mention}\n`{display}`\n\n{payout_line}\nBalance: **🪙 {profile['bruh_coins']:.2f}**",
+            )
+            await interaction.followup.send(embed=embed)
 
         # ── /gift ──────────────────────────────────────────────
         @tree.command(name="gift", description="Send bruh.coins to another user.")

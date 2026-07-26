@@ -147,6 +147,34 @@ class EconomyCog(commands.Cog):
 
     economy_group = app_commands.Group(name="economy", description="Admin economy management commands.")
 
+    @economy_group.command(name="leaderboard", description="View the coin leaderboard (richest users).")
+    @log_command_usage()
+    @is_globally_blocked()
+    async def economy_leaderboard(self, interaction: discord.Interaction):
+        entries = await self.bot.economy_service.get_leaderboard(interaction.guild.id, sort_by="bruh_coins")
+        if not entries:
+            embed = self.bot.embed_service.create_info_embed(
+                title="🏪 Coin Leaderboard",
+                description="No one has earned coins yet. Start chatting!",
+            )
+            await interaction.response.send_message(embed=embed, files=self.bot.embed_service.get_brand_files(embed=embed))
+            return
+
+        description_lines = []
+        for entry in entries[:25]:
+            user_id = entry["user_id"]
+            member = interaction.guild.get_member(user_id)
+            name = member.display_name if member else f"User {user_id}"
+            rank_emoji = "🥇" if entry["rank"] == 1 else "🥈" if entry["rank"] == 2 else "🥉" if entry["rank"] == 3 else f"`#{entry['rank']}`"
+            line = f"{rank_emoji} **{name}** — 🪙 {entry['bruh_coins']:.2f} (Lv{entry['level']})"
+            description_lines.append(line)
+
+        embed = self.bot.embed_service._create_base_embed(
+            title="🏪 Coin Leaderboard",
+            description="\n".join(description_lines),
+        )
+        await interaction.response.send_message(embed=embed, files=self.bot.embed_service.get_brand_files(embed=embed))
+
     @economy_group.command(name="set-xp", description="Set a user's total XP.")
     @app_commands.describe(user="The user", amount="New XP amount")
     @log_command_usage()

@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
     from bot.bruh_bot import BruhBot
 
-EXTRACTION_SYSTEM_PROMPT = """You are a memory extraction system for a Discord bot. Your job is to analyze chat messages from a user and extract structured memories about them.
+EXTRACTION_SYSTEM_PROMPT = """You are a memory extraction system for a Discord bot. Your job is to analyze a group conversation and extract structured memories about multiple users.
 
 ## MEMORY CATEGORIES AND RETENTION RULES:
 - identity: Permanent (immutable facts like name, age, location, role). Never expires.
@@ -26,23 +26,27 @@ EXTRACTION_SYSTEM_PROMPT = """You are a memory extraction system for a Discord b
 - admin: Permanent (manually added by admins). YOU SHOULD NEVER GENERATE THIS CATEGORY.
 
 ## INSTRUCTIONS:
-1. Review the user's CURRENT MEMORIES and their RECENT MESSAGES.
-2. Determine what needs to change:
+1. Review the conversation transcript below. Messages are labeled with the speaker's name.
+2. For EACH user, review their CURRENT MEMORIES alongside what they said.
+3. Use conversational context — if one person says something and another agrees, that implies the second person shares that trait/preference/opinion too.
+4. Determine what needs to change per user:
    - ADD new memories when you observe new facts/opinions/traits
    - UPDATE existing memories when something changes (e.g., "I hated Python" → "I love Python now")
    - DELETE memories that are contradicted by recent messages or clearly no longer true
-3. Be conservative — only extract clear, meaningful information. Skip vague statements.
-4. Assign confidence scores (0.0-1.0) based on how explicitly the user stated it.
-5. For relationship memories, include 'target_username' so we know which user the relationship is about.
-6. DO NOT create 'admin' category memories.
+5. Be conservative — only extract clear, meaningful information. Skip vague statements.
+6. Assign confidence scores (0.0-1.0) based on how explicitly the user stated it.
+7. For relationship memories, include 'target_username' so we know which user the relationship is about.
+8. CRITICAL: Every action MUST include 'user_id' as a number — this is the Discord user ID telling us who the memory is about.
+9. DO NOT create 'admin' category memories.
 
 Return ONLY a valid JSON object with this exact structure:
 {
   "actions": [
-    {"action": "add", "memory": "fact about user", "category": "preference", "confidence": 0.9},
-    {"action": "add", "memory": "dislikes Klim", "category": "relationship", "confidence": 0.85, "target_username": "Klim"},
-    {"action": "update", "memory_id": "existing_memory_id_here", "new_memory": "updated fact", "category": "preference", "confidence": 0.85},
-    {"action": "delete", "memory_id": "existing_memory_id_here", "reason": "contradicted by: new statement"}
+    {"user_id": 123, "action": "add", "memory": "loves Whoppers", "category": "preference", "confidence": 0.9},
+    {"user_id": 456, "action": "add", "memory": "loves Whoppers", "category": "preference", "confidence": 0.85},
+    {"user_id": 123, "action": "add", "memory": "dislikes Klim", "category": "relationship", "confidence": 0.85, "target_username": "Klim"},
+    {"user_id": 456, "action": "update", "memory_id": "existing_memory_id_here", "new_memory": "updated fact", "category": "preference", "confidence": 0.85},
+    {"user_id": 789, "action": "delete", "memory_id": "existing_memory_id_here", "reason": "contradicted by: new statement"}
   ]
 }
 
@@ -53,16 +57,14 @@ class MemoryExtractionService:
     def __init__(self, bot: "BruhBot"):
         self.bot = bot
         self.logger = logging.getLogger(__name__)
-        self._message_buffers: dict[str, dict[int, list[dict]]] = {}
+        self._message_buffers: dict[str, list[dict]] = {}
         self._message_locks: dict[str, asyncio.Lock] = {}
-        self._last_extraction: dict[str, dict[int, float]] = {}
+        self._last_extraction: dict[str, float] = {}
         self._running = False
         self._main_task: asyncio.Task | None = None
-        self._mood_task: asyncio.Task | None = None
 
     async def enqueue_message(self, message: "discord.Message"):
         guild_id = str(message.guild.id)
-        user_id = message.author.id
         config = await self.bot.config_service.get_config(guild_id)
         mem_cfg = config.memoryConfig
 
@@ -77,57 +79,45 @@ class MemoryExtractionService:
             return
 
         if guild_id not in self._message_buffers:
-            self._message_buffers[guild_id] = {}
+            self._message_buffers[guild_id] = []
             self._message_locks[guild_id] = asyncio.Lock()
         if guild_id not in self._last_extraction:
-            self._last_extraction[guild_id] = {}
+            self._last_extraction[guild_id] = 0.0
 
-        user_id_str = str(user_id)
-        if user_id_str not in self._message_buffers[guild_id]:
-            self._message_buffers[guild_id][user_id_str] = []
-
-        self._message_buffers[guild_id][user_id_str].append(
+        self._message_buffers[guild_id].append(
             {
                 "content": content,
                 "message_id": message.id,
                 "timestamp": message.created_at.isoformat(),
+                "author_id": message.author.id,
+                "author_name": message.author.name,
             }
         )
 
     async def start_extraction_loops(self):
         self._running = True
         self._main_task = asyncio.create_task(self._main_loop())
-        self._mood_task = asyncio.create_task(self._mood_loop())
-        self.logger.info("Memory extraction loops started")
+        self.logger.info("Memory extraction loop started")
 
     async def stop_extraction_loops(self):
         self._running = False
-        for task in (self._main_task, self._mood_task):
-            if task:
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
-        self.logger.info("Memory extraction loops stopped")
+        if self._main_task:
+            self._main_task.cancel()
+            try:
+                await self._main_task
+            except asyncio.CancelledError:
+                pass
+        self.logger.info("Memory extraction loop stopped")
 
     async def _main_loop(self):
         while self._running:
             try:
-                await self._process_all_guilds(category_filter=None)
+                await self._process_all_guilds()
             except Exception:
                 self.logger.exception("Error in main extraction loop")
             await asyncio.sleep(60)
 
-    async def _mood_loop(self):
-        while self._running:
-            try:
-                await self._process_all_guilds(category_filter=["mood"])
-            except Exception:
-                self.logger.exception("Error in mood extraction loop")
-            await asyncio.sleep(60)
-
-    async def _process_all_guilds(self, category_filter: list[str] | None = None):
+    async def _process_all_guilds(self):
         guild_ids = list(self._message_buffers.keys())
         for guild_id in guild_ids:
             try:
@@ -136,7 +126,7 @@ class MemoryExtractionService:
                 if not mem_cfg.enabled:
                     continue
 
-                interval_minutes = mem_cfg.moodExtractionIntervalMinutes if category_filter == ["mood"] else mem_cfg.extractionIntervalMinutes
+                interval_minutes = min(mem_cfg.extractionIntervalMinutes, mem_cfg.moodExtractionIntervalMinutes)
                 if interval_minutes <= 0:
                     continue
                 interval_seconds = interval_minutes * 60
@@ -148,73 +138,86 @@ class MemoryExtractionService:
                     if guild_id not in self._message_buffers:
                         continue
 
-                    user_ids = list(self._message_buffers[guild_id].keys())
-                    for user_id_str in user_ids:
-                        try:
-                            user_id = int(user_id_str)
-                            now_ts = datetime.now(UTC).timestamp()
-                            last = self._last_extraction.get(guild_id, {}).get(user_id_str, 0)
-                            if now_ts - last < interval_seconds:
-                                continue
+                    now_ts = datetime.now(UTC).timestamp()
+                    last = self._last_extraction.get(guild_id, 0.0)
+                    if now_ts - last < interval_seconds:
+                        continue
 
-                            messages = self._message_buffers[guild_id].get(user_id_str, [])
-                            if len(messages) < (mem_cfg.minMessagesForExtraction if category_filter != ["mood"] else 3):
-                                continue
+                    all_messages = self._message_buffers[guild_id]
+                    if len(all_messages) < mem_cfg.minMessagesForExtraction:
+                        continue
 
-                            messages_to_process = messages[-mem_cfg.maxMessagesPerExtraction :]
-                            await self._extract_for_user(
-                                guild_id=guild_id,
-                                user_id=user_id,
-                                messages=messages_to_process,
-                                category_filter=category_filter,
-                                mem_cfg=mem_cfg,
-                            )
-                            self._message_buffers[guild_id][user_id_str] = []
-                            self._last_extraction.setdefault(guild_id, {})[user_id_str] = now_ts
-                        except Exception:
-                            self.logger.exception(f"Error processing user {user_id_str} in guild {guild_id}")
+                    messages_to_process = all_messages[-mem_cfg.maxMessagesPerExtraction :]
+                    await self._extract_for_guild(
+                        guild_id=guild_id,
+                        messages=messages_to_process,
+                        mem_cfg=mem_cfg,
+                    )
+                    self._message_buffers[guild_id] = []
+                    self._last_extraction[guild_id] = now_ts
             except Exception:
                 self.logger.exception(f"Error processing guild {guild_id}")
 
-    async def _extract_for_user(
+    async def _extract_for_guild(
         self,
         guild_id: str,
-        user_id: int,
         messages: list[dict],
-        category_filter: list[str] | None,
         mem_cfg,
     ):
+        config = await self.bot.config_service.get_config(guild_id)
+        id_to_users = config.idToUsers
         guild = self.bot.get_guild(int(guild_id))
-        username = str(user_id)
-        if guild:
-            member = guild.get_member(user_id)
-            if member:
-                username = member.name
 
-        existing_memories = await self.bot.memory_service.get_memories_for_user(
+        author_ids_in_batch = set()
+        for msg in messages:
+            author_id = msg.get("author_id")
+            if author_id:
+                author_ids_in_batch.add(int(author_id))
+
+        author_memories = await self.bot.memory_service.get_memories_for_users(
             guild_id=int(guild_id),
-            user_id=user_id,
-            categories=category_filter or mem_cfg.enabledCategories,
+            user_ids=list(author_ids_in_batch),
+            limit=50,
         )
 
-        memories_text = self._format_memories_for_prompt(existing_memories)
-        messages_text = self._format_messages_for_prompt(messages)
+        existing_by_user: dict[int, list[dict]] = {}
+        for uid_int, mems in author_memories.items():
+            existing_by_user[uid_int] = mems
 
-        system_prompt = EXTRACTION_SYSTEM_PROMPT
-        if category_filter:
-            system_prompt += f"\n\nFOCUS: Only extract memories for these categories: {', '.join(category_filter)}. Ignore everything else."
+        conversation_lines = []
+        for msg in messages:
+            name = msg.get("author_name", str(msg.get("author_id", "unknown")))
+            conversation_lines.append(f"[{name}]: {msg['content']}")
+        transcript = "\n".join(conversation_lines)
 
-        user_prompt = f"""## USER: {username}
+        users_section_parts = []
+        for uid_int in sorted(author_ids_in_batch):
+            user_mems = existing_by_user.get(uid_int, [])
+            canonical_name = id_to_users.get(str(uid_int))
+            if not canonical_name and guild:
+                member = guild.get_member(uid_int)
+                if member:
+                    canonical_name = member.name
+            if not canonical_name:
+                canonical_name = str(uid_int)
 
-## CURRENT MEMORIES:
-{memories_text if memories_text else "(No existing memories yet)"}
+            mem_text = self._format_memories_for_prompt(user_mems)
+            if mem_text:
+                users_section_parts.append(f"## USER: {canonical_name} (user_id: {uid_int})\n{mem_text}")
+            else:
+                users_section_parts.append(f"## USER: {canonical_name} (user_id: {uid_int})\n(No existing memories yet)")
 
-## RECENT MESSAGES (newest first):
-{messages_text}
+        users_section = "\n\n".join(users_section_parts)
 
-Analyze these messages and return the JSON actions."""
+        user_prompt = f"""## CONVERSATION TRANSCRIPT (newest first):
+{transcript}
 
-        ai_cfg = (await self.bot.config_service.get_config(guild_id)).aiConfig
+## EXISTING MEMORIES BY USER:
+{users_section}
+
+Analyze the conversation and existing memories above. For each user, determine what memories to add, update, or delete. Return the JSON actions with user_id for every action."""
+
+        ai_cfg = config.aiConfig
         provider = mem_cfg.extractionProvider
         provider_config = getattr(ai_cfg, provider, None) or ai_cfg.openrouter
         api_key = provider_config.get_api_key()
@@ -232,6 +235,7 @@ Analyze these messages and return the JSON actions."""
                             "items": {
                                 "type": "object",
                                 "properties": {
+                                    "user_id": {"type": "number"},
                                     "action": {"type": "string", "enum": ["add", "update", "delete"]},
                                     "memory": {"type": "string"},
                                     "category": {"type": "string", "enum": VALID_CATEGORIES},
@@ -241,7 +245,7 @@ Analyze these messages and return the JSON actions."""
                                     "reason": {"type": "string"},
                                     "target_username": {"type": "string"},
                                 },
-                                "required": ["action"],
+                                "required": ["action", "user_id"],
                             },
                         }
                     },
@@ -254,7 +258,7 @@ Analyze these messages and return the JSON actions."""
             provider=provider,
             model=model,
             messages=[
-                Message(role="system", parts=[MessagePart(type="text", text=system_prompt)]),
+                Message(role="system", parts=[MessagePart(type="text", text=EXTRACTION_SYSTEM_PROMPT)]),
                 Message(role="user", parts=[MessagePart(type="text", text=user_prompt)]),
             ],
             response_format=response_format,
@@ -267,26 +271,38 @@ Analyze these messages and return the JSON actions."""
             result = json.loads(content)
             actions = result.get("actions", [])
 
-            await self._apply_actions(guild_id=int(guild_id), user_id=user_id, actions=actions, existing_memories=existing_memories, mem_cfg=mem_cfg)
+            await self._apply_actions_batch(
+                guild_id=int(guild_id),
+                actions=actions,
+                existing_by_user=existing_by_user,
+                mem_cfg=mem_cfg,
+                id_to_users=id_to_users,
+            )
 
-            self.logger.info(f"Extracted {len(actions)} memory actions for {username} in guild {guild_id}")
+            user_ids_in_actions = {a.get("user_id") for a in actions if a.get("user_id")}
+            self.logger.info(f"Extracted {len(actions)} memory actions for {len(user_ids_in_actions)} users in guild {guild_id}")
         except Exception:
-            self.logger.exception(f"Error during memory extraction for {username} in guild {guild_id}")
+            self.logger.exception(f"Error during batch memory extraction for guild {guild_id}")
 
-    async def _apply_actions(
+    async def _apply_actions_batch(
         self,
         guild_id: int,
-        user_id: int,
         actions: list[dict],
-        existing_memories: list[dict],
+        existing_by_user: dict[int, list[dict]],
         mem_cfg,
+        id_to_users: dict[str, str],
     ):
-        existing_ids = {m["_id"] for m in existing_memories}
-        config = await self.bot.config_service.get_config(str(guild_id))
+        config_by_action = await self.bot.config_service.get_config(str(guild_id))
 
         for action in actions:
             try:
                 action_type = action.get("action")
+                user_id = action.get("user_id")
+                if not user_id:
+                    continue
+
+                existing_memories = existing_by_user.get(int(user_id), [])
+                existing_ids = {m["_id"] for m in existing_memories}
 
                 if action_type == "add":
                     memory_text = action.get("memory", "").strip()
@@ -298,14 +314,13 @@ Analyze these messages and return the JSON actions."""
 
                     target_user_id = None
                     if category == "relationship" and action.get("target_username"):
-                        target_username = action["target_username"]
-                        resolved_id = config.usersToId.get(target_username)
+                        resolved_id = config_by_action.usersToId.get(action["target_username"])
                         if resolved_id:
                             target_user_id = int(resolved_id)
 
                     await self.bot.memory_service.save_memory(
                         guild_id=guild_id,
-                        user_id=user_id,
+                        user_id=int(user_id),
                         memory=memory_text,
                         category=category,
                         confidence=confidence,
@@ -321,7 +336,7 @@ Analyze these messages and return the JSON actions."""
 
                     target_user_id = None
                     if category == "relationship" and action.get("target_username"):
-                        resolved_id = config.usersToId.get(action["target_username"])
+                        resolved_id = config_by_action.usersToId.get(action["target_username"])
                         if resolved_id:
                             target_user_id = int(resolved_id)
 
@@ -329,7 +344,7 @@ Analyze these messages and return the JSON actions."""
                         if new_memory and category in VALID_CATEGORIES:
                             await self.bot.memory_service.save_memory(
                                 guild_id=guild_id,
-                                user_id=user_id,
+                                user_id=int(user_id),
                                 memory=new_memory,
                                 category=category or "fact",
                                 confidence=float(confidence or 0.5),
@@ -357,11 +372,18 @@ Analyze these messages and return the JSON actions."""
             except Exception:
                 self.logger.exception(f"Error applying action {action}")
 
-        await self.bot.memory_service.enforce_max_memories(
-            guild_id=guild_id,
-            user_id=user_id,
-            max_memories=mem_cfg.maxMemoriesPerUser,
-        )
+        user_ids_in_actions = set()
+        for a in actions:
+            uid = a.get("user_id")
+            if uid:
+                user_ids_in_actions.add(int(uid))
+
+        for uid in user_ids_in_actions:
+            await self.bot.memory_service.enforce_max_memories(
+                guild_id=guild_id,
+                user_id=uid,
+                max_memories=mem_cfg.maxMemoriesPerUser,
+            )
 
     @staticmethod
     def _format_memories_for_prompt(memories: list[dict]) -> str:
@@ -380,7 +402,8 @@ Analyze these messages and return the JSON actions."""
             return "(no messages)"
         lines = []
         for msg in messages[-50:]:
-            lines.append(f"[{msg.get('timestamp', 'unknown')}] {msg['content']}")
+            name = msg.get("author_name", "unknown")
+            lines.append(f"[{name}]: {msg['content']}")
         return "\n".join(lines)
 
     async def force_extract_all(self, guild_id: str) -> int:
@@ -392,48 +415,44 @@ Analyze these messages and return the JSON actions."""
         if guild_id not in self._message_buffers:
             return 0
 
-        processed = 0
-        user_ids = list(self._message_buffers[guild_id].keys())
-        for user_id_str in user_ids:
-            user_id = int(user_id_str)
-            messages = self._message_buffers[guild_id].get(user_id_str, [])
-            if not messages:
-                continue
+        async with self._message_locks.get(guild_id, asyncio.Lock()):
+            all_messages = self._message_buffers.get(guild_id, [])
+            if not all_messages:
+                return 0
 
-            messages_to_process = messages[-mem_cfg.maxMessagesPerExtraction :]
-            try:
-                await self._extract_for_user(
-                    guild_id=guild_id,
-                    user_id=user_id,
-                    messages=messages_to_process,
-                    category_filter=None,
-                    mem_cfg=mem_cfg,
-                )
-                self._message_buffers[guild_id][user_id_str] = []
-                self._last_extraction.setdefault(guild_id, {})[user_id_str] = datetime.now(UTC).timestamp()
-                processed += 1
-            except Exception:
-                self.logger.exception(f"Error force-extracting user {user_id_str} in guild {guild_id}")
+            messages_to_process = all_messages[-mem_cfg.maxMessagesPerExtraction :]
+            user_ids_in_batch = set()
+            for msg in messages_to_process:
+                aid = msg.get("author_id")
+                if aid:
+                    user_ids_in_batch.add(int(aid))
 
-        return processed
+            await self._extract_for_guild(
+                guild_id=guild_id,
+                messages=messages_to_process,
+                mem_cfg=mem_cfg,
+            )
+            self._message_buffers[guild_id] = []
+            self._last_extraction[guild_id] = datetime.now(UTC).timestamp()
+
+        return len(user_ids_in_batch)
 
     async def force_extract_user(self, guild_id: str, user_id: int) -> bool:
         config = await self.bot.config_service.get_config(guild_id)
         mem_cfg = config.memoryConfig
 
-        user_id_str = str(user_id)
-        messages = self._message_buffers.get(guild_id, {}).get(user_id_str, [])
-        if not messages:
+        user_id_int = int(user_id)
+        all_messages = self._message_buffers.get(guild_id, [])
+        user_messages = [m for m in all_messages if m.get("author_id") == user_id_int]
+        if not user_messages:
             return False
 
-        messages_to_process = messages[-mem_cfg.maxMessagesPerExtraction :]
-        await self._extract_for_user(
+        messages_to_process = user_messages[-mem_cfg.maxMessagesPerExtraction :]
+        await self._extract_for_guild(
             guild_id=guild_id,
-            user_id=user_id,
             messages=messages_to_process,
-            category_filter=None,
             mem_cfg=mem_cfg,
         )
-        self._message_buffers[guild_id][user_id_str] = []
-        self._last_extraction.setdefault(guild_id, {})[user_id_str] = datetime.now(UTC).timestamp()
+        self._message_buffers[guild_id] = [m for m in self._message_buffers.get(guild_id, []) if m.get("author_id") != user_id_int]
+        self._last_extraction[guild_id] = datetime.now(UTC).timestamp()
         return True

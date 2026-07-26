@@ -79,14 +79,23 @@ class EconomyCog(commands.Cog):
             user_id = entry["user_id"]
             member = interaction.guild.get_member(user_id)
             name = member.display_name if member else f"User {user_id}"
-            rank_emoji = "🥇" if entry["rank"] == 1 else "🥈" if entry["rank"] == 2 else "🥉" if entry["rank"] == 3 else f"`#{entry['rank']}`"
-            line = f"{rank_emoji} **{name}** — Lv{entry['level']} ({entry['xp']:,} XP) · 🪙 {entry['bruh_coins']:.2f}"
+            rank = entry["rank"]
+            line = f"{'🥇' if rank == 1 else '🥈' if rank == 2 else '🥉' if rank == 3 else f'`#{rank}`'} **{name}** — Lv{entry['level']} ({entry['xp']:,} XP) · 🪙 {entry['bruh_coins']:.2f}"
+            if rank == 1:
+                line = f"## {line}"
+            elif rank == 2:
+                line = f"### {line}"
+            elif rank == 3:
+                line = f"#### {line}"
             description_lines.append(line)
 
         embed = self.bot.embed_service._create_base_embed(
             title=f"🏆 Leaderboard — {sort_labels.get(sort_by, sort_by)}",
             description="\n".join(description_lines),
         )
+        top_member = interaction.guild.get_member(entries[0]["user_id"])
+        if top_member:
+            embed.set_thumbnail(url=top_member.display_avatar.url)
         await interaction.response.send_message(embed=embed, files=self.bot.embed_service.get_brand_files(embed=embed))
 
     @app_commands.command(name="balance", description="Check your bruh.coin balance.")
@@ -165,14 +174,23 @@ class EconomyCog(commands.Cog):
             user_id = entry["user_id"]
             member = interaction.guild.get_member(user_id)
             name = member.display_name if member else f"User {user_id}"
-            rank_emoji = "🥇" if entry["rank"] == 1 else "🥈" if entry["rank"] == 2 else "🥉" if entry["rank"] == 3 else f"`#{entry['rank']}`"
-            line = f"{rank_emoji} **{name}** — 🪙 {entry['bruh_coins']:.2f} (Lv{entry['level']})"
+            rank = entry["rank"]
+            line = f"{'🥇' if rank == 1 else '🥈' if rank == 2 else '🥉' if rank == 3 else f'`#{rank}`'} **{name}** — 🪙 {entry['bruh_coins']:.2f} (Lv{entry['level']})"
+            if rank == 1:
+                line = f"## {line}"
+            elif rank == 2:
+                line = f"### {line}"
+            elif rank == 3:
+                line = f"#### {line}"
             description_lines.append(line)
 
         embed = self.bot.embed_service._create_base_embed(
             title="🏪 Coin Leaderboard",
             description="\n".join(description_lines),
         )
+        top_member = interaction.guild.get_member(entries[0]["user_id"])
+        if top_member:
+            embed.set_thumbnail(url=top_member.display_avatar.url)
         await interaction.response.send_message(embed=embed, files=self.bot.embed_service.get_brand_files(embed=embed))
 
     @economy_group.command(name="set-xp", description="Set a user's total XP.")

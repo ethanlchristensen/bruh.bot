@@ -312,12 +312,22 @@ class AiUsageCommand:
 
                     rank_emoji = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else f"`#{idx}`"
                     line = f"{rank_emoji} **{name}** — {total_requests} reqs · {total_input_tokens:,} in / {total_output_tokens:,} out · {cost_str}"
+                    if idx == 1:
+                        line = f"## {line}"
+                    elif idx == 2:
+                        line = f"### {line}"
+                    elif idx == 3:
+                        line = f"#### {line}"
                     description_lines.append(line)
 
                 embed = bot.embed_service._create_base_embed(
                     title=f"AI Usage Leaderboard ({period})",
                     description=f"**{summary['total_requests']}** total requests — **${summary['total_cost']:.4f}** total cost\n\n" + "\n".join(description_lines),
                 )
+                top_user_id = int(entries[0]["user_id"])
+                top_member = interaction.guild.get_member(top_user_id)
+                if top_member:
+                    embed.set_thumbnail(url=top_member.display_avatar.url)
 
                 await interaction.followup.send(embed=embed, files=bot.embed_service.get_brand_files(embed=embed))
 

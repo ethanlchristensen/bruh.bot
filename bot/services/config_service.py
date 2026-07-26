@@ -124,6 +124,10 @@ class EconomyConfig(BaseModel):
     dailyCoinMin: float = 50.0
     dailyCoinMax: float = 100.0
     levelUpAnnounceInChannel: bool = True
+    spamCoinThreshold: float = 2.0
+    spamCoinPenaltyIncrement: float = 0.2
+    spamCoinPenaltyRecovery: float = 0.1
+    spamCoinPenaltyMax: float = 1.0
 
 
 class DiscordScrapeBotConfig(BaseModel):

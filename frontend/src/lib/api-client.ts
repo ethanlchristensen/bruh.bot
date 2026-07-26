@@ -80,6 +80,10 @@ export interface EconomyConfig {
   dailyCoinMin: number;
   dailyCoinMax: number;
   levelUpAnnounceInChannel: boolean;
+  spamCoinThreshold: number;
+  spamCoinPenaltyIncrement: number;
+  spamCoinPenaltyRecovery: number;
+  spamCoinPenaltyMax: number;
 }
 
 export interface EconomyProfile {

@@ -65,6 +65,8 @@ class MongoEconomyService:
                 "total_bot_mentions": 0,
                 "last_xp_grant": None,
                 "last_daily_claim": None,
+                "last_message_time": None,
+                "spam_coin_penalty": 0.0,
                 "booster_active_until": None,
                 "created_at": now,
                 "updated_at": now,
@@ -81,6 +83,8 @@ class MongoEconomyService:
                 "total_bot_mentions": 0,
                 "last_xp_grant": None,
                 "last_daily_claim": None,
+                "last_message_time": None,
+                "spam_coin_penalty": 0.0,
                 "booster_active_until": None,
             }
             missing = {k: v for k, v in defaults.items() if k not in doc}
@@ -260,6 +264,8 @@ class MongoEconomyService:
                     "total_bot_mentions": 0,
                     "last_xp_grant": None,
                     "last_daily_claim": None,
+                    "last_message_time": None,
+                    "spam_coin_penalty": 0.0,
                     "booster_active_until": None,
                     "updated_at": now,
                 },
@@ -269,6 +275,22 @@ class MongoEconomyService:
     async def handle_message_event(self, guild_id: int, user_id: int, config: EconomyConfig, has_attachment: bool, is_bot_mention: bool) -> tuple[int, int, bool]:
         if not config.xpEnabled:
             return 0, 0, False
+
+        now = datetime.now(UTC)
+        doc = await self._get_or_create_profile_raw(guild_id, user_id)
+
+        penalty = doc.get("spam_coin_penalty", 0.0)
+        last_msg_time = doc.get("last_message_time")
+        if last_msg_time:
+            if isinstance(last_msg_time, str):
+                last_msg_time = datetime.fromisoformat(last_msg_time.replace("Z", "+00:00"))
+            if last_msg_time.tzinfo is None:
+                last_msg_time = last_msg_time.replace(tzinfo=UTC)
+            elapsed = (now - last_msg_time).total_seconds()
+            if elapsed < config.spamCoinThreshold:
+                penalty = min(config.spamCoinPenaltyMax, penalty + config.spamCoinPenaltyIncrement)
+            else:
+                penalty = max(0.0, penalty - elapsed * config.spamCoinPenaltyRecovery)
 
         xp_awarded = random.randint(config.baseXpRange[0], config.baseXpRange[1])
         coins_awarded = round(random.uniform(config.messageCoinRange[0], config.messageCoinRange[1]), 2)
@@ -286,14 +308,13 @@ class MongoEconomyService:
             await self.add_stat(guild_id, user_id, "total_bot_mentions")
 
         # Check for active XP booster
-        doc = await self._get_or_create_profile_raw(guild_id, user_id)
         booster = doc.get("booster_active_until")
         if booster:
             if isinstance(booster, str):
                 booster = datetime.fromisoformat(booster.replace("Z", "+00:00"))
             if booster.tzinfo is None:
                 booster = booster.replace(tzinfo=UTC)
-            if datetime.now(UTC) < booster:
+            if now < booster:
                 xp_awarded *= 2
             else:
                 await self.collection.update_one(
@@ -301,9 +322,16 @@ class MongoEconomyService:
                     {"$set": {"booster_active_until": None}},
                 )
 
+        coins_awarded = round(coins_awarded * (1.0 - penalty), 2)
+
         new_xp, old_level, new_level = await self.add_xp(guild_id, user_id, xp_awarded)
         await self.add_coins(guild_id, user_id, coins_awarded)
         await self.add_stat(guild_id, user_id, "total_messages")
+
+        await self.collection.update_one(
+            {"guild_id": Int64(guild_id), "user_id": Int64(user_id)},
+            {"$set": {"spam_coin_penalty": penalty, "last_message_time": now, "updated_at": now}},
+        )
 
         leveled_up = new_level > old_level
         return old_level, new_level, leveled_up

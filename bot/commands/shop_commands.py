@@ -219,10 +219,10 @@ class ShopCommands:
             diff = user_roll - bot_roll
 
             if diff >= 3:
-                multiplier = 3
+                multiplier = 2.6
                 title = "🎲 Crushing Victory!"
             elif diff >= 1:
-                multiplier = 1.5
+                multiplier = 1.4
                 title = "🎲 You Win!"
             elif diff == 0:
                 multiplier = 1.0
@@ -271,19 +271,19 @@ class ShopCommands:
 
             if unique == 1:
                 if jackpot:
-                    multiplier = 50
+                    multiplier = 44
                     title = "💎💎💎 JACKPOT! 💎💎💎"
                 elif seven:
-                    multiplier = 25
+                    multiplier = 22
                     title = "7️⃣7️⃣7️⃣ SEVENS! 7️⃣7️⃣7️⃣"
                 elif slot:
-                    multiplier = 10
+                    multiplier = 9
                     title = "🎰🎰🎰 GRAND PRIZE! 🎰🎰🎰"
                 else:
-                    multiplier = 5
+                    multiplier = 4
                     title = "🎰 Triple Match!"
             elif unique == 2:
-                multiplier = 2
+                multiplier = 1.85
                 title = "🎰 Pair!"
             else:
                 multiplier = 0

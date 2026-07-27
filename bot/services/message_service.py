@@ -107,6 +107,8 @@ class MessageService:
                         user_ids_to_query.append(mentioned_user.id)
                         author_to_id[str(mentioned_user.id)] = mentioned_user.name
 
+                self.logger.info(f"Querying memories for {len(user_ids_to_query)} user(s): {', '.join(author_to_id.get(str(uid), str(uid)) for uid in user_ids_to_query)}")
+
                 memories_map = await self.bot.memory_service.get_memories_for_users(
                     guild_id=message.guild.id,
                     user_ids=user_ids_to_query,
@@ -116,6 +118,7 @@ class MessageService:
                     lines = []
                     for uid_str, mems in memories_map.items():
                         name = author_to_id.get(uid_str, uid_str)
+                        self.logger.info(f"  Found {len(mems)} memories for {name} (id={uid_str})")
                         for mem in mems:
                             if mem.get("target_user_id") and mem["category"] == "relationship":
                                 lines.append(f"- [{name}]: {mem['memory']} → <@{mem['target_user_id']}> ({mem['category']})")
@@ -123,6 +126,9 @@ class MessageService:
                                 lines.append(f"- [{name}]: {mem['memory']} ({mem['category']})")
                     if lines:
                         memories_section = "\n## GROUNDING MEMORIES:\nThese are known facts and observations about users in this conversation. Use them to personalize responses naturally.\n\n" + "\n".join(lines) + "\n"
+                        self.logger.info(f"Injected {len(lines)} total memory entries into context")
+                else:
+                    self.logger.info("  No memories found for any queried user")
         except Exception:
             self.logger.exception("Error retrieving user memories for context")
 

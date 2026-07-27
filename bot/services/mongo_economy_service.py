@@ -210,7 +210,7 @@ class MongoEconomyService:
         econ_config = await self._get_economy_config(guild_id)
         doc = await self._get_or_create_profile_raw(guild_id, user_id)
         now = datetime.now(UTC)
-        today_reset = datetime(now.year, now.month, now.day, 12, 0, 0, tzinfo=UTC)
+        today_reset = datetime(now.year, now.month, now.day, 6, 0, 0, tzinfo=UTC)
         if now < today_reset:
             today_reset -= timedelta(days=1)
         last_claim = doc.get("last_daily_claim")
@@ -224,7 +224,7 @@ class MongoEconomyService:
                 remaining = next_reset - now
                 hours = remaining.seconds // 3600
                 minutes = (remaining.seconds % 3600) // 60
-                return False, 0.0, f"Already claimed today! Resets at 12:00 UTC (in {hours}h {minutes}m)."
+                return False, 0.0, f"Already claimed today! Resets at 12:00 AM CST (in {hours}h {minutes}m)."
         amount = round(random.uniform(econ_config.dailyCoinMin, econ_config.dailyCoinMax), 2)
         await self.collection.update_one(
             {"guild_id": Int64(guild_id), "user_id": Int64(user_id)},

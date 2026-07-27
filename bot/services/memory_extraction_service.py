@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -25,19 +26,41 @@ EXTRACTION_SYSTEM_PROMPT = """You are a memory extraction system for a Discord b
 - fact: 90-day retention (general facts about the user).
 - admin: Permanent (manually added by admins). YOU SHOULD NEVER GENERATE THIS CATEGORY.
 
+## WHAT TO EXTRACT:
+Memories must be CORE to who the user IS — their identity, personality, likes/dislikes, opinions, skills, and relationships. Good examples:
+- "is a software engineer" (identity)
+- "loves dark humor and roasts people" (trait)
+- "hates pineapple on pizza" (preference)
+- "thinks AI will replace most jobs by 2030" (opinion)
+- "dislikes Klim" (relationship)
+- "plays guitar" (fact/skill)
+
+## WHAT NOT TO EXTRACT — SKIP THESE ENTIRELY:
+- **One-off actions**: sharing a link, posting a meme, saying "lol", greeting someone
+- **Ephemeral chatter**: "shared a YouTube video", "posted a gif", "good morning", "how was your day"
+- **Server logistics**: asking for roles, reporting bugs, asking bot commands, troubleshooting
+- **Vague or generic statements**: "that's cool", "I agree", "nice", "same"
+- **Conversational filler**: jokes without personality insight, reaction gifs, "based", "fr fr"
+- **Transient states**: what they're currently doing/watching/eating right now (unless it reveals a strong preference/identity)
+- **Anything that won't matter about this person a week from now**
+
+## GOLDEN RULE:
+Ask yourself: "Does this tell me something meaningful about WHO this person IS — their identity, personality, or tastes — not just what they casually DID?" If the answer is no, do NOT create a memory.
+
 ## INSTRUCTIONS:
 1. Review the conversation transcript below. Messages are labeled with the speaker's name.
 2. For EACH user, review their CURRENT MEMORIES alongside what they said.
 3. Use conversational context — if one person says something and another agrees, that implies the second person shares that trait/preference/opinion too.
 4. Determine what needs to change per user:
-   - ADD new memories when you observe new facts/opinions/traits
+   - ADD new memories only when you observe facts/opinions/traits that reveal WHO the user IS
    - UPDATE existing memories when something changes (e.g., "I hated Python" → "I love Python now")
    - DELETE memories that are contradicted by recent messages or clearly no longer true
-5. Be conservative — only extract clear, meaningful information. Skip vague statements.
+5. Be conservative — only extract clear, meaningful information about the user's identity. When in doubt, skip it.
 6. Assign confidence scores (0.0-1.0) based on how explicitly the user stated it.
-7. For relationship memories, include 'target_username' so we know which user the relationship is about.
+7. For relationship memories, include 'target_username' with the exact name from the KNOWN USERS list. If someone says "I hate Nolan" and "Nolan" appears in KNOWN USERS, set target_username to exactly "Nolan".
 8. CRITICAL: Every action MUST include 'user_id' as a number — this is the Discord user ID telling us who the memory is about.
 9. DO NOT create 'admin' category memories.
+10. NEVER extract memories for the bot itself (the assistant/bot user in the conversation).
 
 Return ONLY a valid JSON object with this exact structure:
 {
@@ -173,6 +196,10 @@ class MemoryExtractionService:
             author_id = msg.get("author_id")
             if author_id:
                 author_ids_in_batch.add(int(author_id))
+            for match in re.finditer(r"<@!?(\d+)>", msg.get("content", "")):
+                mid = int(match.group(1))
+                if mid != self.bot.user.id:
+                    author_ids_in_batch.add(mid)
 
         author_memories = await self.bot.memory_service.get_memories_for_users(
             guild_id=int(guild_id),
@@ -187,7 +214,8 @@ class MemoryExtractionService:
         conversation_lines = []
         for msg in messages:
             name = msg.get("author_name", str(msg.get("author_id", "unknown")))
-            conversation_lines.append(f"[{name}]: {msg['content']}")
+            content = self._resolve_mentions_in_text(msg["content"], id_to_users)
+            conversation_lines.append(f"[{name}]: {content}")
         transcript = "\n".join(conversation_lines)
 
         users_section_parts = []
@@ -209,13 +237,18 @@ class MemoryExtractionService:
 
         users_section = "\n\n".join(users_section_parts)
 
+        known_users = "\n".join(f"- {name}" for name in sorted(config.usersToId.keys())) if config.usersToId else "(no known users registered)"
+
         user_prompt = f"""## CONVERSATION TRANSCRIPT (newest first):
 {transcript}
 
 ## EXISTING MEMORIES BY USER:
 {users_section}
 
-Analyze the conversation and existing memories above. For each user, determine what memories to add, update, or delete. Return the JSON actions with user_id for every action."""
+## KNOWN USERS IN THIS SERVER:
+{known_users}
+
+Analyze the conversation and existing memories above. For each user, determine what memories to add, update, or delete. When a name mentioned in conversation matches a known user, use that name as target_username for relationship memories. Return the JSON actions with user_id for every action."""
 
         ai_cfg = config.aiConfig
         provider = mem_cfg.extractionProvider
@@ -422,6 +455,15 @@ Analyze the conversation and existing memories above. For each user, determine w
             name = msg.get("author_name", "unknown")
             lines.append(f"[{name}]: {msg['content']}")
         return "\n".join(lines)
+
+    @staticmethod
+    def _resolve_mentions_in_text(text: str, id_to_users: dict[str, str]) -> str:
+        def replace_mention(match: re.Match) -> str:
+            user_id = match.group(1)
+            name = id_to_users.get(user_id)
+            return f"@{name}" if name else match.group(0)
+
+        return re.sub(r"<@!?(\d+)>", replace_mention, text)
 
     async def force_extract_all(self, guild_id: str) -> int:
         config = await self.bot.config_service.get_config(guild_id)

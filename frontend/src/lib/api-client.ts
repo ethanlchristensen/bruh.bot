@@ -64,6 +64,14 @@ export interface MemoryConfig {
   maxMemoriesPerUser: number;
   maxInjectionCount: number;
   enabledCategories: Array<string>;
+  embeddingModel: string;
+  embeddingDimensions: number;
+  maxToolRounds: number;
+  maxToolCallsPerBatch: number;
+  maxAddsPerUserPerBatch: number;
+  dedupeThreshold: number;
+  semanticRetrieval: boolean;
+  retrievalMinScore: number;
 }
 
 export interface EconomyConfig {

@@ -53,7 +53,8 @@ bruh.bot/
 │   │   ├── cooldown_service.py      # Per-user mention cooldown enforcement
 │   │   ├── discord_messages_service.py  # For scraping other bots' messages (DiscordScrapeBot integration)
 │   │   ├── embed_service.py         # Standardized embed creation (success, error, now-playing, morning)
-│   │   ├── memory_extraction_service.py # Background LLM-driven memory extraction from messages
+│   │   ├── memory_extraction_service.py # Agentic tool-calling memory extraction from messages
+│   │   ├── memory_tools.py            # Tool schemas + MemoryToolExecutor (search/get/add/update/remove memories)
 │   │   ├── message_service.py       # Message context building, image attachment detection
 │   │   ├── mongo_chat_service.py    # MongoChatService — persist chat threads
 │   │   ├── mongo_image_limit_service.py  # Daily image generation quotas
@@ -63,6 +64,7 @@ bruh.bot/
 │   │
 │   ├── services/ai/
 │   │   ├── ai_orchestrator.py       # Intent detection (chat vs image_generation) via LLM
+│   │   ├── embedding_service.py      # OpenRouter embeddings API — generates vectors for memory semantic search
 │   │   ├── image_generation_service.py  # Generate/edit images via OpenRouter (Gemini Imagen)
 │   │   ├── real_time_audio_service.py   # RealTimeAudioService — OpenAI Realtime API voice
 │   │   ├── types.py                 # UserIntent dataclass, ImageGenerationResponse
@@ -151,7 +153,9 @@ bruh.bot/
 │       └── integrations/tanstack-query/  # Query devtools + provider
 │
 ├── tools/
-│   └── music_cli.py                 # CLI for testing music service offline
+│   ├── backfill_memory_embeddings.py  # One-shot: embed existing memories when upgrading to v2
+│   ├── migrate_collections.py         # Migrate data between collection naming schemes
+│   └── music_cli.py                   # CLI for testing music service offline
 │
 └── emojis/                          # Emoji images for morning messages and now-playing embeds
 ```
@@ -255,12 +259,15 @@ A provider-agnostic abstraction layer. All LLM calls route through `MeshGateway`
 
 ### 5. User Memory System (`docs/memory-system.md` for full details)
 
-- LLM-driven extraction from all server messages (not just @mentions)
-- Two background loops: main (20min, all categories) + mood (5min, mood only)
-- Per-user in-memory message buffering → LLM extraction → MongoDB storage
+- **Agentic tool-calling extraction**: LLM receives tools (search_memories, get_user_memories, add_memory, update_memory, remove_memory) and runs an interactive loop to analyze conversations and maintain memories
+- **Semantic search**: Memories are embedded as 1536-dimension vectors via OpenRouter and indexed in MongoDB Atlas for cosine similarity search
+- **Semantic deduplication**: Before adding a memory, it's embedded and checked against existing memories — near-duplicates auto-convert to updates at `dedupeThreshold` (0.92)
+- **Hybrid retrieval**: At chat time, permanent memories are always included while semantically relevant non-permanent memories are fetched via `$vectorSearch`
+- **Two background loops**: main (default 20min, all categories) + mood (5min, mood only)
+- Per-user in-memory message buffering → agentic LLM extraction → MongoDB storage with vector embeddings
 - Category-based TTL retention (identity=permanent, mood=7 days)
-- Memories injected into system prompt during chat for personalization
 - `/memories` command: view own, admin add/remove/list/clear/extract
+- **Backfill tool**: `tools/backfill_memory_embeddings.py` embeds existing memories when upgrading from v1
 
 ### 6. Scheduled Morning Messages (`bot/cogs/scheduler.py`)
 

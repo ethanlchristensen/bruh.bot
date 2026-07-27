@@ -136,6 +136,19 @@ class OpenRouterAdapter(OllamaAdapter):
                                 actual_provider=actual_provider,
                             )
 
+                        if delta.get("tool_calls"):
+                            for tc in delta["tool_calls"]:
+                                yield StreamChunk(
+                                    type="tool_call_delta",
+                                    tool_call={
+                                        "index": tc.get("index"),
+                                        "id": tc.get("id"),
+                                        "name": tc.get("function", {}).get("name") if tc.get("function") else None,
+                                        "arguments_delta": tc.get("function", {}).get("arguments") if tc.get("function") else None,
+                                    },
+                                    actual_provider=actual_provider,
+                                )
+
                         # Handle streaming images (OpenRouter multimodal)
                         if "images" in delta and delta["images"]:
                             for img_data in delta["images"]:
@@ -158,13 +171,13 @@ class OpenRouterAdapter(OllamaAdapter):
     async def complete(self, request: NormalizedRequest, api_key: str) -> NormalizedResponse:
         # Check if the request contains audio modality (OpenRouter requires stream: True for audio output)
         if request.modalities and "audio" in request.modalities:
-            # Aggregate stream chunks under the hood
             text_content = ""
             reasoning_content = ""
             images = []
             audio_data = ""
             usage = {}
             actual_provider = "openrouter"
+            tool_calls_by_index: dict[int, dict] = {}
 
             async for chunk in self.stream(request, api_key=api_key):
                 if chunk.type == "text_delta" and chunk.delta:
@@ -177,6 +190,15 @@ class OpenRouterAdapter(OllamaAdapter):
                     audio_data += chunk.audio_data
                 elif chunk.type == "usage" and chunk.usage:
                     usage = chunk.usage
+                elif chunk.type == "tool_call_delta" and chunk.tool_call:
+                    tc = chunk.tool_call
+                    idx = tc.get("index", 0)
+                    if idx not in tool_calls_by_index:
+                        tool_calls_by_index[idx] = {"id": tc.get("id"), "name": tc.get("name") or "", "arguments": ""}
+                    if tc.get("name"):
+                        tool_calls_by_index[idx]["name"] = tc["name"]
+                    if tc.get("arguments_delta"):
+                        tool_calls_by_index[idx]["arguments"] += tc["arguments_delta"]
                 if chunk.actual_provider:
                     actual_provider = chunk.actual_provider
 
@@ -188,10 +210,26 @@ class OpenRouterAdapter(OllamaAdapter):
             for img in images:
                 parts.append(ResponsePart(type="image", content=img))
             if audio_data:
-                # Format base64 audio with correct data url prefix
                 if not audio_data.startswith("data:"):
                     audio_data = f"data:audio/wav;base64,{audio_data}"
                 parts.append(ResponsePart(type="audio", content=audio_data))
+            for idx in sorted(tool_calls_by_index.keys()):
+                tc = tool_calls_by_index[idx]
+                arguments = tc["arguments"]
+                try:
+                    arguments = json.loads(arguments)
+                except json.JSONDecodeError:
+                    arguments = tc["arguments"]
+                parts.append(
+                    ResponsePart(
+                        type="tool_call",
+                        content={
+                            "id": tc["id"],
+                            "name": tc["name"],
+                            "arguments": arguments,
+                        },
+                    )
+                )
 
             # Normalize usage format
             normalized_usage = (
@@ -275,6 +313,25 @@ class OpenRouterAdapter(OllamaAdapter):
                 if not audio_data.startswith("data:"):
                     audio_data = f"data:audio/wav;base64,{audio_data}"
                 parts.append(ResponsePart(type="audio", content=audio_data))
+
+            for tc in msg.get("tool_calls") or []:
+                func = tc.get("function") or {}
+                arguments = func.get("arguments", "{}")
+                if isinstance(arguments, str):
+                    try:
+                        arguments = json.loads(arguments)
+                    except json.JSONDecodeError:
+                        pass
+                parts.append(
+                    ResponsePart(
+                        type="tool_call",
+                        content={
+                            "id": tc["id"],
+                            "name": func.get("name", ""),
+                            "arguments": arguments,
+                        },
+                    )
+                )
 
             usage = data.get("usage", {})
             normalized_usage = {

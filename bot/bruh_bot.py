@@ -11,6 +11,7 @@ from bot.services import (
     ConfigService,
     CooldownService,
     DiscordMessagesService,
+    EmbeddingService,
     EmbedService,
     ImageGenerationService,
     MemoryExtractionService,
@@ -50,6 +51,7 @@ class BruhBot(commands.Bot):
 
         # Services
         self.embed_service = EmbedService()
+        self.embedding_service = EmbeddingService(self)
         self.audio_service = AudioService()
         self.music_queue_service = MusicQueueService(self)
         self.image_limit_service = MongoImageLimitService(self)

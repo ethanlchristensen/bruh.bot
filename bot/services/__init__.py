@@ -1,4 +1,5 @@
 from .ai.ai_orchestrator import AiOrchestrator
+from .ai.embedding_service import EmbeddingService
 from .ai.image_generation_service import ImageGenerationService
 from .ai.real_time_audio_service import (
     AudioProcessor,
@@ -11,6 +12,7 @@ from .cooldown_service import CooldownService
 from .discord_messages_service import DiscordMessagesService
 from .embed_service import ConfirmView, EmbedService, NowPlayingView, QueuePaginationView
 from .memory_extraction_service import MemoryExtractionService
+from .memory_tools import MEMORY_TOOL_SCHEMAS, MemoryToolExecutor
 from .message_service import MessageService
 from .mongo_ai_usage_service import MongoAIUsageService
 from .mongo_ai_usage_tracking_service import MongoAIUsageTrackingService
@@ -61,5 +63,8 @@ __all__ = [
     "AudioProcessor",
     "DiscordMessagesService",
     "MemoryExtractionService",
+    "EmbeddingService",
+    "MemoryToolExecutor",
+    "MEMORY_TOOL_SCHEMAS",
     "EconomyConfig",
 ]

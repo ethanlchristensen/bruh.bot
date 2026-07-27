@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import re
 from datetime import UTC, datetime
@@ -7,14 +6,14 @@ from typing import TYPE_CHECKING
 
 from bot.services.ai.gateway.gateway import get_mesh_gateway
 from bot.services.ai.gateway.schemas.request import Message, MessagePart, NormalizedRequest
-from bot.services.mongo_memory_service import CATEGORY_TTL_DAYS, VALID_CATEGORIES
+from bot.services.memory_tools import MEMORY_TOOL_SCHEMAS, MemoryToolExecutor
 
 if TYPE_CHECKING:
     import discord
 
     from bot.bruh_bot import BruhBot
 
-EXTRACTION_SYSTEM_PROMPT = """You are a memory extraction system for a Discord bot. Your job is to analyze a group conversation and extract structured memories about multiple users.
+EXTRACTION_SYSTEM_PROMPT = """You are a memory extraction system for a Discord bot. Your job is to analyze a group conversation and maintain structured memories about multiple users using the tools provided.
 
 ## MEMORY CATEGORIES AND RETENTION RULES:
 - identity: Permanent (immutable facts like name, age, location, role). Never expires.
@@ -24,7 +23,7 @@ EXTRACTION_SYSTEM_PROMPT = """You are a memory extraction system for a Discord b
 - relationship: Permanent (how they feel about other people, relationships). Include 'target_username' with the Discord display name of the person this memory is about.
 - mood: 7-day retention (current emotional state, temporary feelings).
 - fact: 90-day retention (general facts about the user).
-- admin: Permanent (manually added by admins). YOU SHOULD NEVER GENERATE THIS CATEGORY.
+- admin: Permanent (manually added by admins). YOU MUST NEVER CREATE 'admin' CATEGORY MEMORIES.
 
 ## WHAT TO EXTRACT:
 Memories must be CORE to who the user IS — their identity, personality, likes/dislikes, opinions, skills, and relationships. Good examples:
@@ -36,44 +35,41 @@ Memories must be CORE to who the user IS — their identity, personality, likes/
 - "plays guitar" (fact/skill)
 
 ## WHAT NOT TO EXTRACT — SKIP THESE ENTIRELY:
-- **One-off actions**: sharing a link, posting a meme, saying "lol", greeting someone
-- **Ephemeral chatter**: "shared a YouTube video", "posted a gif", "good morning", "how was your day"
-- **Server logistics**: asking for roles, reporting bugs, asking bot commands, troubleshooting
-- **Vague or generic statements**: "that's cool", "I agree", "nice", "same"
-- **Conversational filler**: jokes without personality insight, reaction gifs, "based", "fr fr"
-- **Transient states**: what they're currently doing/watching/eating right now (unless it reveals a strong preference/identity)
-- **Anything that won't matter about this person a week from now**
+- One-off actions: sharing a link, posting a meme, saying "lol", greeting someone
+- Ephemeral chatter: "shared a YouTube video", "posted a gif", "good morning", "how was your day"
+- Server logistics: asking for roles, reporting bugs, asking bot commands, troubleshooting
+- Vague/generic statements: "that's cool", "I agree", "nice", "same"
+- Conversational filler: jokes without personality insight, reaction gifs, "based", "fr fr"
+- Transient states: what they're currently doing/watching/eating right now (unless it reveals a strong preference/identity)
+- Anything that won't matter about this person a week from now
 
 ## GOLDEN RULE:
-Ask yourself: "Does this tell me something meaningful about WHO this person IS — their identity, personality, or tastes — not just what they casually DID?" If the answer is no, do NOT create a memory.
+Ask yourself: "Does this tell me something meaningful about WHO this person IS — their identity, personality, or tastes — not just what they casually DID?" If the answer is no, do NOT add a memory.
 
-## INSTRUCTIONS:
-1. Review the conversation transcript below. Messages are labeled with the speaker's name.
-2. For EACH user, review their CURRENT MEMORIES alongside what they said.
-3. Use conversational context — if one person says something and another agrees, that implies the second person shares that trait/preference/opinion too.
-4. Determine what needs to change per user:
-   - ADD new memories only when you observe facts/opinions/traits that reveal WHO the user IS
-   - UPDATE existing memories when something changes (e.g., "I hated Python" → "I love Python now")
-   - DELETE memories that are contradicted by recent messages or clearly no longer true
-5. Be conservative — only extract clear, meaningful information about the user's identity. When in doubt, skip it.
-6. Assign confidence scores (0.0-1.0) based on how explicitly the user stated it.
-7. For relationship memories, include 'target_username' with the exact name from the KNOWN USERS list. If someone says "I hate Nolan" and "Nolan" appears in KNOWN USERS, set target_username to exactly "Nolan".
-8. CRITICAL: Every action MUST include 'user_id' as a number — this is the Discord user ID telling us who the memory is about.
-9. DO NOT create 'admin' category memories.
-10. NEVER extract memories for the bot itself (the assistant/bot user in the conversation).
+## WORKFLOW — USE YOUR TOOLS:
+The conversation transcript will be provided in a user message along with the list of participating users.
 
-Return ONLY a valid JSON object with this exact structure:
-{
-  "actions": [
-    {"user_id": 123, "action": "add", "memory": "loves Whoppers", "category": "preference", "confidence": 0.9},
-    {"user_id": 456, "action": "add", "memory": "loves Whoppers", "category": "preference", "confidence": 0.85},
-    {"user_id": 123, "action": "add", "memory": "dislikes Klim", "category": "relationship", "confidence": 0.85, "target_username": "Klim"},
-    {"user_id": 456, "action": "update", "memory_id": "existing_memory_id_here", "new_memory": "updated fact", "category": "preference", "confidence": 0.85},
-    {"user_id": 789, "action": "delete", "memory_id": "existing_memory_id_here", "reason": "contradicted by: new statement"}
-  ]
-}
+1. **Search before you add**: For each observation you want to record, first call `search_memories` to check if you already know something similar. If a highly relevant existing memory exists (score > 0.90), call `update_memory` instead of `add_memory` to refine it.
 
-If no changes are needed, return: {"actions": []}"""
+2. **Get the full picture**: For users you haven't learned much about yet, call `get_user_memories` to see all their existing memories before making decisions.
+
+3. **Add new insights**: When you discover a new meaningful fact/trait/preference about someone, call `add_memory` with appropriate category and confidence (0.9+ for explicit statements, 0.5-0.7 for implied).
+
+4. **Update when facts change**: If a user says something that contradicts or supersedes an existing memory, call `update_memory` with the corrected information.
+
+5. **Remove contradictions**: If a user explicitly disavows something you stored as a memory, call `remove_memory` with a reason.
+
+6. **Be conservative**: Only extract clear, meaningful information about the user's identity. When in doubt, skip it. It's better to miss a weak signal than to store noise.
+
+7. **MULTI-USER AWARENESS**: Use conversational context — if one person says something and another agrees, that implies the second person shares that trait/preference/opinion too. Process ALL users in the conversation, not just one.
+
+8. NEVER extract memories for the bot itself. Focus only on the human users from the provided user list.
+
+9. NEVER create 'admin' category memories — those are manually added by server admins only.
+
+10. For relationship memories, use `target_username` matching names from the KNOWN USERS list exactly.
+
+After you have finished analyzing the transcript and applied all necessary changes, simply stop calling tools and output a brief summary of what you changed."""
 
 
 class MemoryExtractionService:
@@ -201,26 +197,19 @@ class MemoryExtractionService:
                 if mid != self.bot.user.id:
                     author_ids_in_batch.add(mid)
 
-        author_memories = await self.bot.memory_service.get_memories_for_users(
-            guild_id=int(guild_id),
-            user_ids=list(author_ids_in_batch),
-            limit=50,
-        )
-
-        existing_by_user: dict[int, list[dict]] = {}
-        for uid_int, mems in author_memories.items():
-            existing_by_user[uid_int] = mems
-
         conversation_lines = []
         for msg in messages:
             name = msg.get("author_name", str(msg.get("author_id", "unknown")))
             content = self._resolve_mentions_in_text(msg["content"], id_to_users)
-            conversation_lines.append(f"[{name}]: {content}")
+            msg_id = msg.get("message_id")
+            if msg_id is not None:
+                conversation_lines.append(f"[{name} (msg:{msg_id})]: {content}")
+            else:
+                conversation_lines.append(f"[{name}]: {content}")
         transcript = "\n".join(conversation_lines)
 
-        users_section_parts = []
+        participants = []
         for uid_int in sorted(author_ids_in_batch):
-            user_mems = existing_by_user.get(uid_int, [])
             canonical_name = id_to_users.get(str(uid_int))
             if not canonical_name and guild:
                 member = guild.get_member(uid_int)
@@ -228,27 +217,20 @@ class MemoryExtractionService:
                     canonical_name = member.name
             if not canonical_name:
                 canonical_name = str(uid_int)
-
-            mem_text = self._format_memories_for_prompt(user_mems)
-            if mem_text:
-                users_section_parts.append(f"## USER: {canonical_name} (user_id: {uid_int})\n{mem_text}")
-            else:
-                users_section_parts.append(f"## USER: {canonical_name} (user_id: {uid_int})\n(No existing memories yet)")
-
-        users_section = "\n\n".join(users_section_parts)
+            participants.append(f"- {canonical_name} (user_id: {uid_int})")
 
         known_users = "\n".join(f"- {name}" for name in sorted(config.usersToId.keys())) if config.usersToId else "(no known users registered)"
 
         user_prompt = f"""## CONVERSATION TRANSCRIPT (newest first):
 {transcript}
 
-## EXISTING MEMORIES BY USER:
-{users_section}
+## PARTICIPATING USERS:
+{chr(10).join(participants)}
 
-## KNOWN USERS IN THIS SERVER:
+## KNOWN USERS IN THIS SERVER (for relationship target_username matching):
 {known_users}
 
-Analyze the conversation and existing memories above. For each user, determine what memories to add, update, or delete. When a name mentioned in conversation matches a known user, use that name as target_username for relationship memories. Return the JSON actions with user_id for every action."""
+Analyze the conversation transcript above. Follow your workflow: search for existing memories first, then add/update/remove as needed. Process ALL participating users."""
 
         ai_cfg = config.aiConfig
         provider = mem_cfg.extractionProvider
@@ -256,205 +238,101 @@ Analyze the conversation and existing memories above. For each user, determine w
         api_key = provider_config.get_api_key()
         model = mem_cfg.extractionModel or provider_config.preferredModel
 
-        response_format = {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "MemoryExtraction",
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "actions": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "user_id": {"type": "number"},
-                                    "action": {"type": "string", "enum": ["add", "update", "delete"]},
-                                    "memory": {"type": "string"},
-                                    "category": {"type": "string", "enum": VALID_CATEGORIES},
-                                    "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
-                                    "memory_id": {"type": "string"},
-                                    "new_memory": {"type": "string"},
-                                    "reason": {"type": "string"},
-                                    "target_username": {"type": "string"},
-                                },
-                                "required": ["action", "user_id"],
-                            },
-                        }
-                    },
-                    "required": ["actions"],
-                },
-            },
-        }
-
-        req = NormalizedRequest(
-            provider=provider,
-            model=model,
-            messages=[
-                Message(role="system", parts=[MessagePart(type="text", text=EXTRACTION_SYSTEM_PROMPT)]),
-                Message(role="user", parts=[MessagePart(type="text", text=user_prompt)]),
-            ],
-            response_format=response_format,
+        executor = MemoryToolExecutor(
+            bot=self.bot,
+            guild_id=int(guild_id),
+            valid_user_ids=author_ids_in_batch,
+            id_to_users=id_to_users,
+            users_to_id=config.usersToId,
+            mem_cfg=mem_cfg,
         )
+
+        messages_list: list[Message] = [
+            Message(role="system", parts=[MessagePart(type="text", text=EXTRACTION_SYSTEM_PROMPT)]),
+            Message(role="user", parts=[MessagePart(type="text", text=user_prompt)]),
+        ]
+
+        max_rounds = mem_cfg.maxToolRounds
+        total_tool_calls = 0
+        touched_users: set[int] = set()
 
         try:
             gateway = get_mesh_gateway()
-            response = await gateway.complete(req, credentials={"api_key": api_key})
-            content = "".join(part.content for part in response.parts if part.type == "text")
-            result = json.loads(content)
-            actions = result.get("actions", [])
 
-            valid_author_ids = author_ids_in_batch
-            sanitized_actions = []
-            for action in actions:
-                raw_uid = action.get("user_id")
-                if raw_uid is None:
-                    continue
-                try:
-                    uid_int = int(raw_uid)
-                except (ValueError, TypeError, OverflowError):
-                    self.logger.warning(f"Dropping action with non-integer user_id: {raw_uid}")
-                    continue
-                if uid_int not in valid_author_ids:
-                    self.logger.warning(f"Dropping action with unknown user_id: {uid_int} (not in conversation)")
-                    continue
-                action["user_id"] = uid_int
-                sanitized_actions.append(action)
+            for _round in range(max_rounds):
+                req = NormalizedRequest(
+                    provider=provider,
+                    model=model,
+                    messages=messages_list,
+                    tools=MEMORY_TOOL_SCHEMAS,
+                    temperature=0.3,
+                )
 
-            await self._apply_actions_batch(
-                guild_id=int(guild_id),
-                actions=sanitized_actions,
-                existing_by_user=existing_by_user,
-                mem_cfg=mem_cfg,
-                id_to_users=id_to_users,
+                response = await gateway.complete(req, credentials={"api_key": api_key})
+
+                tool_call_parts = [p for p in response.parts if p.type == "tool_call"]
+                text_parts = [p for p in response.parts if p.type == "text"]
+
+                if not tool_call_parts:
+                    summary = "".join(p.content for p in text_parts) if text_parts else "(no summary)"
+                    self.logger.info(f"Extraction complete for guild {guild_id} after {_round + 1} rounds: {summary[:200]}")
+                    break
+
+                assistant_parts = [MessagePart(type="tool_call", tool_call_id=tc.content["id"], name=tc.content["name"], arguments=tc.content["arguments"]) for tc in tool_call_parts]
+                if text_parts:
+                    assistant_parts.insert(0, MessagePart(type="text", text="".join(p.content for p in text_parts)))
+                messages_list.append(Message(role="assistant", parts=assistant_parts))
+
+                tool_results = []
+                for tc in tool_call_parts:
+                    if total_tool_calls >= mem_cfg.maxToolCallsPerBatch:
+                        self.logger.warning(f"Hit max tool calls ({mem_cfg.maxToolCallsPerBatch}) for guild {guild_id}")
+                        break
+
+                    result = await executor.execute(tc.content["name"], tc.content["arguments"])
+                    total_tool_calls += 1
+
+                    if result.get("ok") or result.get("count") is not None or result.get("memories") is not None:
+                        if tc.content["name"] in ("add_memory", "update_memory", "remove_memory"):
+                            uid = tc.content["arguments"].get("user_id")
+                            if uid:
+                                touched_users.add(int(uid))
+                            elif tc.content["name"] == "remove_memory":
+                                pass
+
+                    tool_results.append(
+                        MessagePart(
+                            type="tool_result",
+                            tool_call_id=tc.content["id"],
+                            content=result,
+                        )
+                    )
+
+                if tool_results:
+                    messages_list.append(Message(role="tool", parts=tool_results))
+
+                if total_tool_calls >= mem_cfg.maxToolCallsPerBatch:
+                    self.logger.warning(f"Stopping extraction for guild {guild_id} after {total_tool_calls} tool calls")
+                    break
+
+            stats = executor._stats
+            self.logger.info(
+                f"Extraction stats for guild {guild_id}: {total_tool_calls} tool calls in {_round + 1} rounds (search={stats['search_calls']}, get={stats['get_calls']}, add={stats['add_calls']}, update={stats['update_calls']}, remove={stats['remove_calls']}, deduped={stats['deduped_adds']}, errors={stats['errors']})"
             )
 
-            user_ids_in_actions = {a["user_id"] for a in sanitized_actions}
-            self.logger.info(f"Extracted {len(sanitized_actions)} memory actions for {len(user_ids_in_actions)} users in guild {guild_id}")
+            all_touched = touched_users | {uid for uid in author_ids_in_batch if uid in touched_users or stats.get("add_calls", 0) + stats.get("update_calls", 0) + stats.get("remove_calls", 0) > 0}
+            if not all_touched:
+                all_touched = author_ids_in_batch
+
+            for uid in all_touched:
+                await self.bot.memory_service.enforce_max_memories(
+                    guild_id=int(guild_id),
+                    user_id=uid,
+                    max_memories=mem_cfg.maxMemoriesPerUser,
+                )
+
         except Exception:
-            self.logger.exception(f"Error during batch memory extraction for guild {guild_id}")
-
-    async def _apply_actions_batch(
-        self,
-        guild_id: int,
-        actions: list[dict],
-        existing_by_user: dict[int, list[dict]],
-        mem_cfg,
-        id_to_users: dict[str, str],
-    ):
-        config_by_action = await self.bot.config_service.get_config(str(guild_id))
-
-        for action in actions:
-            try:
-                action_type = action.get("action")
-                user_id = action.get("user_id")
-                if not user_id:
-                    continue
-
-                existing_memories = existing_by_user.get(int(user_id), [])
-                existing_ids = {m["_id"] for m in existing_memories}
-
-                if action_type == "add":
-                    memory_text = action.get("memory", "").strip()
-                    category = action.get("category", "fact")
-                    confidence = float(action.get("confidence", 0.5))
-
-                    if not memory_text or category not in VALID_CATEGORIES or category == "admin":
-                        continue
-
-                    target_user_id = None
-                    if category == "relationship" and action.get("target_username"):
-                        resolved_id = config_by_action.usersToId.get(action["target_username"])
-                        if resolved_id:
-                            target_user_id = int(resolved_id)
-
-                    await self.bot.memory_service.save_memory(
-                        guild_id=guild_id,
-                        user_id=int(user_id),
-                        memory=memory_text,
-                        category=category,
-                        confidence=confidence,
-                        created_by="ai",
-                        target_user_id=target_user_id,
-                    )
-
-                elif action_type == "update":
-                    memory_id = action.get("memory_id", "")
-                    new_memory = action.get("new_memory", "").strip()
-                    category = action.get("category")
-                    confidence = action.get("confidence")
-
-                    target_user_id = None
-                    if category == "relationship" and action.get("target_username"):
-                        resolved_id = config_by_action.usersToId.get(action["target_username"])
-                        if resolved_id:
-                            target_user_id = int(resolved_id)
-
-                    if memory_id not in existing_ids:
-                        if new_memory and category in VALID_CATEGORIES:
-                            await self.bot.memory_service.save_memory(
-                                guild_id=guild_id,
-                                user_id=int(user_id),
-                                memory=new_memory,
-                                category=category or "fact",
-                                confidence=float(confidence or 0.5),
-                                created_by="ai",
-                                target_user_id=target_user_id,
-                            )
-                        continue
-
-                    await self.bot.memory_service.update_memory(
-                        memory_id=memory_id,
-                        guild_id=guild_id,
-                        new_memory=new_memory or None,
-                        category=category,
-                        confidence=float(confidence) if confidence else None,
-                        target_user_id=target_user_id,
-                    )
-
-                elif action_type == "delete":
-                    memory_id = action.get("memory_id", "")
-                    reason = action.get("reason", "")
-                    if memory_id in existing_ids:
-                        await self.bot.memory_service.delete_memory(memory_id=memory_id, guild_id=guild_id)
-                        self.logger.info(f"Deleted memory {memory_id}: {reason}")
-
-            except Exception:
-                self.logger.exception(f"Error applying action {action}")
-
-        user_ids_in_actions = set()
-        for a in actions:
-            uid = a.get("user_id")
-            if uid:
-                user_ids_in_actions.add(int(uid))
-
-        for uid in user_ids_in_actions:
-            await self.bot.memory_service.enforce_max_memories(
-                guild_id=guild_id,
-                user_id=uid,
-                max_memories=mem_cfg.maxMemoriesPerUser,
-            )
-
-    @staticmethod
-    def _format_memories_for_prompt(memories: list[dict]) -> str:
-        if not memories:
-            return ""
-        lines = []
-        for m in memories:
-            ttl = CATEGORY_TTL_DAYS.get(m.get("category", "fact"))
-            expiry = f"expires in {ttl}d" if ttl else "permanent"
-            lines.append(f"  [id={m['_id']}] [{m.get('category', 'fact')}, confidence={m.get('confidence', 0.5):.2f}, {expiry}] {m['memory']}")
-        return "\n".join(lines)
-
-    @staticmethod
-    def _format_messages_for_prompt(messages: list[dict]) -> str:
-        if not messages:
-            return "(no messages)"
-        lines = []
-        for msg in messages[-50:]:
-            name = msg.get("author_name", "unknown")
-            lines.append(f"[{name}]: {msg['content']}")
-        return "\n".join(lines)
+            self.logger.exception(f"Error during memory extraction for guild {guild_id}")
 
     @staticmethod
     def _resolve_mentions_in_text(text: str, id_to_users: dict[str, str]) -> str:

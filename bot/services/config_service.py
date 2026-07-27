@@ -108,6 +108,14 @@ class MemoryConfig(BaseModel):
     maxMemoriesPerUser: int = 50
     maxInjectionCount: int = 10
     enabledCategories: list[str] = Field(default_factory=lambda: ["identity", "trait", "preference", "opinion", "relationship", "mood", "fact"])
+    embeddingModel: str = "openai/text-embedding-3-small"
+    embeddingDimensions: int = 1536
+    maxToolRounds: int = 8
+    maxToolCallsPerBatch: int = 40
+    maxAddsPerUserPerBatch: int = 10
+    dedupeThreshold: float = 0.92
+    semanticRetrieval: bool = True
+    retrievalMinScore: float = 0.35
 
 
 class EconomyConfig(BaseModel):

@@ -7,7 +7,7 @@ from bson import Int64, ObjectId
 if TYPE_CHECKING:
     from bot.bruh_bot import BruhBot
 
-CATEGORY_TTL_DAYS: dict[str, int | None] = {
+CATEGORY_TTL_DAYS = {
     "identity": None,
     "trait": None,
     "preference": 90,
@@ -19,6 +19,9 @@ CATEGORY_TTL_DAYS: dict[str, int | None] = {
 }
 
 VALID_CATEGORIES = list(CATEGORY_TTL_DAYS.keys())
+
+VECTOR_INDEX_NAME = "memory_vector_index"
+DEFAULT_EMBEDDING_DIMENSIONS = 1536
 
 
 def _expires_at_for_category(category: str) -> datetime | None:
@@ -33,6 +36,7 @@ class MongoMemoryService:
         self.bot = bot
         self.collection = self.bot.config_service.col(self.bot.config_service.base.mongoUserMemoriesCollectionName)
         self.logger = logging.getLogger(__name__)
+        self._vector_index_created = False
 
     async def initialize(self):
         await self._ensure_indexes()
@@ -42,9 +46,36 @@ class MongoMemoryService:
             await self.collection.create_index([("guild_id", 1), ("user_id", 1)])
             await self.collection.create_index("expires_at", expireAfterSeconds=0)
             await self.collection.create_index("source_message_id")
+            await self.collection.create_index([("embedding_model", 1)])
             self.logger.info(f"Created indexes on {self.bot.config_service.base.mongoUserMemoriesCollectionName} collection")
         except Exception as e:
             self.logger.warning(f"Could not create indexes on UserMemories: {e}")
+
+        try:
+            existing_indexes = await self.collection.list_search_indexes().to_list(length=100)
+            if not any(idx.get("name") == VECTOR_INDEX_NAME for idx in existing_indexes):
+                search_index = {
+                    "name": VECTOR_INDEX_NAME,
+                    "definition": {
+                        "mappings": {
+                            "dynamic": False,
+                            "fields": {
+                                "embedding": {
+                                    "type": "knnVector",
+                                    "dimensions": DEFAULT_EMBEDDING_DIMENSIONS,
+                                    "similarity": "cosine",
+                                },
+                            },
+                        }
+                    },
+                }
+                await self.collection.create_search_index(search_index)
+                self.logger.info(f"Created Atlas vector search index '{VECTOR_INDEX_NAME}' on {self.collection.name}")
+            else:
+                self.logger.info(f"Vector search index '{VECTOR_INDEX_NAME}' already exists on {self.collection.name}")
+            self._vector_index_created = True
+        except Exception as e:
+            self.logger.warning(f"Could not create Atlas vector search index: {e}. Ensure your MongoDB Atlas cluster supports vector search (M10+ tier). Manual creation: Atlas UI → Search tab → Create Search Index with vector type on 'embedding' field.")
 
     async def save_memory(
         self,
@@ -56,6 +87,8 @@ class MongoMemoryService:
         source_message_id: int | None = None,
         created_by: str = "ai",
         target_user_id: int | None = None,
+        embedding: list[float] | None = None,
+        embedding_model: str | None = None,
     ) -> str:
         memory = memory.strip()
         if not memory or category not in VALID_CATEGORIES:
@@ -65,13 +98,17 @@ class MongoMemoryService:
         now = datetime.now(UTC)
         expires_at = _expires_at_for_category(category)
 
+        base_set: dict = {"category": category, "confidence": confidence, "updated_at": now, "expires_at": expires_at}
+        if target_user_id is not None:
+            base_set["target_user_id"] = Int64(target_user_id)
+        if embedding is not None:
+            base_set["embedding"] = embedding
+            base_set["embedding_model"] = embedding_model
+
         if existing:
-            update_set: dict = {"category": category, "confidence": confidence, "updated_at": now, "expires_at": expires_at}
-            if target_user_id is not None:
-                update_set["target_user_id"] = Int64(target_user_id)
             await self.collection.update_one(
                 {"_id": existing["_id"]},
-                {"$set": update_set},
+                {"$set": base_set},
             )
             self.logger.info(f"Updated memory '{memory[:50]}...' (id={existing['_id']})")
             return str(existing["_id"])
@@ -88,6 +125,8 @@ class MongoMemoryService:
             "updated_at": now,
             "created_by": created_by,
             "expires_at": expires_at,
+            "embedding": embedding,
+            "embedding_model": embedding_model,
         }
         result = await self.collection.insert_one(doc)
         self.logger.info(f"Inserted memory '{memory[:50]}...' (id={result.inserted_id})")
@@ -229,6 +268,8 @@ class MongoMemoryService:
         category: str | None = None,
         confidence: float | None = None,
         target_user_id: int | None = None,
+        embedding: list[float] | None = None,
+        embedding_model: str | None = None,
     ) -> bool:
         update_fields: dict = {"updated_at": datetime.now(UTC)}
         if new_memory is not None:
@@ -242,12 +283,71 @@ class MongoMemoryService:
             update_fields["confidence"] = confidence
         if target_user_id is not None:
             update_fields["target_user_id"] = Int64(target_user_id)
+        if embedding is not None:
+            update_fields["embedding"] = embedding
+            update_fields["embedding_model"] = embedding_model
 
         result = await self.collection.update_one(
             {"_id": ObjectId(memory_id), "guild_id": Int64(guild_id)},
             {"$set": update_fields},
         )
         return result.modified_count > 0
+
+    async def search_memories_semantic(
+        self,
+        guild_id: int,
+        query_embedding: list[float],
+        user_ids: list[int] | None = None,
+        categories: list[str] | None = None,
+        limit: int = 10,
+        min_score: float = 0.0,
+    ) -> list[dict]:
+        filter_clause: dict = {
+            "guild_id": Int64(guild_id),
+            "embedding": {"$exists": True},
+            "$or": [
+                {"expires_at": None},
+                {"expires_at": {"$gte": datetime.now(UTC)}},
+            ],
+        }
+        if user_ids:
+            filter_clause["user_id"] = {"$in": [Int64(uid) for uid in user_ids]}
+        if categories:
+            filter_clause["category"] = {"$in": categories}
+
+        try:
+            pipeline = [
+                {
+                    "$vectorSearch": {
+                        "index": VECTOR_INDEX_NAME,
+                        "path": "embedding",
+                        "queryVector": query_embedding,
+                        "numCandidates": limit * 20,
+                        "limit": limit * 3,
+                        "filter": filter_clause,
+                    }
+                },
+                {"$addFields": {"score": {"$meta": "vectorSearchScore"}}},
+                {"$match": {"score": {"$gte": min_score}}},
+                {"$sort": {"score": -1}},
+                {"$limit": limit},
+            ]
+            results = []
+            async for doc in self.collection.aggregate(pipeline):
+                doc["_id"] = str(doc["_id"])
+                if doc.get("guild_id"):
+                    doc["guild_id"] = int(doc["guild_id"])
+                if doc.get("user_id"):
+                    doc["user_id"] = int(doc["user_id"])
+                if doc.get("source_message_id"):
+                    doc["source_message_id"] = int(doc["source_message_id"])
+                if doc.get("target_user_id"):
+                    doc["target_user_id"] = int(doc["target_user_id"])
+                results.append(doc)
+            return results
+        except Exception as e:
+            self.logger.warning(f"Vector search failed: {e}")
+            return []
 
     async def enforce_max_memories(self, guild_id: int, user_id: int, max_memories: int) -> int:
         count = await self.count_user_memories(guild_id, user_id)

@@ -109,26 +109,66 @@ class MessageService:
 
                 self.logger.info(f"Querying memories for {len(user_ids_to_query)} user(s): {', '.join(author_to_id.get(str(uid), str(uid)) for uid in user_ids_to_query)}")
 
-                memories_map = await self.bot.memory_service.get_memories_for_users(
-                    guild_id=message.guild.id,
-                    user_ids=user_ids_to_query,
-                    limit=config.memoryConfig.maxInjectionCount,
-                )
-                if memories_map:
-                    lines = []
-                    for uid_str, mems in memories_map.items():
-                        name = author_to_id.get(uid_str, uid_str)
-                        self.logger.info(f"  Found {len(mems)} memories for {name} (id={uid_str})")
-                        for mem in mems:
-                            if mem.get("target_user_id") and mem["category"] == "relationship":
-                                lines.append(f"- [{name}]: {mem['memory']} → <@{mem['target_user_id']}> ({mem['category']})")
-                            else:
-                                lines.append(f"- [{name}]: {mem['memory']} ({mem['category']})")
-                    if lines:
-                        memories_section = "\n## GROUNDING MEMORIES:\nThese are known facts and observations about users in this conversation. Use them to personalize responses naturally.\n\n" + "\n".join(lines) + "\n"
-                        self.logger.info(f"Injected {len(lines)} total memory entries into context")
+                mem_cfg = config.memoryConfig
+                permanent_cats = {"identity", "trait", "admin", "relationship"}
+
+                if mem_cfg.semanticRetrieval and message.content.strip():
+                    try:
+                        msg_embedding = await self.bot.embedding_service.embed_one(message.content.strip(), message.guild.id)
+                        if msg_embedding is not None:
+                            semantic_results = await self.bot.memory_service.search_memories_semantic(
+                                guild_id=message.guild.id,
+                                query_embedding=msg_embedding,
+                                user_ids=user_ids_to_query,
+                                limit=mem_cfg.maxInjectionCount * 2,
+                                min_score=mem_cfg.retrievalMinScore,
+                            )
+                            permanent_from_semantic = [m for m in semantic_results if m["category"] in permanent_cats]
+                            non_permanent_semantic = [m for m in semantic_results if m["category"] not in permanent_cats]
+                            {m["_id"] for m in non_permanent_semantic}
+
+                            permanent_mems = await self.bot.memory_service.get_memories_for_users(
+                                guild_id=message.guild.id,
+                                user_ids=user_ids_to_query,
+                                limit=max(len(permanent_cats) * 3, 20),
+                            )
+                            permanent_all = []
+                            for _uid, mems in permanent_mems.items():
+                                for m in mems:
+                                    if m["category"] in permanent_cats:
+                                        if m["_id"] not in {x["_id"] for x in permanent_from_semantic}:
+                                            permanent_all.append(m)
+
+                            all_results = permanent_from_semantic + permanent_all + non_permanent_semantic
+                            seen_ids = set()
+                            deduped = []
+                            for m in all_results:
+                                if m["_id"] not in seen_ids:
+                                    seen_ids.add(m["_id"])
+                                    deduped.append(m)
+
+                            selected = deduped[: mem_cfg.maxInjectionCount]
+
+                            if selected:
+                                lines = []
+                                for mem in selected:
+                                    uid_str = str(mem["user_id"])
+                                    name = author_to_id.get(uid_str, uid_str)
+                                    if mem.get("target_user_id") and mem["category"] == "relationship":
+                                        lines.append(f"- [{name}]: {mem['memory']} → <@{mem['target_user_id']}> ({mem['category']})")
+                                    else:
+                                        lines.append(f"- [{name}]: {mem['memory']} ({mem['category']})")
+                                if lines:
+                                    memories_section = "\n## GROUNDING MEMORIES:\nThese are known facts and observations about users in this conversation. Use them to personalize responses naturally.\n\n" + "\n".join(lines) + "\n"
+                                    self.logger.info(f"Injected {len(lines)} memory entries into context (semantic retrieval)")
+                        else:
+                            self.logger.info("Embedding generation failed, falling back to recency-based retrieval")
+                            memories_section = await self._fallback_memory_retrieval(message, user_ids_to_query, author_to_id, mem_cfg)
+                    except Exception:
+                        self.logger.exception("Semantic memory retrieval failed, falling back")
+                        memories_section = await self._fallback_memory_retrieval(message, user_ids_to_query, author_to_id, mem_cfg)
                 else:
-                    self.logger.info("  No memories found for any queried user")
+                    memories_section = await self._fallback_memory_retrieval(message, user_ids_to_query, author_to_id, mem_cfg)
         except Exception:
             self.logger.exception("Error retrieving user memories for context")
 
@@ -270,3 +310,29 @@ MULTI-USER CHAT CONTEXT:
         has_image = any(att.content_type and att.content_type.startswith("image/") for att in reference_message.attachments)
 
         return has_image
+
+    async def _fallback_memory_retrieval(
+        self,
+        message: discord.Message,
+        user_ids_to_query: list[int],
+        author_to_id: dict[str, str],
+        mem_cfg,
+    ) -> str:
+        memories_map = await self.bot.memory_service.get_memories_for_users(
+            guild_id=message.guild.id,
+            user_ids=user_ids_to_query,
+            limit=mem_cfg.maxInjectionCount,
+        )
+        if memories_map:
+            lines = []
+            for uid_str, mems in memories_map.items():
+                name = author_to_id.get(uid_str, uid_str)
+                for mem in mems:
+                    if mem.get("target_user_id") and mem["category"] == "relationship":
+                        lines.append(f"- [{name}]: {mem['memory']} → <@{mem['target_user_id']}> ({mem['category']})")
+                    else:
+                        lines.append(f"- [{name}]: {mem['memory']} ({mem['category']})")
+            if lines:
+                self.logger.info(f"Injected {len(lines)} memory entries into context (fallback)")
+                return "\n## GROUNDING MEMORIES:\nThese are known facts and observations about users in this conversation. Use them to personalize responses naturally.\n\n" + "\n".join(lines) + "\n"
+        return ""

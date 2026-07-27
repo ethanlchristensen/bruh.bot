@@ -31,6 +31,13 @@ function MemoryConfigComponent() {
   const [memoryMinLength, setMemoryMinLength] = useState(10);
   const [memoryMaxPerUser, setMemoryMaxPerUser] = useState(50);
   const [memoryMaxInjection, setMemoryMaxInjection] = useState(10);
+  const [embeddingModel, setEmbeddingModel] = useState('openai/text-embedding-3-small');
+  const [maxToolRounds, setMaxToolRounds] = useState(8);
+  const [maxToolCallsPerBatch, setMaxToolCallsPerBatch] = useState(40);
+  const [maxAddsPerUserPerBatch, setMaxAddsPerUserPerBatch] = useState(10);
+  const [dedupeThreshold, setDedupeThreshold] = useState(0.92);
+  const [semanticRetrieval, setSemanticRetrieval] = useState(true);
+  const [retrievalMinScore, setRetrievalMinScore] = useState(0.35);
 
   const initialValuesRef = useRef<{
     memoryEnabled: boolean;
@@ -42,6 +49,13 @@ function MemoryConfigComponent() {
     memoryMinLength: number;
     memoryMaxPerUser: number;
     memoryMaxInjection: number;
+    embeddingModel: string;
+    maxToolRounds: number;
+    maxToolCallsPerBatch: number;
+    maxAddsPerUserPerBatch: number;
+    dedupeThreshold: number;
+    semanticRetrieval: boolean;
+    retrievalMinScore: number;
   } | null>(null);
 
   useEffect(() => {
@@ -57,6 +71,13 @@ function MemoryConfigComponent() {
         memoryMinLength: memCfg.minMessageLength ?? 10,
         memoryMaxPerUser: memCfg.maxMemoriesPerUser ?? 50,
         memoryMaxInjection: memCfg.maxInjectionCount ?? 10,
+        embeddingModel: memCfg.embeddingModel || 'openai/text-embedding-3-small',
+        maxToolRounds: memCfg.maxToolRounds ?? 8,
+        maxToolCallsPerBatch: memCfg.maxToolCallsPerBatch ?? 40,
+        maxAddsPerUserPerBatch: memCfg.maxAddsPerUserPerBatch ?? 10,
+        dedupeThreshold: memCfg.dedupeThreshold ?? 0.92,
+        semanticRetrieval: memCfg.semanticRetrieval ?? true,
+        retrievalMinScore: memCfg.retrievalMinScore ?? 0.35,
       };
       if (!initialValuesRef.current) {
         initialValuesRef.current = vals;
@@ -70,6 +91,13 @@ function MemoryConfigComponent() {
       setMemoryMinLength(vals.memoryMinLength);
       setMemoryMaxPerUser(vals.memoryMaxPerUser);
       setMemoryMaxInjection(vals.memoryMaxInjection);
+      setEmbeddingModel(vals.embeddingModel);
+      setMaxToolRounds(vals.maxToolRounds);
+      setMaxToolCallsPerBatch(vals.maxToolCallsPerBatch);
+      setMaxAddsPerUserPerBatch(vals.maxAddsPerUserPerBatch);
+      setDedupeThreshold(vals.dedupeThreshold);
+      setSemanticRetrieval(vals.semanticRetrieval);
+      setRetrievalMinScore(vals.retrievalMinScore);
     }
   }, [data, isSaving]);
 
@@ -85,12 +113,21 @@ function MemoryConfigComponent() {
       memoryMinMessages !== iv.memoryMinMessages ||
       memoryMinLength !== iv.memoryMinLength ||
       memoryMaxPerUser !== iv.memoryMaxPerUser ||
-      memoryMaxInjection !== iv.memoryMaxInjection
+      memoryMaxInjection !== iv.memoryMaxInjection ||
+      embeddingModel !== iv.embeddingModel ||
+      maxToolRounds !== iv.maxToolRounds ||
+      maxToolCallsPerBatch !== iv.maxToolCallsPerBatch ||
+      maxAddsPerUserPerBatch !== iv.maxAddsPerUserPerBatch ||
+      dedupeThreshold !== iv.dedupeThreshold ||
+      semanticRetrieval !== iv.semanticRetrieval ||
+      retrievalMinScore !== iv.retrievalMinScore
     );
   }, [
     memoryEnabled, memoryExtractionInterval, memoryMoodInterval,
     memoryExtractionModel, memoryMaxMessages, memoryMinMessages,
     memoryMinLength, memoryMaxPerUser, memoryMaxInjection,
+    embeddingModel, maxToolRounds, maxToolCallsPerBatch,
+    maxAddsPerUserPerBatch, dedupeThreshold, semanticRetrieval, retrievalMinScore,
   ]);
 
   const handleSave = async () => {
@@ -108,6 +145,13 @@ function MemoryConfigComponent() {
             minMessageLength: memoryMinLength,
             maxMemoriesPerUser: memoryMaxPerUser,
             maxInjectionCount: memoryMaxInjection,
+            embeddingModel,
+            maxToolRounds,
+            maxToolCallsPerBatch,
+            maxAddsPerUserPerBatch,
+            dedupeThreshold,
+            semanticRetrieval,
+            retrievalMinScore,
           },
         });
         await queryClient.invalidateQueries({ queryKey: ['config'] });
@@ -116,6 +160,8 @@ function MemoryConfigComponent() {
           memoryEnabled, memoryExtractionInterval, memoryMoodInterval,
           memoryExtractionModel, memoryMaxMessages, memoryMinMessages,
           memoryMinLength, memoryMaxPerUser, memoryMaxInjection,
+          embeddingModel, maxToolRounds, maxToolCallsPerBatch,
+          maxAddsPerUserPerBatch, dedupeThreshold, semanticRetrieval, retrievalMinScore,
         };
         resolve('Memory configuration saved!');
       } catch (err) {
@@ -287,6 +333,123 @@ function MemoryConfigComponent() {
               className="h-10"
             />
             <p className="text-xs text-muted-foreground">How many memories to include in the system prompt when users talk to the bot.</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Embeddings & Semantic Search</CardTitle>
+          <CardDescription>
+            Embeddings power semantic similarity search across memories. Requires MongoDB Atlas vector search index.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="embedding-model">Embedding Model</Label>
+            <Input
+              id="embedding-model"
+              type="text"
+              value={embeddingModel}
+              onChange={(e) => setEmbeddingModel(e.target.value)}
+              placeholder="openai/text-embedding-3-small"
+              className="h-10"
+            />
+            <p className="text-xs text-muted-foreground">OpenRouter model ID for generating memory embeddings. 1536-dimension models recommended.</p>
+          </div>
+          <div className="flex items-center justify-between p-5 rounded-xl bg-muted/30">
+            <div className="space-y-1">
+              <Label htmlFor="semantic-retrieval" className="font-semibold cursor-pointer text-base">Semantic Retrieval</Label>
+              <p className="text-xs text-muted-foreground">Use vector search at chat time to find the most relevant memories for the current conversation</p>
+            </div>
+            <Switch
+              id="semantic-retrieval"
+              checked={semanticRetrieval}
+              onCheckedChange={setSemanticRetrieval}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="retrieval-min-score">Retrieval Min Score</Label>
+              <Input
+                id="retrieval-min-score"
+                type="number"
+                step={0.01}
+                value={retrievalMinScore}
+                onChange={(e) => setRetrievalMinScore(parseFloat(e.target.value) || 0.35)}
+                min={0}
+                max={1}
+                className="h-10"
+              />
+              <p className="text-xs text-muted-foreground">Minimum cosine similarity for chat-time retrieval (0.0-1.0).</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dedupe-threshold">Semantic Dedupe Threshold</Label>
+              <Input
+                id="dedupe-threshold"
+                type="number"
+                step={0.01}
+                value={dedupeThreshold}
+                onChange={(e) => setDedupeThreshold(parseFloat(e.target.value) || 0.92)}
+                min={0}
+                max={1}
+                className="h-10"
+              />
+              <p className="text-xs text-muted-foreground">When adding, auto-update existing memory if similarity {">="} this value.</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Tool Agent Configuration</CardTitle>
+          <CardDescription>
+            The extraction LLM uses tool calling to search, add, update, and remove memories in an agentic loop.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="max-tool-rounds">Max Tool Rounds</Label>
+              <Input
+                id="max-tool-rounds"
+                type="number"
+                value={maxToolRounds}
+                onChange={(e) => setMaxToolRounds(parseInt(e.target.value) || 8)}
+                min={1}
+                max={20}
+                className="h-10"
+              />
+              <p className="text-xs text-muted-foreground">Maximum number of LLM→tool→result loops per extraction batch.</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="max-tool-calls">Max Tool Calls Per Batch</Label>
+              <Input
+                id="max-tool-calls"
+                type="number"
+                value={maxToolCallsPerBatch}
+                onChange={(e) => setMaxToolCallsPerBatch(parseInt(e.target.value) || 40)}
+                min={1}
+                max={200}
+                className="h-10"
+              />
+              <p className="text-xs text-muted-foreground">Hard limit on total tool calls to prevent runaway costs.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="max-adds-per-user">Max Adds Per User Per Batch</Label>
+              <Input
+                id="max-adds-per-user"
+                type="number"
+                value={maxAddsPerUserPerBatch}
+                onChange={(e) => setMaxAddsPerUserPerBatch(parseInt(e.target.value) || 10)}
+                min={1}
+                max={50}
+                className="h-10"
+              />
+            </div>
           </div>
         </CardContent>
       </Card>

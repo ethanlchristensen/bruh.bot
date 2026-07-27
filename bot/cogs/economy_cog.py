@@ -81,12 +81,6 @@ class EconomyCog(commands.Cog):
             name = member.display_name if member else f"User {user_id}"
             rank = entry["rank"]
             line = f"{'🥇' if rank == 1 else '🥈' if rank == 2 else '🥉' if rank == 3 else f'`#{rank}`'} **{name}** — Lv{entry['level']} ({entry['xp']:,} XP) · 🪙 {entry['bruh_coins']:.2f}"
-            if rank == 1:
-                line = f"# {line}"
-            elif rank == 2:
-                line = f"## {line}"
-            elif rank == 3:
-                line = f"## {line}"
             description_lines.append(line)
 
         embed = self.bot.embed_service._create_base_embed(
@@ -176,12 +170,6 @@ class EconomyCog(commands.Cog):
             name = member.display_name if member else f"User {user_id}"
             rank = entry["rank"]
             line = f"{'🥇' if rank == 1 else '🥈' if rank == 2 else '🥉' if rank == 3 else f'`#{rank}`'} **{name}** — 🪙 {entry['bruh_coins']:.2f} (Lv{entry['level']})"
-            if rank == 1:
-                line = f"# {line}"
-            elif rank == 2:
-                line = f"## {line}"
-            elif rank == 3:
-                line = f"## {line}"
             description_lines.append(line)
 
         embed = self.bot.embed_service._create_base_embed(

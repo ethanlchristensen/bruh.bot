@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { Coins, Zap } from 'lucide-react';
+import { Coins, Dices, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useConfig, useUpdateConfig } from '@/hooks/use-config';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardIcon } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardIcon, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
@@ -41,6 +41,9 @@ function EconomyConfigComponent() {
   const [mentionCoinMax, setMentionCoinMax] = useState(5.0);
   const [dailyCoinMin, setDailyCoinMin] = useState(50.0);
   const [dailyCoinMax, setDailyCoinMax] = useState(100.0);
+  const [gamblingMaxCoinflips, setGamblingMaxCoinflips] = useState(10);
+  const [gamblingMaxDice, setGamblingMaxDice] = useState(10);
+  const [gamblingMaxSlots, setGamblingMaxSlots] = useState(10);
 
   const initialValuesRef = useRef<{
     xpEnabled: boolean;
@@ -60,6 +63,9 @@ function EconomyConfigComponent() {
     mentionCoinMax: number;
     dailyCoinMin: number;
     dailyCoinMax: number;
+    gamblingMaxCoinflips: number;
+    gamblingMaxDice: number;
+    gamblingMaxSlots: number;
   } | null>(null);
 
   useEffect(() => {
@@ -84,6 +90,9 @@ function EconomyConfigComponent() {
           mentionCoinMax: econ.mentionCoinRange[1],
           dailyCoinMin: econ.dailyCoinMin,
           dailyCoinMax: econ.dailyCoinMax,
+          gamblingMaxCoinflips: econ.gamblingMaxCoinflipsPerDay,
+          gamblingMaxDice: econ.gamblingMaxDicePerDay,
+          gamblingMaxSlots: econ.gamblingMaxSlotsPerDay,
         };
         if (!initialValuesRef.current) {
           initialValuesRef.current = vals;
@@ -105,6 +114,9 @@ function EconomyConfigComponent() {
         setMentionCoinMax(vals.mentionCoinMax);
         setDailyCoinMin(vals.dailyCoinMin);
         setDailyCoinMax(vals.dailyCoinMax);
+        setGamblingMaxCoinflips(vals.gamblingMaxCoinflips);
+        setGamblingMaxDice(vals.gamblingMaxDice);
+        setGamblingMaxSlots(vals.gamblingMaxSlots);
       }
     }
   }, [data, isSaving]);
@@ -129,7 +141,10 @@ function EconomyConfigComponent() {
       mentionCoinMin !== iv.mentionCoinMin ||
       mentionCoinMax !== iv.mentionCoinMax ||
       dailyCoinMin !== iv.dailyCoinMin ||
-      dailyCoinMax !== iv.dailyCoinMax
+      dailyCoinMax !== iv.dailyCoinMax ||
+      gamblingMaxCoinflips !== iv.gamblingMaxCoinflips ||
+      gamblingMaxDice !== iv.gamblingMaxDice ||
+      gamblingMaxSlots !== iv.gamblingMaxSlots
     );
   }, [
     xpEnabled, coinsEnabled, levelUpAnnounce,
@@ -137,6 +152,7 @@ function EconomyConfigComponent() {
     mentionXpMin, mentionXpMax,
     messageCoinMin, messageCoinMax, imageCoinBonus, reactionCoin,
     mentionCoinMin, mentionCoinMax, dailyCoinMin, dailyCoinMax,
+    gamblingMaxCoinflips, gamblingMaxDice, gamblingMaxSlots,
   ]);
 
   const handleSave = () => {
@@ -157,6 +173,9 @@ function EconomyConfigComponent() {
           mentionCoinRange: [mentionCoinMin, mentionCoinMax],
           dailyCoinMin,
           dailyCoinMax,
+          gamblingMaxCoinflipsPerDay: gamblingMaxCoinflips,
+          gamblingMaxDicePerDay: gamblingMaxDice,
+          gamblingMaxSlotsPerDay: gamblingMaxSlots,
         },
       }).then(() => {
         initialValuesRef.current = {
@@ -164,8 +183,9 @@ function EconomyConfigComponent() {
           baseXpMin, baseXpMax, imageXpBonus, reactionXp,
           mentionXpMin, mentionXpMax,
           messageCoinMin, messageCoinMax, imageCoinBonus, reactionCoin,
-          mentionCoinMin, mentionCoinMax, dailyCoinMin, dailyCoinMax,
-        };
+mentionCoinMin, mentionCoinMax, dailyCoinMin, dailyCoinMax,
+            gamblingMaxCoinflips, gamblingMaxDice, gamblingMaxSlots,
+          };
         return queryClient.invalidateQueries({ queryKey: ['config'] });
       }).finally(() => {
         setIsSaving(false);
@@ -336,6 +356,35 @@ function EconomyConfigComponent() {
               <div className="space-y-2">
                 <Label className="text-sm">Daily Max</Label>
                 <Input type="number" step="0.1" value={dailyCoinMax} onChange={(e) => setDailyCoinMax(parseFloat(e.target.value) || 0)} className="h-10" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Gambling Limits */}
+        <Card variant="hero">
+          <CardHeader>
+            <div className="flex items-center gap-4">
+              <CardIcon><Dices /></CardIcon>
+              <div>
+                <CardTitle>Gambling Limits</CardTitle>
+                <CardDescription>Max plays per day for each game. Set to 0 for unlimited.</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm">Max Coinflips/Day</Label>
+                <Input type="number" value={gamblingMaxCoinflips} onChange={(e) => setGamblingMaxCoinflips(parseInt(e.target.value) || 0)} className="h-10" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm">Max Dice/Day</Label>
+                <Input type="number" value={gamblingMaxDice} onChange={(e) => setGamblingMaxDice(parseInt(e.target.value) || 0)} className="h-10" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm">Max Slots/Day</Label>
+                <Input type="number" value={gamblingMaxSlots} onChange={(e) => setGamblingMaxSlots(parseInt(e.target.value) || 0)} className="h-10" />
               </div>
             </div>
           </CardContent>

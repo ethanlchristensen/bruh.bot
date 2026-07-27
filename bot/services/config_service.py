@@ -128,6 +128,9 @@ class EconomyConfig(BaseModel):
     spamCoinPenaltyIncrement: float = 0.2
     spamCoinPenaltyRecovery: float = 0.1
     spamCoinPenaltyMax: float = 1.0
+    gamblingMaxCoinflipsPerDay: int = 10
+    gamblingMaxDicePerDay: int = 10
+    gamblingMaxSlotsPerDay: int = 10
 
 
 class DiscordScrapeBotConfig(BaseModel):

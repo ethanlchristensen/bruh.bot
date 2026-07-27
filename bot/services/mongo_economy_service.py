@@ -68,6 +68,10 @@ class MongoEconomyService:
                 "last_message_time": None,
                 "spam_coin_penalty": 0.0,
                 "booster_active_until": None,
+                "coinflip_plays_today": 0,
+                "dice_plays_today": 0,
+                "slots_plays_today": 0,
+                "gambling_play_date": None,
                 "created_at": now,
                 "updated_at": now,
             }
@@ -86,6 +90,10 @@ class MongoEconomyService:
                 "last_message_time": None,
                 "spam_coin_penalty": 0.0,
                 "booster_active_until": None,
+                "coinflip_plays_today": 0,
+                "dice_plays_today": 0,
+                "slots_plays_today": 0,
+                "gambling_play_date": None,
             }
             missing = {k: v for k, v in defaults.items() if k not in doc}
             if missing:
@@ -249,6 +257,62 @@ class MongoEconomyService:
         await self.collection.update_one(
             {"guild_id": Int64(guild_id), "user_id": Int64(user_id)},
             {"$set": {"xp": xp, "level": level, "updated_at": now}},
+        )
+
+    async def get_remaining_gambling_plays(self, guild_id: int, user_id: int, game: str) -> int:
+        config = await self._get_economy_config(guild_id)
+        limit_map = {
+            "coinflip": config.gamblingMaxCoinflipsPerDay,
+            "dice": config.gamblingMaxDicePerDay,
+            "slots": config.gamblingMaxSlotsPerDay,
+        }
+        max_plays = limit_map.get(game, 0)
+        if max_plays == 0:
+            return -1
+
+        field_map = {
+            "coinflip": "coinflip_plays_today",
+            "dice": "dice_plays_today",
+            "slots": "slots_plays_today",
+        }
+        field = field_map.get(game)
+        if not field:
+            return 0
+
+        doc = await self._get_or_create_profile_raw(guild_id, user_id)
+        now = datetime.now(UTC)
+        today = now.strftime("%Y-%m-%d")
+        play_date = doc.get("gambling_play_date")
+        if play_date != today:
+            return max_plays
+
+        played = doc.get(field, 0)
+        return max(0, max_plays - played)
+
+    async def increment_gambling_plays(self, guild_id: int, user_id: int, game: str):
+        field_map = {
+            "coinflip": "coinflip_plays_today",
+            "dice": "dice_plays_today",
+            "slots": "slots_plays_today",
+        }
+        field = field_map.get(game)
+        if not field:
+            return
+
+        now = datetime.now(UTC)
+        today = now.strftime("%Y-%m-%d")
+        doc = await self._get_or_create_profile_raw(guild_id, user_id)
+        play_date = doc.get("gambling_play_date")
+
+        if play_date != today:
+            await self.collection.update_one(
+                {"guild_id": Int64(guild_id), "user_id": Int64(user_id)},
+                {"$set": {"coinflip_plays_today": 0, "dice_plays_today": 0, "slots_plays_today": 0, "gambling_play_date": today, "updated_at": now}},
+            )
+
+        await self.collection.update_one(
+            {"guild_id": Int64(guild_id), "user_id": Int64(user_id)},
+            {"$inc": {field: 1}, "$set": {"gambling_play_date": today, "updated_at": now}},
         )
 
     async def reset_profile(self, guild_id: int, user_id: int):

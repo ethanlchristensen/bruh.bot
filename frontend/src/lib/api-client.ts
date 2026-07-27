@@ -84,6 +84,9 @@ export interface EconomyConfig {
   spamCoinPenaltyIncrement: number;
   spamCoinPenaltyRecovery: number;
   spamCoinPenaltyMax: number;
+  gamblingMaxCoinflipsPerDay: number;
+  gamblingMaxDicePerDay: number;
+  gamblingMaxSlotsPerDay: number;
 }
 
 export interface EconomyProfile {

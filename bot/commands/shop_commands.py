@@ -33,6 +33,7 @@ XP_BOOSTER_DURATIONS = {
 }
 
 SLOTS_EMOJIS = ["🍒", "🍋", "🍊", "🍇", "💎", "7️⃣", "🎰"]
+MAX_BATCH_TURNS = 50
 
 MYSTERY_BOX = [
     ("coins", 100, 800, 0.40),
@@ -41,6 +42,51 @@ MYSTERY_BOX = [
     ("jackpot", 1500, 3000, 0.10),
     ("dud", 0, 0, 0.05),
 ]
+
+
+# ── Game Core Logic (stateless, no DB) ──────────────────────────
+
+
+def _roll_coinflip(choice: str) -> dict:
+    result = random.choice(["heads", "tails"])
+    return {"won": result == choice, "result": result}
+
+
+def _roll_dice() -> dict:
+    user_roll = random.randint(1, 6)
+    bot_roll = random.randint(1, 6)
+    diff = user_roll - bot_roll
+
+    if diff >= 3:
+        return {"result": "crushing", "multiplier": 2.6, "user_roll": user_roll, "bot_roll": bot_roll}
+    elif diff >= 1:
+        return {"result": "win", "multiplier": 1.4, "user_roll": user_roll, "bot_roll": bot_roll}
+    elif diff == 0:
+        return {"result": "tie", "multiplier": 1.0, "user_roll": user_roll, "bot_roll": bot_roll}
+    else:
+        return {"result": "loss", "multiplier": 0.0, "user_roll": user_roll, "bot_roll": bot_roll}
+
+
+def _roll_slots() -> dict:
+    reels = [random.choice(SLOTS_EMOJIS) for _ in range(3)]
+    unique = len(set(reels))
+    jackpot = reels[0] == "💎"
+    seven = reels[0] == "7️⃣"
+    slot = reels[0] == "🎰"
+
+    if unique == 1:
+        if jackpot:
+            return {"result": "jackpot", "multiplier": 44, "reels": reels}
+        elif seven:
+            return {"result": "sevens", "multiplier": 22, "reels": reels}
+        elif slot:
+            return {"result": "grand", "multiplier": 9, "reels": reels}
+        else:
+            return {"result": "triple", "multiplier": 4, "reels": reels}
+    elif unique == 2:
+        return {"result": "pair", "multiplier": 1.85, "reels": reels}
+    else:
+        return {"result": "miss", "multiplier": 0, "reels": reels}
 
 
 # ── Helpers ─────────────────────────────────────────────────────
@@ -160,7 +206,7 @@ class ShopCommands:
 
         # ── /coinflip ──────────────────────────────────────────
         @tree.command(name="coinflip", description="Bet on a coin flip — double or nothing!")
-        @app_commands.describe(amount="Amount to bet", choice="Heads or tails")
+        @app_commands.describe(amount="Amount to bet", choice="Heads or tails", turns=f"Number of turns to play (1-{MAX_BATCH_TURNS})")
         @app_commands.choices(
             choice=[
                 app_commands.Choice(name="Heads", value="heads"),
@@ -169,7 +215,7 @@ class ShopCommands:
         )
         @log_command_usage()
         @is_globally_blocked()
-        async def coinflip(interaction: discord.Interaction, amount: int, choice: str):
+        async def coinflip(interaction: discord.Interaction, amount: int, choice: str, turns: app_commands.Range[int, 1, MAX_BATCH_TURNS] = 1):
             await interaction.response.defer()
             bot = _get_bot(interaction)
             guild_id = interaction.guild.id
@@ -178,30 +224,78 @@ class ShopCommands:
             if amount < COINFLIP_MIN or amount > COINFLIP_MAX:
                 return await interaction.followup.send(embed=_coins_embed("Invalid Bet", f"Bet must be between **{COINFLIP_MIN}** and **{COINFLIP_MAX}** coins."))
 
-            success, _ = await bot.economy_service.deduct_coins(guild_id, user_id, amount)
-            if not success:
-                return await interaction.followup.send(embed=_coins_embed("Not Enough Coins", "You don't have enough coins for that bet."))
+            config = await bot.config_service.get_config(str(guild_id))
+            is_admin = str(user_id) in config.adminIds
 
-            result = random.choice(["heads", "tails"])
-            won = result == choice
-            payout = amount * 2 if won else 0
+            if not is_admin:
+                remaining = await bot.economy_service.get_remaining_gambling_plays(guild_id, user_id, "coinflip")
+                if remaining == 0:
+                    return await interaction.followup.send(embed=_coins_embed("Daily Limit Reached", "You've reached your daily coinflip limit."))
+                actual_turns = turns if remaining < 0 else min(turns, remaining)
+            else:
+                actual_turns = turns
 
-            if won:
-                await bot.economy_service.add_coins(guild_id, user_id, payout)
-            profile = await bot.economy_service.get_profile(guild_id, user_id)
+            if actual_turns == 1:
+                success, _ = await bot.economy_service.deduct_coins(guild_id, user_id, amount)
+                if not success:
+                    return await interaction.followup.send(embed=_coins_embed("Not Enough Coins", "You don't have enough coins for that bet."))
 
-            embed = _coins_embed(
-                f"🪙 Coin Flip — {'You Won!' if won else 'Lost'}",
-                f"Coin landed **{result.upper()}** · You chose **{choice.upper()}**\n{interaction.user.mention}\n\n{'**+🪙 ' + f'{payout:.2f}' + '**' if won else 'Lost **🪙 ' + f'{amount:.2f}' + '**'}\nBalance: **🪙 {profile['bruh_coins']:.2f}**",
-            )
-            await interaction.followup.send(embed=embed)
+                if not is_admin:
+                    await bot.economy_service.increment_gambling_plays(guild_id, user_id, "coinflip")
+
+                result = _roll_coinflip(choice)
+                payout = amount * 2 if result["won"] else 0
+
+                if result["won"]:
+                    await bot.economy_service.add_coins(guild_id, user_id, payout)
+                profile = await bot.economy_service.get_profile(guild_id, user_id)
+
+                embed = _coins_embed(
+                    f"🪙 Coin Flip — {'You Won!' if result['won'] else 'Lost'}",
+                    f"Coin landed **{result['result'].upper()}** · You chose **{choice.upper()}**\n{interaction.user.mention}\n\n{'**+🪙 ' + f'{payout:.2f}' + '**' if result['won'] else 'Lost **🪙 ' + f'{amount:.2f}' + '**'}\nBalance: **🪙 {profile['bruh_coins']:.2f}**",
+                )
+                await interaction.followup.send(embed=embed)
+            else:
+                wins = 0
+                losses = 0
+                total_wagered = 0
+                total_won = 0
+                stopped_early = False
+
+                for _ in range(actual_turns):
+                    success, balance = await bot.economy_service.deduct_coins(guild_id, user_id, amount)
+                    if not success:
+                        stopped_early = True
+                        break
+
+                    if not is_admin:
+                        await bot.economy_service.increment_gambling_plays(guild_id, user_id, "coinflip")
+
+                    total_wagered += amount
+                    result = _roll_coinflip(choice)
+
+                    if result["won"]:
+                        wins += 1
+                        payout = amount * 2
+                        total_won += payout
+                        await bot.economy_service.add_coins(guild_id, user_id, payout)
+                    else:
+                        losses += 1
+
+                turns_played = wins + losses
+                profile = await bot.economy_service.get_profile(guild_id, user_id)
+                net = total_won - total_wagered
+
+                title = f"🪙 Batch Coinflip — {choice.upper()} | {turns_played}/{actual_turns} turns {'(stopped: out of coins)' if stopped_early else ''} @ 🪙 {amount}/turn"
+                description = f"Wins: **{wins}** · Losses: **{losses}**\nWagered 🪙 {total_wagered:,.2f} · Won 🪙 {total_won:,.2f}\n━━━━━━━━━━━━━━━━━━━━━\nNet {'+' if net >= 0 else ''}🪙 {net:,.2f}  |  Balance 🪙 {profile['bruh_coins']:,.2f}"
+                await interaction.followup.send(embed=_coins_embed(title, description))
 
         # ── /dice ──────────────────────────────────────────────
         @tree.command(name="dice", description="Roll a die against the bot!")
-        @app_commands.describe(bet="Amount to bet")
+        @app_commands.describe(bet="Amount to bet", turns=f"Number of turns to play (1-{MAX_BATCH_TURNS})")
         @log_command_usage()
         @is_globally_blocked()
-        async def dice(interaction: discord.Interaction, bet: int):
+        async def dice(interaction: discord.Interaction, bet: int, turns: app_commands.Range[int, 1, MAX_BATCH_TURNS] = 1):
             await interaction.response.defer()
             bot = _get_bot(interaction)
             guild_id = interaction.guild.id
@@ -210,45 +304,87 @@ class ShopCommands:
             if bet < DICE_MIN or bet > DICE_MAX:
                 return await interaction.followup.send(embed=_coins_embed("Invalid Bet", f"Bet must be between **{DICE_MIN}** and **{DICE_MAX}** coins."))
 
-            success, _ = await bot.economy_service.deduct_coins(guild_id, user_id, bet)
-            if not success:
-                return await interaction.followup.send(embed=_coins_embed("Not Enough Coins", "You don't have enough coins for that bet."))
+            config = await bot.config_service.get_config(str(guild_id))
+            is_admin = str(user_id) in config.adminIds
 
-            user_roll = random.randint(1, 6)
-            bot_roll = random.randint(1, 6)
-            diff = user_roll - bot_roll
-
-            if diff >= 3:
-                multiplier = 2.6
-                title = "🎲 Crushing Victory!"
-            elif diff >= 1:
-                multiplier = 1.4
-                title = "🎲 You Win!"
-            elif diff == 0:
-                multiplier = 1.0
-                title = "🎲 Tie!"
+            if not is_admin:
+                remaining = await bot.economy_service.get_remaining_gambling_plays(guild_id, user_id, "dice")
+                if remaining == 0:
+                    return await interaction.followup.send(embed=_coins_embed("Daily Limit Reached", "You've reached your daily dice limit."))
+                actual_turns = turns if remaining < 0 else min(turns, remaining)
             else:
-                multiplier = 0.0
-                title = "🎲 You Lost"
+                actual_turns = turns
 
-            payout = round(bet * multiplier, 2)
-            if payout > 0:
-                await bot.economy_service.add_coins(guild_id, user_id, payout)
-            profile = await bot.economy_service.get_profile(guild_id, user_id)
+            if actual_turns == 1:
+                success, _ = await bot.economy_service.deduct_coins(guild_id, user_id, bet)
+                if not success:
+                    return await interaction.followup.send(embed=_coins_embed("Not Enough Coins", "You don't have enough coins for that bet."))
 
-            payout_line = f"**+🪙 {payout:.2f}**" if payout > 0 else f"Lost **🪙 {bet:.2f}**"
-            embed = _coins_embed(
-                title,
-                f"{interaction.user.mention}\n**Your roll:** {user_roll}\n**Bot's roll:** {bot_roll}\n\n{payout_line}\nBalance: **🪙 {profile['bruh_coins']:.2f}**",
-            )
-            await interaction.followup.send(embed=embed)
+                if not is_admin:
+                    await bot.economy_service.increment_gambling_plays(guild_id, user_id, "dice")
+
+                result = _roll_dice()
+                payout = round(bet * result["multiplier"], 2)
+
+                if payout > 0:
+                    await bot.economy_service.add_coins(guild_id, user_id, payout)
+                profile = await bot.economy_service.get_profile(guild_id, user_id)
+
+                result_titles = {"crushing": "🎲 Crushing Victory!", "win": "🎲 You Win!", "tie": "🎲 Tie!", "loss": "🎲 You Lost"}
+                payout_line = f"**+🪙 {payout:.2f}**" if payout > 0 else f"Lost **🪙 {bet:.2f}**"
+                embed = _coins_embed(
+                    result_titles[result["result"]],
+                    f"{interaction.user.mention}\n**Your roll:** {result['user_roll']}\n**Bot's roll:** {result['bot_roll']}\n\n{payout_line}\nBalance: **🪙 {profile['bruh_coins']:.2f}**",
+                )
+                await interaction.followup.send(embed=embed)
+            else:
+                crushing = 0
+                wins = 0
+                ties = 0
+                losses = 0
+                total_wagered = 0
+                total_won = 0
+                stopped_early = False
+
+                for _ in range(actual_turns):
+                    success, balance = await bot.economy_service.deduct_coins(guild_id, user_id, bet)
+                    if not success:
+                        stopped_early = True
+                        break
+
+                    if not is_admin:
+                        await bot.economy_service.increment_gambling_plays(guild_id, user_id, "dice")
+
+                    total_wagered += bet
+                    result = _roll_dice()
+                    payout = round(bet * result["multiplier"], 2)
+                    if payout > 0:
+                        total_won += payout
+                        await bot.economy_service.add_coins(guild_id, user_id, payout)
+
+                    if result["result"] == "crushing":
+                        crushing += 1
+                    elif result["result"] == "win":
+                        wins += 1
+                    elif result["result"] == "tie":
+                        ties += 1
+                    else:
+                        losses += 1
+
+                turns_played = crushing + wins + ties + losses
+                profile = await bot.economy_service.get_profile(guild_id, user_id)
+                net = total_won - total_wagered
+
+                title = f"🎲 Batch Dice — {turns_played}/{actual_turns} turns {'(stopped: out of coins)' if stopped_early else ''} @ 🪙 {bet}/turn"
+                description = f"Crushing: **{crushing}** · Wins: **{wins}** · Ties: **{ties}** · Losses: **{losses}**\nWagered 🪙 {total_wagered:,.2f} · Won 🪙 {total_won:,.2f}\n━━━━━━━━━━━━━━━━━━━━━\nNet {'+' if net >= 0 else ''}🪙 {net:,.2f}  |  Balance 🪙 {profile['bruh_coins']:,.2f}"
+                await interaction.followup.send(embed=_coins_embed(title, description))
 
         # ── /slots ─────────────────────────────────────────────
         @tree.command(name="slots", description="Play the slot machine!")
-        @app_commands.describe(bet="Amount to bet")
+        @app_commands.describe(bet="Amount to bet", turns=f"Number of turns to play (1-{MAX_BATCH_TURNS})")
         @log_command_usage()
         @is_globally_blocked()
-        async def slots(interaction: discord.Interaction, bet: int):
+        async def slots(interaction: discord.Interaction, bet: int, turns: app_commands.Range[int, 1, MAX_BATCH_TURNS] = 1):
             await interaction.response.defer()
             bot = _get_bot(interaction)
             guild_id = interaction.guild.id
@@ -257,49 +393,83 @@ class ShopCommands:
             if bet < SLOTS_MIN or bet > SLOTS_MAX:
                 return await interaction.followup.send(embed=_coins_embed("Invalid Bet", f"Bet must be between **{SLOTS_MIN}** and **{SLOTS_MAX}** coins."))
 
-            success, _ = await bot.economy_service.deduct_coins(guild_id, user_id, bet)
-            if not success:
-                return await interaction.followup.send(embed=_coins_embed("Not Enough Coins", "You don't have enough coins for that bet."))
+            config = await bot.config_service.get_config(str(guild_id))
+            is_admin = str(user_id) in config.adminIds
 
-            reels = [random.choice(SLOTS_EMOJIS) for _ in range(3)]
-            display = " | ".join(reels)
-
-            unique = len(set(reels))
-            jackpot = reels[0] == "💎"
-            seven = reels[0] == "7️⃣"
-            slot = reels[0] == "🎰"
-
-            if unique == 1:
-                if jackpot:
-                    multiplier = 44
-                    title = "💎💎💎 JACKPOT! 💎💎💎"
-                elif seven:
-                    multiplier = 22
-                    title = "7️⃣7️⃣7️⃣ SEVENS! 7️⃣7️⃣7️⃣"
-                elif slot:
-                    multiplier = 9
-                    title = "🎰🎰🎰 GRAND PRIZE! 🎰🎰🎰"
-                else:
-                    multiplier = 4
-                    title = "🎰 Triple Match!"
-            elif unique == 2:
-                multiplier = 1.85
-                title = "🎰 Pair!"
+            if not is_admin:
+                remaining = await bot.economy_service.get_remaining_gambling_plays(guild_id, user_id, "slots")
+                if remaining == 0:
+                    return await interaction.followup.send(embed=_coins_embed("Daily Limit Reached", "You've reached your daily slots limit."))
+                actual_turns = turns if remaining < 0 else min(turns, remaining)
             else:
-                multiplier = 0
-                title = "🎰 No Match"
+                actual_turns = turns
 
-            payout = round(bet * multiplier, 2)
-            if payout > 0:
-                await bot.economy_service.add_coins(guild_id, user_id, payout)
-            profile = await bot.economy_service.get_profile(guild_id, user_id)
+            if actual_turns == 1:
+                success, _ = await bot.economy_service.deduct_coins(guild_id, user_id, bet)
+                if not success:
+                    return await interaction.followup.send(embed=_coins_embed("Not Enough Coins", "You don't have enough coins for that bet."))
 
-            payout_line = f"**+🪙 {payout:.2f}**" if payout > 0 else f"Lost **🪙 {bet:.2f}**"
-            embed = _coins_embed(
-                title,
-                f"{interaction.user.mention}\n`{display}`\n\n{payout_line}\nBalance: **🪙 {profile['bruh_coins']:.2f}**",
-            )
-            await interaction.followup.send(embed=embed)
+                if not is_admin:
+                    await bot.economy_service.increment_gambling_plays(guild_id, user_id, "slots")
+
+                result = _roll_slots()
+                display = " | ".join(result["reels"])
+                payout = round(bet * result["multiplier"], 2)
+
+                result_titles = {
+                    "jackpot": "💎💎💎 JACKPOT! 💎💎💎",
+                    "sevens": "7️⃣7️⃣7️⃣ SEVENS! 7️⃣7️⃣7️⃣",
+                    "grand": "🎰🎰🎰 GRAND PRIZE! 🎰🎰🎰",
+                    "triple": "🎰 Triple Match!",
+                    "pair": "🎰 Pair!",
+                    "miss": "🎰 No Match",
+                }
+
+                if payout > 0:
+                    await bot.economy_service.add_coins(guild_id, user_id, payout)
+                profile = await bot.economy_service.get_profile(guild_id, user_id)
+
+                payout_line = f"**+🪙 {payout:.2f}**" if payout > 0 else f"Lost **🪙 {bet:.2f}**"
+                embed = _coins_embed(
+                    result_titles[result["result"]],
+                    f"{interaction.user.mention}\n`{display}`\n\n{payout_line}\nBalance: **🪙 {profile['bruh_coins']:.2f}**",
+                )
+                await interaction.followup.send(embed=embed)
+            else:
+                stats = {"jackpot": 0, "sevens": 0, "grand": 0, "triple": 0, "pair": 0, "miss": 0}
+                total_wagered = 0
+                total_won = 0
+                stopped_early = False
+
+                for _ in range(actual_turns):
+                    success, balance = await bot.economy_service.deduct_coins(guild_id, user_id, bet)
+                    if not success:
+                        stopped_early = True
+                        break
+
+                    if not is_admin:
+                        await bot.economy_service.increment_gambling_plays(guild_id, user_id, "slots")
+
+                    total_wagered += bet
+                    result = _roll_slots()
+                    stats[result["result"]] += 1
+                    payout = round(bet * result["multiplier"], 2)
+                    if payout > 0:
+                        total_won += payout
+                        await bot.economy_service.add_coins(guild_id, user_id, payout)
+
+                turns_played = sum(stats.values())
+                profile = await bot.economy_service.get_profile(guild_id, user_id)
+                net = total_won - total_wagered
+
+                title = f"🎰 Batch Slots — {turns_played}/{actual_turns} turns {'(stopped: out of coins)' if stopped_early else ''} @ 🪙 {bet}/turn"
+                description = (
+                    f"💎 Jackpot: **{stats['jackpot']}** · 7️⃣ Sevens: **{stats['sevens']}** · 🎰 Grand: **{stats['grand']}** · Triple: **{stats['triple']}** · Pair: **{stats['pair']}** · Miss: **{stats['miss']}**\n"
+                    f"Wagered 🪙 {total_wagered:,.2f} · Won 🪙 {total_won:,.2f}\n"
+                    "━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"Net {'+' if net >= 0 else ''}🪙 {net:,.2f}  |  Balance 🪙 {profile['bruh_coins']:,.2f}"
+                )
+                await interaction.followup.send(embed=_coins_embed(title, description))
 
         # ── /gift ──────────────────────────────────────────────
         @tree.command(name="gift", description="Send bruh.coins to another user.")

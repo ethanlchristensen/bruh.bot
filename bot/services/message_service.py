@@ -1,5 +1,6 @@
 import base64
 import logging
+import re
 from typing import TYPE_CHECKING
 
 import aiohttp
@@ -101,6 +102,11 @@ class MessageService:
                                 user_ids_to_query.append(uid_int)
                                 author_to_id[str(uid_int)] = author
 
+                for mentioned_user in message.mentions:
+                    if mentioned_user.id != message.author.id and mentioned_user.id != self.bot.user.id and mentioned_user.id not in user_ids_to_query:
+                        user_ids_to_query.append(mentioned_user.id)
+                        author_to_id[str(mentioned_user.id)] = mentioned_user.name
+
                 memories_map = await self.bot.memory_service.get_memories_for_users(
                     guild_id=message.guild.id,
                     user_ids=user_ids_to_query,
@@ -144,6 +150,7 @@ MULTI-USER CHAT CONTEXT:
             node_author = node.get("author_name")
 
             clean_content = self.replace_mentions(node_content).strip()
+            clean_content = self.resolve_user_mentions(clean_content, config.idToUsers)
 
             if node_role == "assistant":
                 text = f"[{self.bot.user.name}]: {clean_content}"
@@ -180,6 +187,17 @@ MULTI-USER CHAT CONTEXT:
                 result += self.bot.user.name + " " + part
 
         return result
+
+    @staticmethod
+    def resolve_user_mentions(text: str, id_to_users: dict[str, str]) -> str:
+        """Resolve raw Discord mention tags to @displayname format."""
+
+        def replace_mention(match: re.Match) -> str:
+            user_id = match.group(1)
+            name = id_to_users.get(user_id)
+            return f"@{name}" if name else match.group(0)
+
+        return re.sub(r"<@!?(\d+)>", replace_mention, text)
 
     async def get_image_attachment(self, message: discord.Message, reference_message: discord.Message | None = None) -> discord.Attachment | None:
         """Get image attachment from message or referenced message."""

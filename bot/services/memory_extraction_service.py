@@ -76,11 +76,14 @@ class MemoryExtractionService:
     def __init__(self, bot: "BruhBot"):
         self.bot = bot
         self.logger = logging.getLogger(__name__)
-        self._message_buffers: dict[str, list[dict]] = {}
         self._message_locks: dict[str, asyncio.Lock] = {}
         self._last_extraction: dict[str, float] = {}
         self._running = False
         self._main_task: asyncio.Task | None = None
+
+    @property
+    def q(self):
+        return self.bot.extraction_queue_service
 
     async def enqueue_message(self, message: "discord.Message"):
         guild_id = str(message.guild.id)
@@ -97,20 +100,18 @@ class MemoryExtractionService:
         if not content or len(content) < mem_cfg.minMessageLength:
             return
 
-        if guild_id not in self._message_buffers:
-            self._message_buffers[guild_id] = []
+        if guild_id not in self._message_locks:
             self._message_locks[guild_id] = asyncio.Lock()
         if guild_id not in self._last_extraction:
             self._last_extraction[guild_id] = 0.0
 
-        self._message_buffers[guild_id].append(
-            {
-                "content": content,
-                "message_id": message.id,
-                "timestamp": message.created_at.isoformat(),
-                "author_id": message.author.id,
-                "author_name": message.author.name,
-            }
+        await self.q.enqueue(
+            guild_id=message.guild.id,
+            message_id=message.id,
+            content=content,
+            author_id=message.author.id,
+            author_name=message.author.name,
+            timestamp=message.created_at,
         )
 
     async def start_extraction_loops(self):
@@ -137,10 +138,15 @@ class MemoryExtractionService:
             await asyncio.sleep(60)
 
     async def _process_all_guilds(self):
-        guild_ids = list(self._message_buffers.keys())
+        guild_ids = []
+        if self.bot.guilds:
+            guild_ids = [g.id for g in self.bot.guilds]
+        else:
+            guild_ids = await self.q.get_pending_guild_ids()
+
         for guild_id in guild_ids:
             try:
-                config = await self.bot.config_service.get_config(guild_id)
+                config = await self.bot.config_service.get_config(str(guild_id))
                 mem_cfg = config.memoryConfig
                 if not mem_cfg.enabled:
                     continue
@@ -148,32 +154,38 @@ class MemoryExtractionService:
                 interval_minutes = min(mem_cfg.extractionIntervalMinutes, mem_cfg.moodExtractionIntervalMinutes)
                 if interval_minutes <= 0:
                     continue
+
                 interval_seconds = interval_minutes * 60
+                gid = str(guild_id)
 
-                if guild_id not in self._message_locks:
-                    continue
+                if gid not in self._message_locks:
+                    self._message_locks[gid] = asyncio.Lock()
+                if gid not in self._last_extraction:
+                    self._last_extraction[gid] = 0.0
 
-                async with self._message_locks[guild_id]:
-                    if guild_id not in self._message_buffers:
-                        continue
-
+                async with self._message_locks[gid]:
                     now_ts = datetime.now(UTC).timestamp()
-                    last = self._last_extraction.get(guild_id, 0.0)
+                    last = self._last_extraction.get(gid, 0.0)
                     if now_ts - last < interval_seconds:
                         continue
 
-                    all_messages = self._message_buffers[guild_id]
-                    if len(all_messages) < mem_cfg.minMessagesForExtraction:
+                    count = await self.q.count(guild_id)
+                    if count < mem_cfg.minMessagesForExtraction:
                         continue
 
-                    messages_to_process = all_messages[-mem_cfg.maxMessagesPerExtraction :]
+                    messages_to_process = await self.q.fetch_batch(guild_id, mem_cfg.maxMessagesPerExtraction)
+                    if not messages_to_process:
+                        continue
+
                     await self._extract_for_guild(
-                        guild_id=guild_id,
+                        guild_id=gid,
                         messages=messages_to_process,
                         mem_cfg=mem_cfg,
                     )
-                    self._message_buffers[guild_id] = []
-                    self._last_extraction[guild_id] = now_ts
+
+                    oids = [m["_id_oid"] for m in messages_to_process if m.get("_id_oid")]
+                    await self.q.delete_ids(oids)
+                    self._last_extraction[gid] = now_ts
             except Exception:
                 self.logger.exception(f"Error processing guild {guild_id}")
 
@@ -349,15 +361,17 @@ Analyze the conversation transcript above. Follow your workflow: search for exis
         if not mem_cfg.enabled:
             return 0
 
-        if guild_id not in self._message_buffers:
+        guild_id_int = int(guild_id)
+
+        count = await self.q.count(guild_id_int)
+        if count == 0:
             return 0
 
         async with self._message_locks.get(guild_id, asyncio.Lock()):
-            all_messages = self._message_buffers.get(guild_id, [])
-            if not all_messages:
+            messages_to_process = await self.q.fetch_batch(guild_id_int, mem_cfg.maxMessagesPerExtraction)
+            if not messages_to_process:
                 return 0
 
-            messages_to_process = all_messages[-mem_cfg.maxMessagesPerExtraction :]
             user_ids_in_batch = set()
             for msg in messages_to_process:
                 aid = msg.get("author_id")
@@ -369,7 +383,9 @@ Analyze the conversation transcript above. Follow your workflow: search for exis
                 messages=messages_to_process,
                 mem_cfg=mem_cfg,
             )
-            self._message_buffers[guild_id] = []
+
+            oids = [m["_id_oid"] for m in messages_to_process if m.get("_id_oid")]
+            await self.q.delete_ids(oids)
             self._last_extraction[guild_id] = datetime.now(UTC).timestamp()
 
         return len(user_ids_in_batch)
@@ -379,17 +395,20 @@ Analyze the conversation transcript above. Follow your workflow: search for exis
         mem_cfg = config.memoryConfig
 
         user_id_int = int(user_id)
-        all_messages = self._message_buffers.get(guild_id, [])
-        user_messages = [m for m in all_messages if m.get("author_id") == user_id_int]
+        guild_id_int = int(guild_id)
+
+        user_messages = await self.q.fetch_for_user(guild_id_int, user_id_int, mem_cfg.maxMessagesPerExtraction)
         if not user_messages:
             return False
 
-        messages_to_process = user_messages[-mem_cfg.maxMessagesPerExtraction :]
+        messages_to_process = user_messages
         await self._extract_for_guild(
             guild_id=guild_id,
             messages=messages_to_process,
             mem_cfg=mem_cfg,
         )
-        self._message_buffers[guild_id] = [m for m in self._message_buffers.get(guild_id, []) if m.get("author_id") != user_id_int]
+
+        oids = [m["_id_oid"] for m in messages_to_process if m.get("_id_oid")]
+        await self.q.delete_ids(oids)
         self._last_extraction[guild_id] = datetime.now(UTC).timestamp()
         return True

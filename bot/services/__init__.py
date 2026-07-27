@@ -18,6 +18,7 @@ from .mongo_ai_usage_service import MongoAIUsageService
 from .mongo_ai_usage_tracking_service import MongoAIUsageTrackingService
 from .mongo_chat_service import MongoChatService
 from .mongo_economy_service import MongoEconomyService
+from .mongo_extraction_queue_service import MongoExtractionQueueService
 from .mongo_guild_member_service import MongoGuildMemberService
 from .mongo_image_limit_service import MongoImageLimitService
 from .mongo_memory_service import MongoMemoryService
@@ -58,6 +59,7 @@ __all__ = [
     "MongoMorningConfigService",
     "MongoChatService",
     "MongoMemoryService",
+    "MongoExtractionQueueService",
     "RealTimeAudioService",
     "VoiceReceiveSink",
     "AudioProcessor",

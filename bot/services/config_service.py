@@ -170,6 +170,7 @@ class BaseConfig(BaseModel):
     mongoShopItemsCollectionName: str = "ShopItems"
     mongoUserInventoryCollectionName: str = "UserInventory"
     mongoGuildMembersCollectionName: str = "GuildMembers"
+    mongoMemoryQueueCollectionName: str = "MemoryExtractionQueue"
     mongoDiscordScrapeBot: DiscordScrapeBotConfig = Field(default_factory=DiscordScrapeBotConfig)
 
 

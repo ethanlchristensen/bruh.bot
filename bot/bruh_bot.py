@@ -20,6 +20,7 @@ from bot.services import (
     MongoAIUsageTrackingService,
     MongoChatService,
     MongoEconomyService,
+    MongoExtractionQueueService,
     MongoGuildMemberService,
     MongoImageLimitService,
     MongoMemoryService,
@@ -66,6 +67,7 @@ class BruhBot(commands.Bot):
         self.music_websocket_service = MusicWebSocketService(self)
         self.memory_service = MongoMemoryService(self)
         self.memory_extraction_service = MemoryExtractionService(self)
+        self.extraction_queue_service = MongoExtractionQueueService(self)
         self.ai_usage_service = MongoAIUsageService(self)
         self.ai_usage_tracking_service = MongoAIUsageTrackingService(self)
         self.economy_service = MongoEconomyService(self)
@@ -112,6 +114,11 @@ class BruhBot(commands.Bot):
             await self.guild_member_service.initialize()
         except Exception as e:
             self.logger.warning(f"Failed to initialize guild_member_service: {e}")
+
+        try:
+            await self.extraction_queue_service.initialize()
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize extraction_queue_service: {e}")
 
         try:
             await self.memory_extraction_service.start_extraction_loops()

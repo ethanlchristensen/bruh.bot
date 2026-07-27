@@ -80,6 +80,16 @@ class MongoExtractionQueueService:
             return
         await self.collection.delete_many({"_id": {"$in": ids}})
 
+    async def get_oldest_timestamp(self, guild_id: int):
+        doc = await self.collection.find_one(
+            {"guild_id": Int64(guild_id)},
+            sort=[("timestamp", 1)],
+            projection={"timestamp": 1},
+        )
+        if doc:
+            return doc["timestamp"]
+        return None
+
     async def get_pending_guild_ids(self) -> list[int]:
         agg = await self.collection.aggregate(
             [

@@ -170,8 +170,16 @@ class MemoryExtractionService:
                         continue
 
                     count = await self.q.count(guild_id)
-                    if count < mem_cfg.minMessagesForExtraction:
+                    if count == 0:
                         continue
+
+                    if count < mem_cfg.minMessagesForExtraction:
+                        oldest = await self.q.get_oldest_timestamp(guild_id)
+                        if oldest is None:
+                            continue
+                        age_minutes = (datetime.now(UTC) - oldest.replace(tzinfo=UTC)).total_seconds() / 60
+                        if age_minutes < mem_cfg.maxExtractionWaitMinutes:
+                            continue
 
                     messages_to_process = await self.q.fetch_batch(guild_id, mem_cfg.maxMessagesPerExtraction)
                     if not messages_to_process:

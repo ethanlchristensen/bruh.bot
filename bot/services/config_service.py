@@ -104,6 +104,7 @@ class MemoryConfig(BaseModel):
     orchestratorModel: str = "deepseek/deepseek-v4-flash"
     maxMessagesPerExtraction: int = 50
     minMessagesForExtraction: int = 5
+    maxExtractionWaitMinutes: int = 60
     minMessageLength: int = 10
     maxMemoriesPerUser: int = 50
     maxInjectionCount: int = 10

@@ -69,7 +69,6 @@ class MessageService:
         if reference_message:
             parent_id = reference_message.id
         else:
-            # Strict mode: treat as a brand new conversation root
             parent_id = None
 
         # 2. Save current user message
@@ -89,86 +88,116 @@ class MessageService:
         memories_section = ""
         try:
             if config.memoryConfig.enabled:
-                user_ids_to_query = [message.author.id]
-                author_to_id = {str(message.author.id): message.author.name}
+                mem_cfg = config.memoryConfig
+                permanent_cats = {"identity", "trait", "admin", "relationship"}
 
+                mentioned_user_ids = [u.id for u in message.mentions if u.id != message.author.id and u.id != self.bot.user.id]
+                mentioned_user_ids_dedup = list(dict.fromkeys(mentioned_user_ids))
+
+                non_mentioned_ids = [message.author.id]
                 for node in path:
                     author = node.get("author_name")
                     if author and author != self.bot.user.name and author != message.author.name:
                         user_id = config.usersToId.get(author)
                         if user_id:
                             uid_int = int(user_id)
-                            if uid_int not in user_ids_to_query:
-                                user_ids_to_query.append(uid_int)
-                                author_to_id[str(uid_int)] = author
+                            if uid_int not in non_mentioned_ids and uid_int not in mentioned_user_ids_dedup:
+                                non_mentioned_ids.append(uid_int)
 
-                for mentioned_user in message.mentions:
-                    if mentioned_user.id != message.author.id and mentioned_user.id != self.bot.user.id and mentioned_user.id not in user_ids_to_query:
-                        user_ids_to_query.append(mentioned_user.id)
-                        author_to_id[str(mentioned_user.id)] = mentioned_user.name
+                all_ids = list(dict.fromkeys(non_mentioned_ids + mentioned_user_ids_dedup))
 
-                self.logger.info(f"Querying memories for {len(user_ids_to_query)} user(s): {', '.join(author_to_id.get(str(uid), str(uid)) for uid in user_ids_to_query)}")
+                self.logger.info(f"Querying memories for {len(all_ids)} user(s): {', '.join(config.idToUsers.get(str(uid), str(uid)) for uid in all_ids)}, mentioned={len(mentioned_user_ids_dedup)}")
 
-                mem_cfg = config.memoryConfig
-                permanent_cats = {"identity", "trait", "admin", "relationship"}
+                sections = []
 
-                if mem_cfg.semanticRetrieval and message.content.strip():
-                    try:
-                        msg_embedding = await self.bot.embedding_service.embed_one(message.content.strip(), message.guild.id)
-                        if msg_embedding is not None:
-                            semantic_results = await self.bot.memory_service.search_memories_semantic(
-                                guild_id=message.guild.id,
-                                query_embedding=msg_embedding,
-                                user_ids=user_ids_to_query,
-                                limit=mem_cfg.maxInjectionCount * 2,
-                                min_score=mem_cfg.retrievalMinScore,
-                            )
-                            permanent_from_semantic = [m for m in semantic_results if m["category"] in permanent_cats]
-                            non_permanent_semantic = [m for m in semantic_results if m["category"] not in permanent_cats]
-                            {m["_id"] for m in non_permanent_semantic}
+                per_user_limit = max(mem_cfg.maxInjectionCount // (len(mentioned_user_ids_dedup) + 1), 2)
 
-                            permanent_mems = await self.bot.memory_service.get_memories_for_users(
-                                guild_id=message.guild.id,
-                                user_ids=user_ids_to_query,
-                                limit=max(len(permanent_cats) * 3, 20),
-                            )
-                            permanent_all = []
-                            for _uid, mems in permanent_mems.items():
-                                for m in mems:
-                                    if m["category"] in permanent_cats:
-                                        if m["_id"] not in {x["_id"] for x in permanent_from_semantic}:
-                                            permanent_all.append(m)
+                for uid in mentioned_user_ids_dedup:
+                    user_name = config.idToUsers.get(str(uid)) or self._lookup_name(message, uid)
+                    mems = await self.bot.memory_service.get_memories_for_user(
+                        guild_id=message.guild.id,
+                        user_id=uid,
+                        limit=per_user_limit,
+                    )
+                    if mems:
+                        lines = []
+                        for mem in mems:
+                            if mem.get("target_user_id") and mem["category"] == "relationship":
+                                lines.append(f"- {mem['memory']} → <@{mem['target_user_id']}> ({mem['category']})")
+                            else:
+                                lines.append(f"- {mem['memory']} ({mem['category']})")
+                        if lines:
+                            sections.append(f"\n## ABOUT @{user_name}:\n" + "\n".join(lines))
+                            self.logger.info(f"Injected {len(lines)} memories for mentioned user {user_name} (uid={uid})")
 
-                            all_results = permanent_from_semantic + permanent_all + non_permanent_semantic
-                            seen_ids = set()
-                            deduped = []
-                            for m in all_results:
-                                if m["_id"] not in seen_ids:
-                                    seen_ids.add(m["_id"])
-                                    deduped.append(m)
+                remaining = mem_cfg.maxInjectionCount - sum(len(s.split("\n")) - 2 for s in sections)
+                remaining = max(remaining, 0)
 
-                            selected = deduped[: mem_cfg.maxInjectionCount]
+                if remaining > 0 and non_mentioned_ids:
+                    other_ids = non_mentioned_ids if mentioned_user_ids_dedup else all_ids
+                    if mem_cfg.semanticRetrieval and message.content.strip():
+                        try:
+                            msg_embedding = await self.bot.embedding_service.embed_one(message.content.strip(), message.guild.id)
+                            if msg_embedding is not None:
+                                semantic_results = await self.bot.memory_service.search_memories_semantic(
+                                    guild_id=message.guild.id,
+                                    query_embedding=msg_embedding,
+                                    user_ids=other_ids,
+                                    limit=remaining * 2,
+                                    min_score=mem_cfg.retrievalMinScore,
+                                )
+                                permanent_from_semantic = [m for m in semantic_results if m["category"] in permanent_cats]
+                                non_permanent_semantic = [m for m in semantic_results if m["category"] not in permanent_cats]
 
-                            if selected:
-                                lines = []
-                                for mem in selected:
-                                    uid_str = str(mem["user_id"])
-                                    name = author_to_id.get(uid_str, uid_str)
-                                    if mem.get("target_user_id") and mem["category"] == "relationship":
-                                        lines.append(f"- [{name}]: {mem['memory']} → <@{mem['target_user_id']}> ({mem['category']})")
-                                    else:
-                                        lines.append(f"- [{name}]: {mem['memory']} ({mem['category']})")
-                                if lines:
-                                    memories_section = "\n## GROUNDING MEMORIES:\nThese are known facts and observations about users in this conversation. Use them to personalize responses naturally.\n\n" + "\n".join(lines) + "\n"
-                                    self.logger.info(f"Injected {len(lines)} memory entries into context (semantic retrieval)")
-                        else:
-                            self.logger.info("Embedding generation failed, falling back to recency-based retrieval")
-                            memories_section = await self._fallback_memory_retrieval(message, user_ids_to_query, author_to_id, mem_cfg)
-                    except Exception:
-                        self.logger.exception("Semantic memory retrieval failed, falling back")
-                        memories_section = await self._fallback_memory_retrieval(message, user_ids_to_query, author_to_id, mem_cfg)
-                else:
-                    memories_section = await self._fallback_memory_retrieval(message, user_ids_to_query, author_to_id, mem_cfg)
+                                permanent_mems = await self.bot.memory_service.get_memories_for_users(
+                                    guild_id=message.guild.id,
+                                    user_ids=other_ids,
+                                    limit=max(len(permanent_cats) * 3, 20),
+                                )
+                                permanent_all = []
+                                for _uid, mems in permanent_mems.items():
+                                    for m in mems:
+                                        if m["category"] in permanent_cats:
+                                            if m["_id"] not in {x["_id"] for x in permanent_from_semantic}:
+                                                permanent_all.append(m)
+
+                                all_results = permanent_from_semantic + permanent_all + non_permanent_semantic
+                                seen_ids = set()
+                                deduped = []
+                                for m in all_results:
+                                    if m["_id"] not in seen_ids:
+                                        seen_ids.add(m["_id"])
+                                        deduped.append(m)
+
+                                selected = deduped[:remaining]
+
+                                if selected:
+                                    author_to_id = {str(message.author.id): message.author.name}
+                                    for uid in non_mentioned_ids:
+                                        if uid != message.author.id:
+                                            author_to_id[str(uid)] = config.idToUsers.get(str(uid), str(uid))
+                                    lines = []
+                                    for mem in selected:
+                                        uid_str = str(mem["user_id"])
+                                        name = author_to_id.get(uid_str, uid_str)
+                                        if mem.get("target_user_id") and mem["category"] == "relationship":
+                                            lines.append(f"- [{name}]: {mem['memory']} → <@{mem['target_user_id']}> ({mem['category']})")
+                                        else:
+                                            lines.append(f"- [{name}]: {mem['memory']} ({mem['category']})")
+                                    if lines:
+                                        sections.append("\n## OTHER GROUNDING MEMORIES:\n" + "\n".join(lines))
+                                        self.logger.info(f"Injected {len(lines)} general memory entries into context (semantic retrieval)")
+                            else:
+                                self.logger.info("Embedding generation failed, falling back to recency-based retrieval")
+                                sections.append(await self._format_fallback_section(message, other_ids, mem_cfg, remaining))
+                        except Exception:
+                            self.logger.exception("Semantic memory retrieval failed, falling back")
+                            sections.append(await self._format_fallback_section(message, other_ids, mem_cfg, remaining))
+                    else:
+                        sections.append(await self._format_fallback_section(message, other_ids, mem_cfg, remaining))
+
+                if sections:
+                    memories_section = "\n## GROUNDING MEMORIES:\nThese are known facts and observations about users in this conversation. Use them to personalize responses naturally.\n" + "\n".join(sections) + "\n"
         except Exception:
             self.logger.exception("Error retrieving user memories for context")
 
@@ -311,28 +340,34 @@ MULTI-USER CHAT CONTEXT:
 
         return has_image
 
-    async def _fallback_memory_retrieval(
+    def _lookup_name(self, message: discord.Message, uid: int) -> str:
+        for u in message.mentions:
+            if u.id == uid:
+                return u.display_name
+        return str(uid)
+
+    async def _format_fallback_section(
         self,
         message: discord.Message,
-        user_ids_to_query: list[int],
-        author_to_id: dict[str, str],
+        user_ids: list[int],
         mem_cfg,
+        remaining: int,
     ) -> str:
         memories_map = await self.bot.memory_service.get_memories_for_users(
             guild_id=message.guild.id,
-            user_ids=user_ids_to_query,
-            limit=mem_cfg.maxInjectionCount,
+            user_ids=user_ids,
+            limit=remaining,
         )
         if memories_map:
             lines = []
             for uid_str, mems in memories_map.items():
-                name = author_to_id.get(uid_str, uid_str)
+                name = uid_str
                 for mem in mems:
                     if mem.get("target_user_id") and mem["category"] == "relationship":
                         lines.append(f"- [{name}]: {mem['memory']} → <@{mem['target_user_id']}> ({mem['category']})")
                     else:
                         lines.append(f"- [{name}]: {mem['memory']} ({mem['category']})")
             if lines:
-                self.logger.info(f"Injected {len(lines)} memory entries into context (fallback)")
-                return "\n## GROUNDING MEMORIES:\nThese are known facts and observations about users in this conversation. Use them to personalize responses naturally.\n\n" + "\n".join(lines) + "\n"
+                self.logger.info(f"Injected {len(lines)} general memory entries into context (fallback)")
+                return "\n## OTHER GROUNDING MEMORIES:\n" + "\n".join(lines)
         return ""

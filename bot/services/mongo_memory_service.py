@@ -52,30 +52,48 @@ class MongoMemoryService:
             self.logger.warning(f"Could not create indexes on UserMemories: {e}")
 
         try:
-            existing_indexes = await self.collection.list_search_indexes().to_list(length=100)
-            if not any(idx.get("name") == VECTOR_INDEX_NAME for idx in existing_indexes):
-                search_index = {
-                    "name": VECTOR_INDEX_NAME,
-                    "definition": {
-                        "mappings": {
-                            "dynamic": False,
-                            "fields": {
-                                "embedding": {
-                                    "type": "knnVector",
-                                    "dimensions": DEFAULT_EMBEDDING_DIMENSIONS,
-                                    "similarity": "cosine",
-                                },
+            search_index = {
+                "name": VECTOR_INDEX_NAME,
+                "definition": {
+                    "mappings": {
+                        "dynamic": False,
+                        "fields": {
+                            "embedding": {
+                                "type": "knnVector",
+                                "dimensions": DEFAULT_EMBEDDING_DIMENSIONS,
+                                "similarity": "cosine",
                             },
-                        }
-                    },
-                }
+                            "guild_id": {"type": "filter"},
+                            "user_id": {"type": "filter"},
+                            "category": {"type": "filter"},
+                            "expires_at": {"type": "filter"},
+                        },
+                    }
+                },
+            }
+
+            existing_indexes = await self.collection.list_search_indexes().to_list(length=100)
+            existing = next(
+                (idx for idx in existing_indexes if idx.get("name") == VECTOR_INDEX_NAME),
+                None,
+            )
+            if existing is None:
                 await self.collection.create_search_index(search_index)
                 self.logger.info(f"Created Atlas vector search index '{VECTOR_INDEX_NAME}' on {self.collection.name}")
+            elif existing.get("definition") != search_index["definition"]:
+                await self.collection.drop_search_index(VECTOR_INDEX_NAME)
+                self.logger.info(f"Dropped outdated Atlas vector search index '{VECTOR_INDEX_NAME}' on {self.collection.name}")
+                await self.collection.create_search_index(search_index)
+                self.logger.info(f"Recreated Atlas vector search index '{VECTOR_INDEX_NAME}' on {self.collection.name}")
             else:
-                self.logger.info(f"Vector search index '{VECTOR_INDEX_NAME}' already exists on {self.collection.name}")
+                self.logger.info(f"Vector search index '{VECTOR_INDEX_NAME}' already exists and is up to date on {self.collection.name}")
             self._vector_index_created = True
         except Exception as e:
-            self.logger.warning(f"Could not create Atlas vector search index: {e}. Ensure your MongoDB Atlas cluster supports vector search (M10+ tier). Manual creation: Atlas UI → Search tab → Create Search Index with vector type on 'embedding' field.")
+            self.logger.warning(
+                f"Could not create Atlas vector search index: {e}. Ensure your MongoDB Atlas cluster supports vector search (M10+ tier). "
+                "Manual creation: Atlas UI → Search tab → Create Search Index with vector type on 'embedding' field. "
+                "Required filter fields: guild_id (number), user_id (number), category (string), expires_at (date)."
+            )
 
     async def save_memory(
         self,
@@ -98,7 +116,12 @@ class MongoMemoryService:
         now = datetime.now(UTC)
         expires_at = _expires_at_for_category(category)
 
-        base_set: dict = {"category": category, "confidence": confidence, "updated_at": now, "expires_at": expires_at}
+        base_set: dict = {
+            "category": category,
+            "confidence": confidence,
+            "updated_at": now,
+            "expires_at": expires_at,
+        }
         if target_user_id is not None:
             base_set["target_user_id"] = Int64(target_user_id)
         if embedding is not None:
@@ -119,8 +142,8 @@ class MongoMemoryService:
             "memory": memory,
             "category": category,
             "confidence": confidence,
-            "source_message_id": Int64(source_message_id) if source_message_id is not None else None,
-            "target_user_id": Int64(target_user_id) if target_user_id is not None else None,
+            "source_message_id": (Int64(source_message_id) if source_message_id is not None else None),
+            "target_user_id": (Int64(target_user_id) if target_user_id is not None else None),
             "created_at": now,
             "updated_at": now,
             "created_by": created_by,
@@ -304,7 +327,6 @@ class MongoMemoryService:
     ) -> list[dict]:
         filter_clause: dict = {
             "guild_id": Int64(guild_id),
-            "embedding": {"$exists": True},
             "$or": [
                 {"expires_at": None},
                 {"expires_at": {"$gte": datetime.now(UTC)}},

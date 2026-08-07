@@ -121,13 +121,14 @@ class MessageContextTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_mention_replying_to_a_user_starts_a_root_thread(self):
         message = fake_message(30, 3, "Bob", "<@999> start another topic")
-        reference = SimpleNamespace(id=20, author=SimpleNamespace(id=2))
+        reference = SimpleNamespace(id=20, author=SimpleNamespace(id=2, name="Alice", display_name="Alice"), content="Can someone explain this?", attachments=[], mentions=[])
         path = [{"_id": 30, "role": "user", "content": message.content, "author_name": "Bob"}]
         service, bot = self.make_service(path)
 
-        await service.build_message_context(message, reference, "Bob")
+        context = await service.build_message_context(message, reference, "Bob")
 
         self.assertIsNone(bot.chat_service.saved[0]["parent_id"])
+        self.assertEqual(context[1].parts[0].text, "[Alice] (message being replied to): Can someone explain this?")
 
     async def test_ancestor_mentions_keep_their_memories_in_a_reply_branch(self):
         message = fake_message(30, 3, "Bob", "what should we watch?")

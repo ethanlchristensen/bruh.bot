@@ -272,12 +272,6 @@ class BruhBot(commands.Bot):
         if not await self.message_service.should_respond_to_message(message, reference_message):
             return
 
-        # Reputation only evaluates interactions that explicitly involve the bot.
-        if reference_message and reference_message.author.id == self.user.id:
-            context = reference_message.content or "[bruh.bot sent an attachment]"
-            await self.reputation_extraction_service.enqueue_bot_context(reference_message, context)
-        await self.reputation_extraction_service.enqueue_message(message)
-
         can_respond, reputation = await self.reputation_service.can_respond(message.guild.id, message.author.id)
         if not can_respond:
             reputation = await self.reputation_service.refresh_block(message.guild.id, message.author.id)
@@ -285,6 +279,12 @@ class BruhBot(commands.Bot):
             return
         if reputation.get("status") == "warning":
             await self._send_reputation_notice(message, reputation, blocked=False)
+
+        # Reputation only evaluates active/warned interactions that explicitly involve the bot.
+        if reference_message and reference_message.author.id == self.user.id:
+            context = reference_message.content or "[bruh.bot sent an attachment]"
+            await self.reputation_extraction_service.enqueue_bot_context(reference_message, context)
+        await self.reputation_extraction_service.enqueue_message(message)
 
         # Apply cooldown check
         if not await self.cooldown_service.check_cooldown(message.author.id, message.guild.id, message.author.display_name):

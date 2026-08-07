@@ -45,7 +45,7 @@ class MessageService:
     async def process_message_images(self, message: discord.Message) -> list[dict]:
         """Process and encode image attachments."""
         images = []
-        for attachment in message.attachments:
+        for attachment in getattr(message, "attachments", []):
             if attachment.content_type and attachment.content_type.startswith("image/"):
                 try:
                     async with aiohttp.ClientSession() as session:
@@ -64,6 +64,8 @@ class MessageService:
         messages = []
 
         config = await self.bot.config_service.get_config(str(message.guild.id))
+        external_reference = reference_message if reference_message and reference_message.author.id != self.bot.user.id else None
+        reference_images = await self.process_message_images(external_reference) if external_reference and include_current_images else []
 
         # 1. Determine parent_id
         if reference_message and reference_message.author.id == self.bot.user.id:
@@ -93,6 +95,9 @@ class MessageService:
                 permanent_cats = {"identity", "trait", "admin", "relationship"}
 
                 mentioned_user_ids = [u.id for u in message.mentions if u.id != message.author.id and u.id != self.bot.user.id]
+                if external_reference:
+                    mentioned_user_ids.extend(u.id for u in getattr(external_reference, "mentions", []) if u.id != message.author.id and u.id != self.bot.user.id)
+                    mentioned_user_ids.extend(int(user_id) for user_id in re.findall(r"<@!?(\d+)>", getattr(external_reference, "content", "")) if int(user_id) not in {message.author.id, self.bot.user.id})
                 # Mentions in ancestor turns remain conversation participants for this branch.
                 for node in path:
                     if node["role"] != "user":
@@ -101,6 +106,8 @@ class MessageService:
                 mentioned_user_ids_dedup = list(dict.fromkeys(mentioned_user_ids))
 
                 non_mentioned_ids = [message.author.id]
+                if external_reference and external_reference.author.id not in non_mentioned_ids and external_reference.author.id not in mentioned_user_ids_dedup:
+                    non_mentioned_ids.append(external_reference.author.id)
                 for node in path:
                     user_id = node.get("author_id")
                     if user_id is None:
@@ -224,6 +231,15 @@ MULTI-USER CHAT CONTEXT:
 - IMPORTANT: DO NOT prepend your response with your name or brackets. Just send the message content directly. Your message is going straight to the discord server.{memories_section}
 """
             messages.append(Message(role="system", parts=[MessagePart(type="text", text=multi_user_prompt)]))
+
+        # A direct mention replying to another user starts a root thread, but the quoted message still matters.
+        if external_reference:
+            reference_content = self.resolve_user_mentions(self.replace_mentions(getattr(external_reference, "content", "")).strip(), config.idToUsers, message.guild)
+            reference_name = getattr(external_reference.author, "display_name", getattr(external_reference.author, "name", str(external_reference.author.id)))
+            reference_parts = [MessagePart(type="text", text=f"[{reference_name}] (message being replied to): {reference_content}")]
+            for image in reference_images:
+                reference_parts.append(MessagePart(type="image", url=f"data:{image['type']};base64,{image['data']}"))
+            messages.append(Message(role="user", parts=reference_parts))
 
         # 5. Populate messages from conversation path
         for node in path:

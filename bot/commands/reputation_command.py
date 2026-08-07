@@ -45,8 +45,8 @@ class ReputationCommand:
             profile = await bot.reputation_service.get_profile(interaction.guild.id, interaction.user.id)
             events = await bot.reputation_service.get_recent_events(interaction.guild.id, interaction.user.id, 5)
             audit = "\n".join(f"- {event['summary']} ({event['score_delta']:+})" for event in events) or "No audit events."
-            blocked_until = profile.get("blocked_until")
-            expiry = f"\n**Blocked until:** <t:{int(blocked_until.timestamp())}:R>" if blocked_until else ""
+            blocked_until = bot.reputation_service._as_utc(profile.get("blocked_until"))
+            expiry = f"\n**Block remaining:** <t:{int(blocked_until.timestamp())}:R>" if blocked_until else ""
             embed = bot.embed_service.create_info_embed("Your Reputation", f"**Score:** {profile['score']:+}\n**Status:** {profile['status'].replace('_', ' ')}{expiry}\n\n**Recent audit entries:**\n{audit}")
             embed.set_thumbnail(url=interaction.user.display_avatar.url)
             await interaction.response.send_message(embed=embed, ephemeral=True, files=bot.embed_service.get_brand_files(embed=embed))

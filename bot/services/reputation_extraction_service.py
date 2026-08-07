@@ -70,6 +70,7 @@ class ReputationExtractionService:
     async def start_extraction_loops(self):
         self._running = True
         self._task = asyncio.create_task(self._main_loop())
+        logger.info("Reputation extraction loop started")
 
     async def _main_loop(self):
         while self._running:
@@ -97,8 +98,9 @@ class ReputationExtractionService:
         batch = await self.q.fetch_batch(guild_id, cfg.maxMessagesPerExtraction)
         if not batch:
             return
+        logger.info("Processing reputation batch for guild %s: %s eligible queued messages, %s transcript turns", guild_id, count, len(batch))
         try:
-            await self._extract(guild_id, batch, config)
+            events_recorded = await self._extract(guild_id, batch, config)
         except Exception as exc:
             # Keep the batch for retry, but avoid a full loop traceback every minute.
             self._last_run[str(guild_id)] = now.timestamp()
@@ -108,6 +110,7 @@ class ReputationExtractionService:
             return
         await self.q.delete_ids([row["_id_oid"] for row in batch])
         self._last_run[str(guild_id)] = now.timestamp()
+        logger.info("Completed reputation batch for guild %s: %s audit events recorded", guild_id, events_recorded)
 
     async def _extract(self, guild_id: int, batch: list[dict], config):
         participants = {row["author_id"] for row in batch if not row.get("context_only") and row["author_id"] != self.bot.user.id}
@@ -126,11 +129,12 @@ class ReputationExtractionService:
         model_info = next((item for item in models if item.id == model), None)
         if model_info and not model_info.capabilities.tools:
             raise ValueError(f"Reputation extraction model '{model}' does not support tool calls")
+        events_recorded = 0
         for _ in range(cfg.maxToolRounds):
             response = await gateway.complete(NormalizedRequest(provider=provider, model=model, messages=request_messages, tools=REPUTATION_TOOLS, temperature=0.1), credentials={"api_key": provider_config.get_api_key()})
             calls = [part for part in response.parts if part.type == "tool_call"]
             if not calls:
-                return
+                return events_recorded
             results = []
             for call in calls[: cfg.maxToolCallsPerBatch]:
                 args = call.content["arguments"]
@@ -153,6 +157,10 @@ class ReputationExtractionService:
                         confidence=float(args.get("confidence", 0)),
                         summary=str(args.get("summary", "")),
                     )
+                    if result.get("ok"):
+                        events_recorded += 1
                 results.append(MessagePart(type="tool_result", tool_call_id=call.content["id"], content=result))
             request_messages.append(Message(role="assistant", parts=[MessagePart(type="tool_call", tool_call_id=call.content["id"], name=call.content["name"], arguments=call.content["arguments"]) for call in calls]))
             request_messages.append(Message(role="tool", parts=results))
+
+        return events_recorded

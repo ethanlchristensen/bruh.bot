@@ -205,6 +205,23 @@ class BruhBot(commands.Bot):
             except Exception as e:
                 self.logger.error(f"Failed to sync members for {guild.name}: {e}")
 
+        for guild in self.guilds:
+            try:
+                config = await self.config_service.get_config(str(guild.id))
+                queued = await self.reputation_queue_service.count(guild.id)
+                rep_cfg = config.reputationConfig
+                self.logger.info(
+                    "Reputation extraction status for %s (%s): enabled=%s, eligible_queued=%s, min_batch=%s, interval=%sm",
+                    guild.name,
+                    guild.id,
+                    rep_cfg.enabled,
+                    queued,
+                    rep_cfg.minMessagesForExtraction,
+                    rep_cfg.extractionIntervalMinutes,
+                )
+            except Exception:
+                self.logger.exception("Failed to report reputation status for guild %s", guild.id)
+
         self.logger.info("✅ bruh.bot is online!")
 
     async def on_message(self, message: discord.Message):

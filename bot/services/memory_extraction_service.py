@@ -114,25 +114,6 @@ class MemoryExtractionService:
             timestamp=message.created_at,
         )
 
-    async def enqueue_bot_context(self, message: "discord.Message", content: str):
-        """Stage a bot response as transcript context, never as a memory subject."""
-        if not message.guild or not content.strip():
-            return
-
-        config = await self.bot.config_service.get_config(str(message.guild.id))
-        if not config.memoryConfig.enabled:
-            return
-
-        await self.q.enqueue(
-            guild_id=message.guild.id,
-            message_id=message.id,
-            content=content.strip(),
-            author_id=self.bot.user.id,
-            author_name=self.bot.user.name,
-            timestamp=message.created_at,
-            context_only=True,
-        )
-
     async def start_extraction_loops(self):
         self._running = True
         self._main_task = asyncio.create_task(self._main_loop())

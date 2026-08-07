@@ -45,6 +45,7 @@ class FakeConfigService:
             memoryConfig=SimpleNamespace(
                 enabled=memories_enabled,
                 maxInjectionCount=8,
+                minMessageLength=3,
                 semanticRetrieval=False,
             ),
             reputationConfig=SimpleNamespace(enabled=reputation_enabled, minMessageLength=3, minMessagesForExtraction=10, maxMessagesPerExtraction=30, maxExtractionWaitMinutes=60, extractionIntervalMinutes=15),
@@ -163,7 +164,7 @@ class ImageGenerationContextTests(unittest.TestCase):
 
 
 class MemoryExtractionContextTests(unittest.IsolatedAsyncioTestCase):
-    async def test_bot_response_is_staged_as_context_only(self):
+    async def test_bot_responses_are_not_enqueued_to_memory_queue(self):
         queued = []
 
         async def enqueue(**kwargs):
@@ -175,14 +176,11 @@ class MemoryExtractionContextTests(unittest.IsolatedAsyncioTestCase):
             extraction_queue_service=SimpleNamespace(enqueue=enqueue),
         )
         service = MemoryExtractionService(bot)
-        response = SimpleNamespace(id=31, guild=SimpleNamespace(id=100), created_at=None)
+        human_message = fake_message(30, 3, "Bob", "hello bot")
 
-        await service.enqueue_bot_context(response, "A useful answer.")
-
+        await service.enqueue_message(human_message)
         self.assertEqual(len(queued), 1)
-        self.assertTrue(queued[0]["context_only"])
-        self.assertEqual(queued[0]["author_id"], 999)
-        self.assertEqual(queued[0]["content"], "A useful answer.")
+        self.assertEqual(queued[0]["author_id"], 3)
 
     async def test_bot_memory_operation_is_rejected_even_if_its_id_is_allowlisted(self):
         bot = SimpleNamespace(user=SimpleNamespace(id=999))
@@ -282,7 +280,6 @@ class ImageIntentPersistenceTests(unittest.IsolatedAsyncioTestCase):
             image_generation_service=image_service,
             response_service=SimpleNamespace(send_response=self._send_response),
             chat_service=SimpleNamespace(save_message=self._save_message),
-            memory_extraction_service=SimpleNamespace(enqueue_bot_context=self._enqueue_bot_context),
             reputation_extraction_service=SimpleNamespace(enqueue_bot_context=self._enqueue_reputation_context),
             logger=SimpleNamespace(info=lambda *_args: None),
         )
@@ -294,7 +291,7 @@ class ImageIntentPersistenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(self.generate_kwargs["messages"], messages)
         self.assertEqual(self.saved_messages[0]["parent_id"], 30)
         self.assertEqual(self.saved_messages[0]["role"], "assistant")
-        self.assertEqual(self.bot_context["content"], "Here is your city.")
+        self.assertEqual(self.reputation_context["content"], "Here is your city.")
 
     async def _can_generate(self, _message):
         return True, ""
@@ -318,9 +315,6 @@ class ImageIntentPersistenceTests(unittest.IsolatedAsyncioTestCase):
 
     async def _save_message(self, **kwargs):
         self.saved_messages.append(kwargs)
-
-    async def _enqueue_bot_context(self, _message, content):
-        self.bot_context = {"content": content}
 
     async def _enqueue_reputation_context(self, _message, content):
         self.reputation_context = {"content": content}

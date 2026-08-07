@@ -18,6 +18,15 @@ class MongoExtractionQueueService:
 
     async def initialize(self):
         await self._ensure_indexes()
+        await self._cleanup_context_only_rows()
+
+    async def _cleanup_context_only_rows(self):
+        try:
+            result = await self.collection.delete_many({"context_only": True})
+            if result.deleted_count:
+                self.logger.info("Cleaned up %s stale context_only rows from memory queue", result.deleted_count)
+        except Exception:
+            self.logger.exception("Failed to clean up context_only rows from memory queue")
 
     async def _ensure_indexes(self):
         try:
@@ -64,22 +73,8 @@ class MongoExtractionQueueService:
         return await self.collection.count_documents({"guild_id": Int64(guild_id), "context_only": {"$ne": True}})
 
     async def fetch_batch(self, guild_id: int, limit: int) -> list[dict]:
-        cursor = self.collection.find({"guild_id": Int64(guild_id)}).sort("timestamp", 1)
-        docs = []
-        user_message_count = 0
-
-        async for doc in cursor:
-            if doc.get("context_only"):
-                # Include bot context that follows a selected human message.
-                if user_message_count:
-                    docs.append(doc)
-                continue
-
-            if user_message_count >= limit:
-                break
-
-            docs.append(doc)
-            user_message_count += 1
+        cursor = self.collection.find({"guild_id": Int64(guild_id), "context_only": {"$ne": True}}).sort("timestamp", 1).limit(limit)
+        docs = await cursor.to_list(length=limit)
 
         for doc in docs:
             doc["_id_oid"] = doc["_id"]
@@ -99,7 +94,7 @@ class MongoExtractionQueueService:
 
     async def get_oldest_timestamp(self, guild_id: int):
         doc = await self.collection.find_one(
-            {"guild_id": Int64(guild_id)},
+            {"guild_id": Int64(guild_id), "context_only": {"$ne": True}},
             sort=[("timestamp", 1)],
             projection={"timestamp": 1},
         )
@@ -110,6 +105,7 @@ class MongoExtractionQueueService:
     async def get_pending_guild_ids(self) -> list[int]:
         agg = await self.collection.aggregate(
             [
+                {"$match": {"context_only": {"$ne": True}}},
                 {"$group": {"_id": "$guild_id"}},
                 {"$sort": {"_id": 1}},
             ]
@@ -117,7 +113,7 @@ class MongoExtractionQueueService:
         return [int(g["_id"]) for g in agg if g["_id"] is not None]
 
     async def fetch_for_user(self, guild_id: int, author_id: int, limit: int) -> list[dict]:
-        cursor = self.collection.find({"guild_id": Int64(guild_id), "author_id": Int64(author_id)}).sort("timestamp", 1).limit(limit)
+        cursor = self.collection.find({"guild_id": Int64(guild_id), "author_id": Int64(author_id), "context_only": {"$ne": True}}).sort("timestamp", 1).limit(limit)
         docs = await cursor.to_list(length=limit)
         for doc in docs:
             doc["_id_oid"] = doc["_id"]

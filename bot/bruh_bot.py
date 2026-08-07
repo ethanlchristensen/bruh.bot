@@ -441,7 +441,6 @@ class BruhBot(commands.Bot):
                 content=content,
                 author_id=self.user.id,
             )
-            await self.memory_extraction_service.enqueue_bot_context(sent_msg, content)
             await self.reputation_extraction_service.enqueue_bot_context(sent_msg, content)
 
     async def _handle_image_generation_intent(self, message: discord.Message, reference_message):
@@ -501,7 +500,6 @@ class BruhBot(commands.Bot):
                 content=content,
                 author_id=self.user.id,
             )
-            await self.memory_extraction_service.enqueue_bot_context(sent_msg, content)
             await self.reputation_extraction_service.enqueue_bot_context(sent_msg, content)
 
     async def _send_reputation_notice(self, message: discord.Message, profile: dict, blocked: bool, force: bool = False):

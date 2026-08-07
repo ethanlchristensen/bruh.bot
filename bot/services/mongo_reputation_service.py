@@ -33,6 +33,14 @@ class MongoReputationService:
         await self.events.create_index([("guild_id", 1), ("user_id", 1), ("created_at", -1)])
         await self._migrate_penalty_scores()
 
+    @staticmethod
+    def _as_utc(value):
+        if isinstance(value, str):
+            value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if value and value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value
+
     async def _migrate_penalty_scores(self):
         """Convert profiles created by the original penalty-only score model."""
         async for profile in self.collection.find({"score_version": {"$ne": 2}}):
@@ -80,7 +88,7 @@ class MongoReputationService:
 
     async def can_respond(self, guild_id: int, user_id: int) -> tuple[bool, dict]:
         profile = await self.get_profile(guild_id, user_id)
-        blocked_until = profile.get("blocked_until")
+        blocked_until = self._as_utc(profile.get("blocked_until"))
         if profile.get("status") == "manual_blocked":
             return False, profile
         if blocked_until and blocked_until > datetime.now(UTC):
@@ -94,7 +102,7 @@ class MongoReputationService:
         return await self.events.find({"guild_id": Int64(guild_id), "user_id": Int64(user_id)}).sort("created_at", -1).limit(limit).to_list(length=limit)
 
     async def get_leaderboard(self, guild_id: int, limit: int = 10) -> list[dict]:
-        cursor = self.collection.find({"guild_id": Int64(guild_id), "score": {"$lt": 0}}).sort("score", 1).limit(limit)
+        cursor = self.collection.find({"guild_id": Int64(guild_id), "score": {"$ne": 0}}).sort("score", 1).limit(limit)
         return await cursor.to_list(length=limit)
 
     async def refresh_block(self, guild_id: int, user_id: int) -> dict:
@@ -110,7 +118,7 @@ class MongoReputationService:
     async def should_send_notice(self, guild_id: int, user_id: int) -> bool:
         profile = await self.get_profile(guild_id, user_id)
         config = await self.bot.config_service.get_config(str(guild_id))
-        last = profile.get("last_notice_at")
+        last = self._as_utc(profile.get("last_notice_at"))
         if last and last > datetime.now(UTC) - timedelta(hours=config.reputationConfig.noticeCooldownHours):
             return False
         await self.collection.update_one({"_id": profile["_id"]}, {"$set": {"last_notice_at": datetime.now(UTC)}})

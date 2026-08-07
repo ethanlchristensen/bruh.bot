@@ -35,6 +35,7 @@ REPUTATION_TOOLS = [
 SYSTEM_PROMPT = """You review staged Discord interactions with this bot for reputation events.
 Bot messages marked context only explain the conversation but MUST NEVER be scored or targeted.
 Record high-confidence, clearly harmful behavior directed at the bot: targeted abuse, harassment, threats, repeated interaction spam, or block evasion. You may also record clear, meaningful helpful or respectful interactions that demonstrate sustained good-faith engagement.
+Direct insults, degrading labels, or name-calling aimed at the bot MUST record a bot_targeted_abuse event, even when it happens only once. Use severity 1 for mild insults, 2 for clear abusive name-calling, and 3 for severe, hateful, sexual, or violent abuse.
 Do not score criticism, disagreement, ordinary profanity, protected-trait discussion, or negative sentiment alone.
 Only target listed human participants and use their exact source message IDs. If no clear event exists, do not call tools."""
 
@@ -134,6 +135,8 @@ class ReputationExtractionService:
             response = await gateway.complete(NormalizedRequest(provider=provider, model=model, messages=request_messages, tools=REPUTATION_TOOLS, temperature=0.1), credentials={"api_key": provider_config.get_api_key()})
             calls = [part for part in response.parts if part.type == "tool_call"]
             if not calls:
+                summary = "".join(str(part.content) for part in response.parts if part.type == "text").strip()
+                logger.info("Reputation model recorded no events for guild %s: %s", guild_id, summary[:500] or "no explanation returned")
                 return events_recorded
             results = []
             for call in calls[: cfg.maxToolCallsPerBatch]:

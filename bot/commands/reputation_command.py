@@ -29,9 +29,27 @@ class ReputationCommand:
             for index, entry in enumerate(entries, 1):
                 member = interaction.guild.get_member(int(entry["user_id"]))
                 name = member.display_name if member else f"User {entry['user_id']}"
-                lines.append(f"`{index}.` **{name}** - {entry['score']} points ({entry['status'].replace('_', ' ')})")
+                score = f"+{entry['score']}" if entry["score"] > 0 else str(entry["score"])
+                lines.append(f"`{index}.` **{name}** - {score} points ({entry['status'].replace('_', ' ')})")
             embed = bot.embed_service.create_warning_embed("Reputation Leaderboard", "\n".join(lines))
+            worst_member = interaction.guild.get_member(int(entries[0]["user_id"]))
+            if worst_member:
+                embed.set_thumbnail(url=worst_member.display_avatar.url)
             await interaction.response.send_message(embed=embed, files=bot.embed_service.get_brand_files(embed=embed))
+
+        @group.command(name="me", description="View your reputation in this server")
+        @log_command_usage()
+        @is_globally_blocked()
+        async def me(interaction: discord.Interaction):
+            bot: BruhBot = interaction.client
+            profile = await bot.reputation_service.get_profile(interaction.guild.id, interaction.user.id)
+            events = await bot.reputation_service.get_recent_events(interaction.guild.id, interaction.user.id, 5)
+            audit = "\n".join(f"- {event['summary']} ({event['score_delta']:+})" for event in events) or "No audit events."
+            blocked_until = profile.get("blocked_until")
+            expiry = f"\n**Blocked until:** <t:{int(blocked_until.timestamp())}:R>" if blocked_until else ""
+            embed = bot.embed_service.create_info_embed("Your Reputation", f"**Score:** {profile['score']:+}\n**Status:** {profile['status'].replace('_', ' ')}{expiry}\n\n**Recent audit entries:**\n{audit}")
+            embed.set_thumbnail(url=interaction.user.display_avatar.url)
+            await interaction.response.send_message(embed=embed, ephemeral=True, files=bot.embed_service.get_brand_files(embed=embed))
 
         @group.command(name="view", description="View a user's reputation and recent audit entries")
         @app_commands.describe(user="The user to inspect")
@@ -47,7 +65,7 @@ class ReputationCommand:
             await interaction.followup.send(embed=embed, ephemeral=True, files=bot.embed_service.get_brand_files(embed=embed))
 
         @group.command(name="set-score", description="Set a user's reputation score")
-        @app_commands.describe(user="The user to update", score="New non-negative score", reason="Reason for the manual adjustment")
+        @app_commands.describe(user="The user to update", score="New signed score", reason="Reason for the manual adjustment")
         @log_command_usage()
         @is_admin()
         @is_globally_blocked()

@@ -8,7 +8,7 @@ from bot.services.ai.image_generation_service import ImageGenerationService
 from bot.services.memory_extraction_service import MemoryExtractionService
 from bot.services.memory_tools import MemoryToolExecutor
 from bot.services.message_service import MessageService
-from bot.services.mongo_reputation_service import REPUTATION_DELTAS
+from bot.services.mongo_reputation_service import REPUTATION_DELTAS, MongoReputationService
 from bot.services.reputation_extraction_service import ReputationExtractionService
 
 
@@ -204,6 +204,9 @@ class ReputationExtractionContextTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(REPUTATION_DELTAS["helpful_interaction"][2], 0)
         self.assertGreater(REPUTATION_DELTAS["respectful_interaction"][2], 0)
         self.assertLess(REPUTATION_DELTAS["bot_targeted_abuse"][2], 0)
+
+    def test_reputation_timestamps_are_normalized_to_utc(self):
+        self.assertEqual(MongoReputationService._as_utc(datetime.now()).tzinfo, UTC)
 
     async def test_naive_queue_timestamp_does_not_break_batch_wait_check(self):
         async def count(_guild_id):

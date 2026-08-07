@@ -225,7 +225,6 @@ class BruhBot(commands.Bot):
 
         if message.guild:
             await self.memory_extraction_service.enqueue_message(message)
-            await self.reputation_extraction_service.enqueue_message(message)
 
             econ_config = config.economyConfig
             if econ_config.xpEnabled:
@@ -255,6 +254,12 @@ class BruhBot(commands.Bot):
         reference_message = await self.message_service.get_reference_message(message)
         if not await self.message_service.should_respond_to_message(message, reference_message):
             return
+
+        # Reputation only evaluates interactions that explicitly involve the bot.
+        if reference_message and reference_message.author.id == self.user.id:
+            context = reference_message.content or "[bruh.bot sent an attachment]"
+            await self.reputation_extraction_service.enqueue_bot_context(reference_message, context)
+        await self.reputation_extraction_service.enqueue_message(message)
 
         can_respond, reputation = await self.reputation_service.can_respond(message.guild.id, message.author.id)
         if not can_respond:

@@ -1,5 +1,5 @@
 import unittest
-from datetime import datetime
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from bot.bruh_bot import BruhBot
@@ -210,7 +210,7 @@ class ReputationExtractionContextTests(unittest.IsolatedAsyncioTestCase):
             return 1
 
         async def get_oldest_timestamp(_guild_id):
-            return datetime.now()
+            return datetime.now(UTC).replace(tzinfo=None)
 
         bot = SimpleNamespace(
             config_service=FakeConfigService(reputation_enabled=True),

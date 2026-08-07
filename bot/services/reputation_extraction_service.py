@@ -20,8 +20,8 @@ REPUTATION_TOOLS = [
         "parameters": {
             "type": "object",
             "properties": {
-                "user_id": {"type": "integer"},
-                "source_message_id": {"type": "integer"},
+                "user_id": {"type": "string", "description": "Discord user ID from the eligible-user list. Preserve every digit exactly."},
+                "source_message_id": {"type": "string", "description": "Discord message ID from the transcript. Preserve every digit exactly."},
                 "reason_code": {"type": "string", "enum": ["helpful_interaction", "respectful_interaction", "interaction_spam", "bot_targeted_abuse", "targeted_harassment", "threat_or_intimidation", "block_evasion"]},
                 "severity": {"type": "integer", "enum": [1, 2, 3]},
                 "confidence": {"type": "number"},
@@ -97,7 +97,13 @@ class ReputationExtractionService:
         batch = await self.q.fetch_batch(guild_id, cfg.maxMessagesPerExtraction)
         if not batch:
             return
-        await self._extract(guild_id, batch, config)
+        try:
+            await self._extract(guild_id, batch, config)
+        except Exception as exc:
+            # Keep the batch for retry, but avoid a full loop traceback every minute.
+            self._last_run[str(guild_id)] = now.timestamp()
+            logger.error("Reputation extraction failed for guild %s using %s/%s: %s", guild_id, cfg.extractionProvider, cfg.extractionModel or config.aiConfig.preferredAiProvider, exc)
+            return
         await self.q.delete_ids([row["_id_oid"] for row in batch])
         self._last_run[str(guild_id)] = now.timestamp()
 
@@ -116,10 +122,25 @@ class ReputationExtractionService:
             results = []
             for call in calls[: cfg.maxToolCallsPerBatch]:
                 args = call.content["arguments"]
-                if call.content["name"] != "record_reputation_event" or int(args.get("user_id", 0)) not in participants or int(args.get("source_message_id", 0)) not in {row["message_id"] for row in batch if not row.get("context_only")}:
+                try:
+                    user_id = int(args.get("user_id", 0))
+                    source_message_id = int(args.get("source_message_id", 0))
+                except (TypeError, ValueError):
+                    user_id = 0
+                    source_message_id = 0
+                if call.content["name"] != "record_reputation_event" or user_id not in participants or source_message_id not in {row["message_id"] for row in batch if not row.get("context_only")}:
                     result = {"ok": False, "error": "Invalid reputation target"}
                 else:
-                    result = await self.bot.reputation_service.record_event(guild_id=guild_id, channel_id=next(row["channel_id"] for row in batch if row["message_id"] == int(args["source_message_id"])), **args)
+                    result = await self.bot.reputation_service.record_event(
+                        guild_id=guild_id,
+                        channel_id=next(row["channel_id"] for row in batch if row["message_id"] == source_message_id),
+                        user_id=user_id,
+                        source_message_id=source_message_id,
+                        reason_code=args.get("reason_code", ""),
+                        severity=int(args.get("severity", 0)),
+                        confidence=float(args.get("confidence", 0)),
+                        summary=str(args.get("summary", "")),
+                    )
                 results.append(MessagePart(type="tool_result", tool_call_id=call.content["id"], content=result))
             request_messages.append(Message(role="assistant", parts=[MessagePart(type="tool_call", tool_call_id=call.content["id"], name=call.content["name"], arguments=call.content["arguments"]) for call in calls]))
             request_messages.append(Message(role="tool", parts=results))

@@ -13,7 +13,25 @@ if TYPE_CHECKING:
 
 class ReputationCommand:
     def __init__(self, tree: app_commands.CommandTree, args=None):
-        group = app_commands.Group(name="reputation", description="Admin reputation management", default_permissions=discord.Permissions(administrator=True))
+        group = app_commands.Group(name="reputation", description="Reputation and moderation tools")
+
+        @group.command(name="leaderboard", description="Show the lowest reputation scores in this server")
+        @app_commands.describe(limit="How many users to show")
+        @log_command_usage()
+        @is_globally_blocked()
+        async def leaderboard(interaction: discord.Interaction, limit: app_commands.Range[int, 1, 25] = 10):
+            bot: BruhBot = interaction.client
+            entries = await bot.reputation_service.get_leaderboard(interaction.guild.id, limit)
+            if not entries:
+                await interaction.response.send_message("No users have reputation penalties in this server.")
+                return
+            lines = []
+            for index, entry in enumerate(entries, 1):
+                member = interaction.guild.get_member(int(entry["user_id"]))
+                name = member.display_name if member else f"User {entry['user_id']}"
+                lines.append(f"`{index}.` **{name}** - {entry['score']} points ({entry['status'].replace('_', ' ')})")
+            embed = bot.embed_service.create_warning_embed("Reputation Leaderboard", "\n".join(lines))
+            await interaction.response.send_message(embed=embed, files=bot.embed_service.get_brand_files(embed=embed))
 
         @group.command(name="view", description="View a user's reputation and recent audit entries")
         @app_commands.describe(user="The user to inspect")
@@ -33,7 +51,7 @@ class ReputationCommand:
         @log_command_usage()
         @is_admin()
         @is_globally_blocked()
-        async def set_score(interaction: discord.Interaction, user: discord.User, score: app_commands.Range[int, 0], reason: str = "Manual admin adjustment"):
+        async def set_score(interaction: discord.Interaction, user: discord.User, score: app_commands.Range[int, -10000, 10000], reason: str = "Manual admin adjustment"):
             bot: BruhBot = interaction.client
             profile = await bot.reputation_service.set_score(interaction.guild.id, user.id, score, reason)
             await interaction.followup.send(f"Set {user.mention}'s reputation score to **{profile['score']}** ({profile['status']}).", ephemeral=True)

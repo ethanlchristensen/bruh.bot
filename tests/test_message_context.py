@@ -7,6 +7,7 @@ from bot.services.ai.image_generation_service import ImageGenerationService
 from bot.services.memory_extraction_service import MemoryExtractionService
 from bot.services.memory_tools import MemoryToolExecutor
 from bot.services.message_service import MessageService
+from bot.services.mongo_reputation_service import REPUTATION_DELTAS
 from bot.services.reputation_extraction_service import ReputationExtractionService
 
 
@@ -198,6 +199,11 @@ class MemoryExtractionContextTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ReputationExtractionContextTests(unittest.IsolatedAsyncioTestCase):
+    def test_reputation_deltas_reward_good_interactions_and_penalize_harmful_ones(self):
+        self.assertGreater(REPUTATION_DELTAS["helpful_interaction"][2], 0)
+        self.assertGreater(REPUTATION_DELTAS["respectful_interaction"][2], 0)
+        self.assertLess(REPUTATION_DELTAS["bot_targeted_abuse"][2], 0)
+
     async def test_human_and_bot_turns_are_staged_with_distinct_roles(self):
         queued = []
 

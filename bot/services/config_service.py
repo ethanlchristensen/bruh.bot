@@ -154,8 +154,8 @@ class ReputationConfig(BaseModel):
     maxToolRounds: int = 3
     maxToolCallsPerBatch: int = 10
     minConfidence: float = 0.85
-    warningThreshold: int = 5
-    blockThreshold: int = 10
+    warningThreshold: int = -5
+    blockThreshold: int = -10
     blockDurationHours: int = 168
     noticeCooldownHours: int = 24
 

@@ -22,7 +22,7 @@ REPUTATION_TOOLS = [
             "properties": {
                 "user_id": {"type": "integer"},
                 "source_message_id": {"type": "integer"},
-                "reason_code": {"type": "string", "enum": ["interaction_spam", "bot_targeted_abuse", "targeted_harassment", "threat_or_intimidation", "block_evasion"]},
+                "reason_code": {"type": "string", "enum": ["helpful_interaction", "respectful_interaction", "interaction_spam", "bot_targeted_abuse", "targeted_harassment", "threat_or_intimidation", "block_evasion"]},
                 "severity": {"type": "integer", "enum": [1, 2, 3]},
                 "confidence": {"type": "number"},
                 "summary": {"type": "string"},
@@ -34,7 +34,7 @@ REPUTATION_TOOLS = [
 
 SYSTEM_PROMPT = """You review staged Discord interactions with this bot for reputation events.
 Bot messages marked context only explain the conversation but MUST NEVER be scored or targeted.
-Only record high-confidence, clearly harmful behavior directed at the bot: targeted abuse, harassment, threats, repeated interaction spam, or block evasion.
+Record high-confidence, clearly harmful behavior directed at the bot: targeted abuse, harassment, threats, repeated interaction spam, or block evasion. You may also record clear, meaningful helpful or respectful interactions that demonstrate sustained good-faith engagement.
 Do not score criticism, disagreement, ordinary profanity, protected-trait discussion, or negative sentiment alone.
 Only target listed human participants and use their exact source message IDs. If no clear event exists, do not call tools."""
 

@@ -258,7 +258,8 @@ class BruhBot(commands.Bot):
 
         can_respond, reputation = await self.reputation_service.can_respond(message.guild.id, message.author.id)
         if not can_respond:
-            await self._send_reputation_notice(message, reputation, blocked=True)
+            reputation = await self.reputation_service.refresh_block(message.guild.id, message.author.id)
+            await self._send_reputation_notice(message, reputation, blocked=True, force=True)
             return
         if reputation.get("status") == "warning":
             await self._send_reputation_notice(message, reputation, blocked=False)
@@ -476,14 +477,16 @@ class BruhBot(commands.Bot):
             await self.memory_extraction_service.enqueue_bot_context(sent_msg, content)
             await self.reputation_extraction_service.enqueue_bot_context(sent_msg, content)
 
-    async def _send_reputation_notice(self, message: discord.Message, profile: dict, blocked: bool):
-        if not await self.reputation_service.should_send_notice(message.guild.id, message.author.id):
+    async def _send_reputation_notice(self, message: discord.Message, profile: dict, blocked: bool, force: bool = False):
+        if not force and not await self.reputation_service.should_send_notice(message.guild.id, message.author.id):
             return
         events = await self.reputation_service.get_recent_events(message.guild.id, message.author.id)
         audit_lines = [f"- {event['summary']} (+{event['score_delta']})" for event in events]
         audit = "\n".join(audit_lines) or "No recent audit entries are available."
         if blocked:
-            embed = self.embed_service.create_error_embed(f"{message.author.mention}, bruh.bot will not respond to you right now.\n\n**Recent audit entries:**\n{audit}\n\nContact a server administrator if you believe this is incorrect.")
+            until = profile.get("blocked_until")
+            expiry = f"Your block has been extended until <t:{int(until.timestamp())}:R>." if until else "This is a manual block."
+            embed = self.embed_service.create_error_embed(f"{message.author.mention}, bruh.bot will not respond to you right now. {expiry}\n\n**Recent audit entries:**\n{audit}\n\nContact a server administrator if you believe this is incorrect.")
             embed.title = "Interaction Blocked"
         else:
             embed = self.embed_service.create_warning_embed("Interaction Warning", f"{message.author.mention}, your recent interactions have lowered your reputation with bruh.bot.\n\n**Recent audit entries:**\n{audit}\n\nFurther harmful interactions may cause bruh.bot to stop responding.")

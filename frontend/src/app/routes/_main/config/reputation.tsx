@@ -25,13 +25,13 @@ import {
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { useReputation, useUpdateReputation } from '@/hooks/use-config';
+import { useGuildMembers } from '@/hooks/use-economy';
 
 export const Route = createFileRoute('/_main/config/reputation')({
   component: ReputationComponent,
 });
 
 function ReputationComponent() {
-  const [inputUserId, setInputUserId] = useState('');
   const [userId, setUserId] = useState('');
   const [score, setScore] = useState('');
   const [status, setStatus] = useState<
@@ -39,6 +39,7 @@ function ReputationComponent() {
   >('active');
   const [reason, setReason] = useState('Manual dashboard adjustment');
   const { data, isLoading } = useReputation(userId);
+  const { data: membersData, isLoading: membersLoading } = useGuildMembers();
   const update = useUpdateReputation();
 
   const profile = data?.profile;
@@ -47,22 +48,13 @@ function ReputationComponent() {
     if (profile) setStatus(profile.status);
   }, [profile]);
 
-  const lookup = () => {
-    const value = inputUserId.trim();
-    if (!/^\d+$/.test(value)) {
-      toast.error('Enter a valid Discord user ID');
-      return;
-    }
-    setUserId(value);
-  };
-
   const save = async () => {
     if (!userId) return;
     try {
       await update.mutateAsync({
         userId,
         data: {
-          score: score === '' ? undefined : Math.max(0, Number(score)),
+          score: score === '' ? undefined : Number(score),
           status,
           reason,
         },
@@ -90,23 +82,42 @@ function ReputationComponent() {
               <ShieldAlert />
             </CardIcon>
             <div>
-              <CardTitle>Lookup User</CardTitle>
+              <CardTitle>Select User</CardTitle>
               <CardDescription>
-                Enter a Discord user ID to inspect their reputation profile.
+                Choose a member of the selected guild to inspect their
+                reputation profile.
               </CardDescription>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="flex gap-2">
-          <Input
-            value={inputUserId}
-            onChange={(event) => setInputUserId(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') lookup();
-            }}
-            placeholder="Discord user ID"
-          />
-          <Button onClick={lookup}>Lookup</Button>
+        <CardContent>
+          <Select value={userId} onValueChange={setUserId}>
+            <SelectTrigger className="w-full">
+              <SelectValue
+                placeholder={
+                  membersLoading
+                    ? 'Loading guild members...'
+                    : 'Select a guild member...'
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {(membersData?.members ?? []).map((member) => (
+                <SelectItem key={member.user_id} value={member.user_id}>
+                  <span className="flex items-center gap-2">
+                    {member.avatar_url && (
+                      <img
+                        src={member.avatar_url}
+                        alt=""
+                        className="size-5 rounded-full"
+                      />
+                    )}
+                    {member.display_name || member.username}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </CardContent>
       </Card>
 
@@ -157,7 +168,6 @@ function ReputationComponent() {
                 <Label>Score</Label>
                 <Input
                   type="number"
-                  min="0"
                   placeholder={String(profile.score)}
                   value={score}
                   onChange={(event) => setScore(event.target.value)}
@@ -228,7 +238,7 @@ function ReputationComponent() {
                     <Badge
                       variant="outline"
                       className={
-                        event.score_delta > 0
+                        event.score_delta < 0
                           ? 'border-destructive/30 text-destructive'
                           : ''
                       }

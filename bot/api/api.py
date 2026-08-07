@@ -450,7 +450,7 @@ async def _get_reputation_profile(guild_id: str, user_id: int) -> dict:
     profile = await collection.find_one(query)
     if not profile:
         now = datetime.now(UTC)
-        profile = {**query, "score": 0, "status": "active", "blocked_until": None, "last_notice_at": None, "created_at": now, "updated_at": now}
+        profile = {**query, "score": 0, "score_version": 2, "status": "active", "blocked_until": None, "last_notice_at": None, "created_at": now, "updated_at": now}
         await collection.insert_one(profile)
     return profile
 
@@ -474,7 +474,7 @@ async def update_reputation(user_id: int, data: ReputationUpdateRequest, guild_i
     now = datetime.now(UTC)
     updates = {"updated_at": now}
     if data.score is not None:
-        updates["score"] = max(0, data.score)
+        updates["score"] = data.score
     if data.status is not None:
         updates["status"] = data.status
         updates["blocked_until"] = now + timedelta(hours=168) if data.status == "blocked" else None

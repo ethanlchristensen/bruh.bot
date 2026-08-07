@@ -23,6 +23,18 @@ class ImageGenerationService:
         self.bot = bot
         self.base_prompt = "You must generate an image with the following user prompt. Do not ask follow questions to get the user to refine the prompt."
 
+    def _build_generation_context(self, messages: list[Message], prompt: str) -> list[Message]:
+        """Keep branch context while replacing the final request with the image-ready prompt."""
+        context_messages = [context_message.model_copy(deep=True) for context_message in messages]
+        context_messages.insert(0, Message(role="system", parts=[MessagePart(type="text", text=self.base_prompt)]))
+
+        for part in reversed(context_messages[-1].parts):
+            if part.type == "text":
+                part.text = prompt
+                break
+
+        return context_messages
+
     async def boost_prompt(self, guild_id: int, user_prompt: str, image_description: str | None = None) -> str:
         try:
             logger.info(f"Boosting prompt: {user_prompt}")
@@ -128,7 +140,7 @@ Be specific and thorough as this description will be used for image editing cont
             logger.error(f"Error downloading image: {e}", exc_info=True)
             return None
 
-    async def generate_image(self, guild_id: int, prompt: str, user_id: int = 0) -> ImageGenerationResponse | None:
+    async def generate_image(self, guild_id: int, prompt: str, messages: list[Message], user_id: int = 0) -> ImageGenerationResponse | None:
         try:
             config = (await self.bot.config_service.get_config(str(guild_id))).aiConfig
 
@@ -138,11 +150,12 @@ Be specific and thorough as this description will be used for image editing cont
 
             logger.info(f"Generating image with {'boosted ' if config.imageGeneration.boostImagePrompts else ''}prompt: {boosted_prompt}")
             logger.info(f"Using OpenRouter for image generation with model {config.imageGeneration.preferredModel}")
+            context_messages = self._build_generation_context(messages, boosted_prompt)
 
             req = NormalizedRequest(
                 provider="openrouter",
                 model=config.imageGeneration.preferredModel,
-                messages=[Message(role="user", parts=[MessagePart(type="text", text=boosted_prompt)])],
+                messages=context_messages,
             )
             gateway = get_mesh_gateway()
             provider_config = getattr(config, "openrouter", None)
@@ -206,7 +219,7 @@ Be specific and thorough as this description will be used for image editing cont
             logger.error(f"Error generating image: {e}", exc_info=True)
             return None
 
-    async def edit_image(self, guild_id: int, prompt: str, source_images: list[Image.Image], user_id: int = 0) -> ImageGenerationResponse | None:
+    async def edit_image(self, guild_id: int, prompt: str, source_images: list[Image.Image], messages: list[Message], user_id: int = 0) -> ImageGenerationResponse | None:
         try:
             config = (await self.bot.config_service.get_config(str(guild_id))).aiConfig
 
@@ -223,7 +236,8 @@ Be specific and thorough as this description will be used for image editing cont
                 boosted_prompt = prompt
 
             logger.info(f"Using OpenRouter for image editing with model {config.imageGeneration.preferredModel}")
-            parts = [MessagePart(type="text", text=boosted_prompt)]
+            context_messages = self._build_generation_context(messages, boosted_prompt)
+            parts = context_messages[-1].parts
             for img in source_images:
                 buffered = BytesIO()
                 img.save(buffered, format="PNG")
@@ -236,7 +250,7 @@ Be specific and thorough as this description will be used for image editing cont
             req = NormalizedRequest(
                 provider="openrouter",
                 model=config.imageGeneration.preferredModel,
-                messages=[Message(role="user", parts=parts)],
+                messages=context_messages,
             )
             gateway = get_mesh_gateway()
             provider_config = getattr(config, "openrouter", None)
@@ -306,21 +320,21 @@ Be specific and thorough as this description will be used for image editing cont
                 images.append(image)
         return images
 
-    async def edit_image_from_url(self, guild_id: int, prompt: str, image_url: str, user_id: int = 0) -> ImageGenerationResponse | None:
+    async def edit_image_from_url(self, guild_id: int, prompt: str, image_url: str, messages: list[Message], user_id: int = 0) -> ImageGenerationResponse | None:
         source_image = await self.download_image_from_url(image_url)
         if source_image is None:
             return None
 
-        return await self.edit_image(guild_id, prompt, [source_image], user_id=user_id)
+        return await self.edit_image(guild_id, prompt, [source_image], messages, user_id=user_id)
 
-    async def edit_images_from_urls(self, guild_id: int, prompt: str, image_urls: list[str], user_id: int = 0) -> ImageGenerationResponse | None:
+    async def edit_images_from_urls(self, guild_id: int, prompt: str, image_urls: list[str], messages: list[Message], user_id: int = 0) -> ImageGenerationResponse | None:
         source_images = await self.download_images_from_urls(image_urls)
         if not source_images:
             logger.error("No images could be downloaded")
             return None
 
         logger.info(f"Successfully downloaded {len(source_images)}/{len(image_urls)} images")
-        return await self.edit_image(guild_id, prompt, source_images, user_id=user_id)
+        return await self.edit_image(guild_id, prompt, source_images, messages, user_id=user_id)
 
     def image_to_bytes(self, image: Image.Image, format: str = "PNG") -> BytesIO:
         output = BytesIO()

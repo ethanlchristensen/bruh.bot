@@ -32,8 +32,8 @@ class MessageService:
         if not self.bot.user:
             return False
 
-        bot_string = f"<@{self.bot.user.id}>"
-        should_respond = bot_string in message.content or (reference_message and reference_message.author.id == self.bot.user.id)
+        bot_mentioned = self.bot.user in message.mentions
+        should_respond = bot_mentioned or (reference_message and reference_message.author.id == self.bot.user.id)
         return should_respond
 
     async def should_delete_message(self, guild_id: int, message: discord.Message) -> bool:
@@ -58,15 +58,15 @@ class MessageService:
                     self.logger.error(f"Failed to process image attachment: {e}")
         return images
 
-    async def build_message_context(self, message: discord.Message, reference_message: discord.Message | None, username: str) -> list[Message]:
+    async def build_message_context(self, message: discord.Message, reference_message: discord.Message | None, username: str, include_current_images: bool = True) -> list[Message]:
         """Build the message context for AI processing using the parent-pointer tree."""
-        images = await self.process_message_images(message)
+        images = await self.process_message_images(message) if include_current_images else []
         messages = []
 
         config = await self.bot.config_service.get_config(str(message.guild.id))
 
         # 1. Determine parent_id
-        if reference_message:
+        if reference_message and reference_message.author.id == self.bot.user.id:
             parent_id = reference_message.id
         else:
             parent_id = None
@@ -92,6 +92,11 @@ class MessageService:
                 permanent_cats = {"identity", "trait", "admin", "relationship"}
 
                 mentioned_user_ids = [u.id for u in message.mentions if u.id != message.author.id and u.id != self.bot.user.id]
+                # Mentions in ancestor turns remain conversation participants for this branch.
+                for node in path:
+                    if node["role"] != "user":
+                        continue
+                    mentioned_user_ids.extend(int(user_id) for user_id in re.findall(r"<@!?(\d+)>", node["content"]) if int(user_id) not in {message.author.id, self.bot.user.id})
                 mentioned_user_ids_dedup = list(dict.fromkeys(mentioned_user_ids))
 
                 non_mentioned_ids = [message.author.id]
@@ -211,8 +216,9 @@ class MessageService:
 
 MULTI-USER CHAT CONTEXT:
 - You are in a Discord group chat with multiple users
-- Messages are formatted as: [Username]: [Message Content]
-- Pay close attention to the username before each message
+- User messages are formatted as: [Username]: [Message Content]
+- Previous assistant messages are provided without a name prefix because their role already identifies them as yours
+- Pay close attention to the username before each user message
 - When responding, you may address specific users by name if appropriate
 - IMPORTANT: DO NOT prepend your response with your name or brackets. Just send the message content directly. Your message is going straight to the discord server.{memories_section}
 """
@@ -228,7 +234,7 @@ MULTI-USER CHAT CONTEXT:
             clean_content = self.resolve_user_mentions(clean_content, config.idToUsers)
 
             if node_role == "assistant":
-                text = f"[{self.bot.user.name}]: {clean_content}"
+                text = clean_content
             else:
                 text = f"[{node_author or 'user'}]: {clean_content}"
 
@@ -243,6 +249,14 @@ MULTI-USER CHAT CONTEXT:
             messages.append(Message(role=node_role, parts=parts))
 
         return messages
+
+    def strip_assistant_prefix(self, text: str) -> str:
+        """Remove a leading bot label that the model copied from prior context."""
+        if not self.bot.user:
+            return text
+
+        bot_name = re.escape(self.bot.user.name)
+        return re.sub(rf"^\s*(?:\[{bot_name}\]|{bot_name})\s*:\s*", "", text, count=1, flags=re.IGNORECASE)
 
     def replace_mentions(self, text: str) -> str:
         """Replace bot mentions with empty string or 'bruh.bot'."""

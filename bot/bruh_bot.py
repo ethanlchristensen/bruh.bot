@@ -385,7 +385,7 @@ class BruhBot(commands.Bot):
                 model=response.model or preferred_model,
             )
 
-        content = "".join(part.content for part in response.parts if part.type == "text")
+        content = self.message_service.strip_assistant_prefix("".join(part.content for part in response.parts if part.type == "text"))
         sent_msg = await self.response_service.send_response(message, content)
         if sent_msg:
             await self.chat_service.save_message(
@@ -410,6 +410,8 @@ class BruhBot(commands.Bot):
             await self.response_service.send_response(message, limit_message)
             return
 
+        # Image requests share the same persisted branch history and memories as chat.
+        messages = await self.message_service.build_message_context(message, reference_message, message.author.name, include_current_images=False)
         image_attachments = await self.message_service.get_image_attachments(message, reference_message)
 
         if image_attachments:
@@ -419,17 +421,29 @@ class BruhBot(commands.Bot):
                 guild_id=message.guild.id,
                 prompt=message.content,
                 image_urls=image_urls,
+                messages=messages,
                 user_id=message.author.id,
             )
         else:
             self.logger.info("No image attachments found, generating image with user prompt.")
-            image_generation_response: ImageGenerationResponse = await self.image_generation_service.generate_image(guild_id=message.guild.id, prompt=message.content, user_id=message.author.id)
+            image_generation_response: ImageGenerationResponse = await self.image_generation_service.generate_image(guild_id=message.guild.id, prompt=message.content, messages=messages, user_id=message.author.id)
+
+        content = self.message_service.strip_assistant_prefix(image_generation_response.text_response)
 
         if image_generation_response.generated_image:
             await self.image_limit_service.increment_usage(message.author.id, message.guild.id)
             image_bytes = self.image_generation_service.image_to_bytes(image=image_generation_response.generated_image)
             filename = "edited_image.png" if image_attachments else "generated_image.png"
             image_file = discord.File(image_bytes, filename=filename)
-            await self.response_service.send_response(message, image_generation_response.text_response, image_file)
+            sent_msg = await self.response_service.send_response(message, content, image_file)
         else:
-            await self.response_service.send_response(message, image_generation_response.text_response)
+            sent_msg = await self.response_service.send_response(message, content)
+
+        if sent_msg:
+            await self.chat_service.save_message(
+                message_id=sent_msg.id,
+                channel_id=message.channel.id,
+                parent_id=message.id,
+                role="assistant",
+                content=content,
+            )

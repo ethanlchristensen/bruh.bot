@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
@@ -13,6 +14,7 @@ class MongoAIUsageService:
         self.bot = bot
         self.collection = self.bot.config_service.col(self.bot.config_service.base.mongoAIUsageCollectionName)
         self.logger = logging.getLogger(__name__)
+        self._request_locks: dict[tuple[int, int], asyncio.Lock] = {}
 
     async def initialize(self):
         await self._ensure_indexes()
@@ -49,8 +51,8 @@ class MongoAIUsageService:
         if not user_data:
             return True, ""
 
-        user_per_minute = user_data.get("max_per_minute", per_minute)
-        user_per_hour = user_data.get("max_per_hour", per_hour)
+        user_per_minute = user_data.get("max_per_minute", per_minute) if user_data.get("custom_limits") else per_minute
+        user_per_hour = user_data.get("max_per_hour", per_hour) if user_data.get("custom_limits") else per_hour
 
         minute_reset = user_data.get("minute_reset_at")
         if isinstance(minute_reset, str):
@@ -100,6 +102,7 @@ class MongoAIUsageService:
                         "hour_reset_at": self._sliding_hour_window(),
                         "max_per_minute": per_minute,
                         "max_per_hour": per_hour,
+                        "custom_limits": False,
                     },
                 },
                 upsert=True,
@@ -138,6 +141,15 @@ class MongoAIUsageService:
             {"$set": update_fields},
         )
 
+    async def consume_request(self, user_id: int, guild_id: int) -> tuple[bool, str]:
+        """Reserve one request after checking limits to avoid concurrent bypasses."""
+        lock = self._request_locks.setdefault((guild_id, user_id), asyncio.Lock())
+        async with lock:
+            allowed, message = await self.can_make_request(user_id, guild_id)
+            if allowed:
+                await self.increment_usage(user_id, guild_id)
+            return allowed, message
+
     async def get_user_stats(self, user_id: int, guild_id: int) -> dict:
         per_minute, per_hour, enabled = await self._get_limits(guild_id)
         now = datetime.now(UTC)
@@ -155,8 +167,8 @@ class MongoAIUsageService:
                 "enabled": enabled,
             }
 
-        user_per_minute = user_data.get("max_per_minute", per_minute)
-        user_per_hour = user_data.get("max_per_hour", per_hour)
+        user_per_minute = user_data.get("max_per_minute", per_minute) if user_data.get("custom_limits") else per_minute
+        user_per_hour = user_data.get("max_per_hour", per_hour) if user_data.get("custom_limits") else per_hour
 
         minute_reset = user_data.get("minute_reset_at")
         hour_reset = user_data.get("hour_reset_at")
@@ -202,7 +214,7 @@ class MongoAIUsageService:
     async def set_user_limits(self, user_id: int, guild_id: int, per_minute: int, per_hour: int) -> bool:
         result = await self.collection.update_one(
             {"guild_id": Int64(guild_id), "user_id": Int64(user_id)},
-            {"$set": {"max_per_minute": per_minute, "max_per_hour": per_hour}},
+            {"$set": {"max_per_minute": per_minute, "max_per_hour": per_hour, "custom_limits": True}},
             upsert=True,
         )
 
@@ -214,7 +226,7 @@ class MongoAIUsageService:
     async def set_guild_limits(self, guild_id: int, per_minute: int, per_hour: int) -> int:
         result = await self.collection.update_many(
             {"guild_id": Int64(guild_id)},
-            {"$set": {"max_per_minute": per_minute, "max_per_hour": per_hour}},
+            {"$set": {"max_per_minute": per_minute, "max_per_hour": per_hour, "custom_limits": False}},
         )
 
         self.logger.info(f"Updated AI usage limits to {per_minute}/min, {per_hour}/hr for {result.modified_count} users in guild {guild_id}")

@@ -38,7 +38,7 @@ class MongoChatService:
         except Exception as e:
             self.logger.warning(f"Could not create indexes on ChatThreads: {e}")
 
-    async def save_message(self, message_id: int, channel_id: int, parent_id: int | None, role: str, content: str, author_name: str | None = None):
+    async def save_message(self, message_id: int, channel_id: int, parent_id: int | None, role: str, content: str, author_name: str | None = None, author_id: int | None = None):
         """Save a message turn into the threads collection."""
         try:
             doc = {
@@ -48,6 +48,7 @@ class MongoChatService:
                 "role": role,
                 "content": content,
                 "author_name": author_name,
+                "author_id": Int64(author_id) if author_id is not None else None,
                 "created_at": datetime.now(UTC),
             }
             await self.collection.replace_one({"_id": Int64(message_id)}, doc, upsert=True)
@@ -83,7 +84,7 @@ class MongoChatService:
                 return chain
 
             # Insert at the beginning to maintain chronological order
-            chain.insert(0, {"role": msg["role"], "content": msg["content"], "author_name": msg.get("author_name"), "parent_id": msg.get("parent_id"), "_id": int(msg["_id"])})
+            chain.insert(0, {"role": msg["role"], "content": msg["content"], "author_name": msg.get("author_name"), "author_id": int(msg["author_id"]) if msg.get("author_id") is not None else None, "parent_id": msg.get("parent_id"), "_id": int(msg["_id"])})
 
             parent_id = msg.get("parent_id")
             if parent_id is not None:

@@ -58,7 +58,7 @@ class MongoImageLimitService:
                     "reset_time": next_reset,
                 }
             )
-            self.logger.info(f"Initialized image limit tracking for {message.author.name} in guild {message.guild.name} with limit {max_daily_images}")
+            self.logger.info(f"Initialized image limit tracking for {message.author.display_name} in guild {message.guild.name} with limit {max_daily_images}")
             return True, ""
 
         reset_time = user_data["reset_time"]
@@ -74,12 +74,12 @@ class MongoImageLimitService:
                 {"guild_id": Int64(message.guild.id), "user_id": Int64(message.author.id)},
                 {"$set": {"count": 0, "reset_time": next_reset}},
             )
-            self.logger.info(f"Reset daily image count for {message.author.name} in guild {message.guild.name}")
+            self.logger.info(f"Reset daily image count for {message.author.display_name} in guild {message.guild.name}")
             return True, ""
 
         count = user_data.get("count", 0)
         user_limit = user_data.get("max_daily_images", max_daily_images)
-        self.logger.info(f"[CAN GENERATE IMAGE] - {message.author.name} has generated {count}/{user_limit} images today")
+        self.logger.info(f"[CAN GENERATE IMAGE] - {message.author.display_name} has generated {count}/{user_limit} images today")
 
         if count >= user_limit:
             time_until_reset = reset_time - now

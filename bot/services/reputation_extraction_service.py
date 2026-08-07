@@ -58,7 +58,7 @@ class ReputationExtractionService:
         content = message.content.strip()
         if not cfg.enabled or len(content) < cfg.minMessageLength:
             return
-        await self.q.enqueue(message.guild.id, message.channel.id, message.id, content, message.author.id, message.author.name, message.created_at)
+        await self.q.enqueue(message.guild.id, message.channel.id, message.id, content, message.author.id, message.author.display_name, message.created_at)
 
     async def enqueue_bot_context(self, message: "discord.Message", content: str):
         if not message.guild or not content.strip():
@@ -90,6 +90,8 @@ class ReputationExtractionService:
             return
         count = await self.q.count(guild_id)
         oldest = await self.q.get_oldest_timestamp(guild_id)
+        if oldest and oldest.tzinfo is None:
+            oldest = oldest.replace(tzinfo=UTC)
         if not count or (count < cfg.minMessagesForExtraction and oldest and now - oldest < timedelta(minutes=cfg.maxExtractionWaitMinutes)):
             return
         batch = await self.q.fetch_batch(guild_id, cfg.maxMessagesPerExtraction)

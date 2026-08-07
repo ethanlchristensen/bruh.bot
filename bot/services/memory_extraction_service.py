@@ -110,7 +110,7 @@ class MemoryExtractionService:
             message_id=message.id,
             content=content,
             author_id=message.author.id,
-            author_name=message.author.name,
+            author_name=message.author.display_name,
             timestamp=message.created_at,
         )
 
@@ -241,7 +241,7 @@ class MemoryExtractionService:
         conversation_lines = []
         for msg in messages:
             name = msg.get("author_name", str(msg.get("author_id", "unknown")))
-            content = self._resolve_mentions_in_text(msg["content"], id_to_users)
+            content = self._resolve_mentions_in_text(msg["content"], id_to_users, guild)
             msg_id = msg.get("message_id")
             context_marker = " (context only)" if msg.get("context_only") else ""
             if msg_id is not None:
@@ -256,7 +256,7 @@ class MemoryExtractionService:
             if not canonical_name and guild:
                 member = guild.get_member(uid_int)
                 if member:
-                    canonical_name = member.name
+                    canonical_name = member.display_name
             if not canonical_name:
                 canonical_name = str(uid_int)
             participants.append(f"- {canonical_name} (user_id: {uid_int})")
@@ -377,10 +377,11 @@ Analyze the conversation transcript above. Follow your workflow: search for exis
             self.logger.exception(f"Error during memory extraction for guild {guild_id}")
 
     @staticmethod
-    def _resolve_mentions_in_text(text: str, id_to_users: dict[str, str]) -> str:
+    def _resolve_mentions_in_text(text: str, id_to_users: dict[str, str], guild=None) -> str:
         def replace_mention(match: re.Match) -> str:
             user_id = match.group(1)
-            name = id_to_users.get(user_id)
+            member = guild.get_member(int(user_id)) if guild else None
+            name = member.display_name if member else id_to_users.get(user_id)
             return f"@{name}" if name else match.group(0)
 
         return re.sub(r"<@!?(\d+)>", replace_mention, text)

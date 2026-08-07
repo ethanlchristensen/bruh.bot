@@ -79,6 +79,7 @@ class MessageService:
             role="user",
             content=message.content,
             author_name=username,
+            author_id=message.author.id,
         )
 
         # 3. Retrieve conversation path
@@ -101,13 +102,13 @@ class MessageService:
 
                 non_mentioned_ids = [message.author.id]
                 for node in path:
-                    author = node.get("author_name")
-                    if author and author != self.bot.user.name and author != message.author.name:
-                        user_id = config.usersToId.get(author)
-                        if user_id:
-                            uid_int = int(user_id)
-                            if uid_int not in non_mentioned_ids and uid_int not in mentioned_user_ids_dedup:
-                                non_mentioned_ids.append(uid_int)
+                    user_id = node.get("author_id")
+                    if user_id is None:
+                        user_id = config.usersToId.get(node.get("author_name", ""))
+                    if user_id:
+                        uid_int = int(user_id)
+                        if uid_int not in non_mentioned_ids and uid_int not in mentioned_user_ids_dedup:
+                            non_mentioned_ids.append(uid_int)
 
                 all_ids = list(dict.fromkeys(non_mentioned_ids + mentioned_user_ids_dedup))
 
@@ -177,7 +178,7 @@ class MessageService:
                                 selected = deduped[:remaining]
 
                                 if selected:
-                                    author_to_id = {str(message.author.id): message.author.name}
+                                    author_to_id = {str(message.author.id): message.author.display_name}
                                     for uid in non_mentioned_ids:
                                         if uid != message.author.id:
                                             author_to_id[str(uid)] = config.idToUsers.get(str(uid), str(uid))
@@ -231,7 +232,7 @@ MULTI-USER CHAT CONTEXT:
             node_author = node.get("author_name")
 
             clean_content = self.replace_mentions(node_content).strip()
-            clean_content = self.resolve_user_mentions(clean_content, config.idToUsers)
+            clean_content = self.resolve_user_mentions(clean_content, config.idToUsers, message.guild)
 
             if node_role == "assistant":
                 text = clean_content
@@ -278,12 +279,13 @@ MULTI-USER CHAT CONTEXT:
         return result
 
     @staticmethod
-    def resolve_user_mentions(text: str, id_to_users: dict[str, str]) -> str:
+    def resolve_user_mentions(text: str, id_to_users: dict[str, str], guild: discord.Guild | None = None) -> str:
         """Resolve raw Discord mention tags to @displayname format."""
 
         def replace_mention(match: re.Match) -> str:
             user_id = match.group(1)
-            name = id_to_users.get(user_id)
+            member = guild.get_member(int(user_id)) if guild and hasattr(guild, "get_member") else None
+            name = member.display_name if member else id_to_users.get(user_id)
             return f"@{name}" if name else match.group(0)
 
         return re.sub(r"<@!?(\d+)>", replace_mention, text)
@@ -311,7 +313,7 @@ MULTI-USER CHAT CONTEXT:
             )
 
             if image_attachment:
-                author_name = config.idToUsers.get(str(reference_message.author.id), reference_message.author.name)
+                author_name = config.idToUsers.get(str(reference_message.author.id), reference_message.author.display_name)
                 self.logger.info(f"Found image in referenced message from {author_name}: {image_attachment.filename}")
                 return image_attachment
 
@@ -336,7 +338,7 @@ MULTI-USER CHAT CONTEXT:
             ref_images = [att for att in reference_message.attachments if att.content_type and att.content_type.startswith("image/")]
 
             if ref_images:
-                author_name = config.idToUsers.get(str(reference_message.author.id), reference_message.author.name)
+                author_name = config.idToUsers.get(str(reference_message.author.id), reference_message.author.display_name)
                 self.logger.info(f"Found {len(ref_images)} image(s) in referenced message from {author_name}")
                 images.extend(ref_images)
 

@@ -21,6 +21,10 @@ class ChatCommand(app_commands.Command):
             await interaction.response.defer(ephemeral=False)
 
             client: BruhBot = interaction.client
+            can_request, limit_message = await client.ai_usage_service.consume_request(interaction.user.id, interaction.guild.id)
+            if not can_request:
+                await interaction.followup.send(limit_message)
+                return
             config = (await client.config_service.get_config(str(interaction.guild.id))).aiConfig
 
             provider = config.preferredAiProvider

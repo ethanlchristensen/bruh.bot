@@ -265,7 +265,7 @@ class BruhBot(commands.Bot):
             await self._send_reputation_notice(message, reputation, blocked=False)
 
         # Apply cooldown check
-        if not await self.cooldown_service.check_cooldown(message.author.id, message.guild.id, message.author.name):
+        if not await self.cooldown_service.check_cooldown(message.author.id, message.guild.id, message.author.display_name):
             return
 
         # Update cooldown and log interaction
@@ -347,14 +347,12 @@ class BruhBot(commands.Bot):
         self.logger.info(f"Chatting with intent: {user_intent.intent} for reason of: {user_intent.reasoning}")
         aiConfig = (await self.config_service.get_config(str(message.guild.id))).aiConfig
 
-        can_request, limit_msg = await self.ai_usage_service.can_make_request(message.author.id, message.guild.id)
+        can_request, limit_msg = await self.ai_usage_service.consume_request(message.author.id, message.guild.id)
         if not can_request:
             await self.response_service.send_response(message, limit_msg)
             return
 
-        await self.ai_usage_service.increment_usage(message.author.id, message.guild.id)
-
-        messages = await self.message_service.build_message_context(message, reference_message, message.author.name)
+        messages = await self.message_service.build_message_context(message, reference_message, message.author.display_name)
 
         from bot.services.ai.gateway.gateway import get_mesh_gateway
         from bot.services.ai.gateway.schemas.request import NormalizedRequest
@@ -419,6 +417,7 @@ class BruhBot(commands.Bot):
                 parent_id=message.id,
                 role="assistant",
                 content=content,
+                author_id=self.user.id,
             )
             await self.memory_extraction_service.enqueue_bot_context(sent_msg, content)
             await self.reputation_extraction_service.enqueue_bot_context(sent_msg, content)
@@ -437,8 +436,13 @@ class BruhBot(commands.Bot):
             await self.response_service.send_response(message, limit_message)
             return
 
+        can_request, limit_msg = await self.ai_usage_service.consume_request(message.author.id, message.guild.id)
+        if not can_request:
+            await self.response_service.send_response(message, limit_msg)
+            return
+
         # Image requests share the same persisted branch history and memories as chat.
-        messages = await self.message_service.build_message_context(message, reference_message, message.author.name, include_current_images=False)
+        messages = await self.message_service.build_message_context(message, reference_message, message.author.display_name, include_current_images=False)
         image_attachments = await self.message_service.get_image_attachments(message, reference_message)
 
         if image_attachments:
@@ -473,6 +477,7 @@ class BruhBot(commands.Bot):
                 parent_id=message.id,
                 role="assistant",
                 content=content,
+                author_id=self.user.id,
             )
             await self.memory_extraction_service.enqueue_bot_context(sent_msg, content)
             await self.reputation_extraction_service.enqueue_bot_context(sent_msg, content)

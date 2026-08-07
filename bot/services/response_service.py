@@ -15,7 +15,10 @@ class ResponseService:
 
     async def process_mentions(self, guild_id: int, content: str) -> str:
         """Replace name mentions with Discord user IDs."""
-        usersToIds = (await self.bot.config_service.get_config(str(guild_id))).usersToId
+        usersToIds = (await self.bot.config_service.get_config(str(guild_id))).usersToId.copy()
+        guild = self.bot.get_guild(guild_id)
+        if guild:
+            usersToIds.update({member.display_name: str(member.id) for member in guild.members})
 
         for name in usersToIds:
             backtick_pattern = r"`\b(" + re.escape(name) + r")\b`"

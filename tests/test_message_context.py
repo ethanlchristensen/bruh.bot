@@ -1,4 +1,5 @@
 import unittest
+from datetime import datetime
 from types import SimpleNamespace
 
 from bot.bruh_bot import BruhBot
@@ -46,7 +47,7 @@ class FakeConfigService:
                 maxInjectionCount=8,
                 semanticRetrieval=False,
             ),
-            reputationConfig=SimpleNamespace(enabled=reputation_enabled, minMessageLength=3),
+            reputationConfig=SimpleNamespace(enabled=reputation_enabled, minMessageLength=3, minMessagesForExtraction=10, maxMessagesPerExtraction=30, maxExtractionWaitMinutes=60, extractionIntervalMinutes=15),
             idToUsers={"2": "Alice", "3": "Bob"},
             usersToId={"Alice": "2", "Bob": "3"},
         )
@@ -60,7 +61,7 @@ def fake_message(message_id, author_id, author_name, content, mentions=()):
         id=message_id,
         guild=SimpleNamespace(id=100),
         channel=SimpleNamespace(id=200),
-        author=SimpleNamespace(id=author_id, name=author_name, bot=False),
+        author=SimpleNamespace(id=author_id, name=author_name, display_name=author_name, bot=False),
         content=content,
         mentions=list(mentions),
         attachments=[],
@@ -204,6 +205,20 @@ class ReputationExtractionContextTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(REPUTATION_DELTAS["respectful_interaction"][2], 0)
         self.assertLess(REPUTATION_DELTAS["bot_targeted_abuse"][2], 0)
 
+    async def test_naive_queue_timestamp_does_not_break_batch_wait_check(self):
+        async def count(_guild_id):
+            return 1
+
+        async def get_oldest_timestamp(_guild_id):
+            return datetime.now()
+
+        bot = SimpleNamespace(
+            config_service=FakeConfigService(reputation_enabled=True),
+            reputation_queue_service=SimpleNamespace(count=count, get_oldest_timestamp=get_oldest_timestamp),
+        )
+
+        await ReputationExtractionService(bot)._process_guild(100)
+
     async def test_human_and_bot_turns_are_staged_with_distinct_roles(self):
         queued = []
 
@@ -239,8 +254,10 @@ class ImageIntentPersistenceTests(unittest.IsolatedAsyncioTestCase):
         )
         image_service = SimpleNamespace(generate_image=self._generate_image)
         bot = SimpleNamespace(
+            user=SimpleNamespace(id=999, name="bruh.bot"),
             message_service=context_builder,
             image_limit_service=SimpleNamespace(can_generate_image=self._can_generate),
+            ai_usage_service=SimpleNamespace(consume_request=self._consume_request),
             image_generation_service=image_service,
             response_service=SimpleNamespace(send_response=self._send_response),
             chat_service=SimpleNamespace(save_message=self._save_message),
@@ -259,6 +276,9 @@ class ImageIntentPersistenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.bot_context["content"], "Here is your city.")
 
     async def _can_generate(self, _message):
+        return True, ""
+
+    async def _consume_request(self, _user_id, _guild_id):
         return True, ""
 
     async def _build_context(self, _message, _reference, _username, include_current_images):

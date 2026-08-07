@@ -395,6 +395,7 @@ class BruhBot(commands.Bot):
                 role="assistant",
                 content=content,
             )
+            await self.memory_extraction_service.enqueue_bot_context(sent_msg, content)
 
     async def _handle_image_generation_intent(self, message: discord.Message, reference_message):
         """Handle image generation intent."""
@@ -447,3 +448,4 @@ class BruhBot(commands.Bot):
                 role="assistant",
                 content=content,
             )
+            await self.memory_extraction_service.enqueue_bot_context(sent_msg, content)

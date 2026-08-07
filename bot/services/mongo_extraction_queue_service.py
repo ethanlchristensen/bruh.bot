@@ -39,6 +39,7 @@ class MongoExtractionQueueService:
         author_id: int,
         author_name: str,
         timestamp: datetime,
+        context_only: bool = False,
     ):
         doc = {
             "guild_id": Int64(guild_id),
@@ -47,6 +48,7 @@ class MongoExtractionQueueService:
             "author_id": Int64(author_id),
             "author_name": author_name,
             "timestamp": timestamp,
+            "context_only": context_only,
             "created_at": datetime.now(UTC),
         }
         try:
@@ -59,11 +61,26 @@ class MongoExtractionQueueService:
             self.logger.exception(f"Failed to enqueue message {message_id} for guild {guild_id}")
 
     async def count(self, guild_id: int) -> int:
-        return await self.collection.count_documents({"guild_id": Int64(guild_id)})
+        return await self.collection.count_documents({"guild_id": Int64(guild_id), "context_only": {"$ne": True}})
 
     async def fetch_batch(self, guild_id: int, limit: int) -> list[dict]:
-        cursor = self.collection.find({"guild_id": Int64(guild_id)}).sort("timestamp", 1).limit(limit)
-        docs = await cursor.to_list(length=limit)
+        cursor = self.collection.find({"guild_id": Int64(guild_id)}).sort("timestamp", 1)
+        docs = []
+        user_message_count = 0
+
+        async for doc in cursor:
+            if doc.get("context_only"):
+                # Include bot context that follows a selected human message.
+                if user_message_count:
+                    docs.append(doc)
+                continue
+
+            if user_message_count >= limit:
+                break
+
+            docs.append(doc)
+            user_message_count += 1
+
         for doc in docs:
             doc["_id_oid"] = doc["_id"]
             doc["_id"] = str(doc["_id"])

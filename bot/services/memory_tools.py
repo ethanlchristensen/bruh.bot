@@ -166,6 +166,9 @@ class MemoryToolExecutor:
     def reset_stats(self):
         self._stats = dict.fromkeys(self._stats, 0)
 
+    def _is_bot_user(self, user_id: int) -> bool:
+        return bool(self.bot.user and user_id == self.bot.user.id)
+
     async def execute(self, name: str, arguments: dict) -> dict:
         self._stats["total_calls"] += 1
         handler = getattr(self, f"_handle_{name}", None)
@@ -190,6 +193,8 @@ class MemoryToolExecutor:
         user_ids = None
         if user_id is not None:
             uid = int(user_id)
+            if self._is_bot_user(uid):
+                return {"error": "Bot memories cannot be accessed"}
             if uid not in self.valid_user_ids:
                 return {"error": f"user_id {uid} is not in the current conversation"}
             user_ids = [uid]
@@ -236,6 +241,8 @@ class MemoryToolExecutor:
         user_id = int(args.get("user_id", 0))
         if not user_id:
             return {"error": "user_id is required"}
+        if self._is_bot_user(user_id):
+            return {"error": "Bot memories cannot be accessed"}
         if user_id not in self.valid_user_ids:
             return {"error": f"user_id {user_id} is not in the current conversation"}
 
@@ -268,6 +275,8 @@ class MemoryToolExecutor:
 
         if not user_id:
             return {"error": "user_id is required"}
+        if self._is_bot_user(user_id):
+            return {"error": "Bot memories cannot be created"}
         if user_id not in self.valid_user_ids:
             return {"error": f"user_id {user_id} is not in the current conversation"}
         if not memory_text:
@@ -357,6 +366,8 @@ class MemoryToolExecutor:
             return {"error": f"Memory {memory_id} not found"}
 
         user_id = existing.get("user_id")
+        if user_id and self._is_bot_user(int(user_id)):
+            return {"error": "Bot memories cannot be updated"}
         if user_id and user_id not in self.valid_user_ids:
             return {"error": f"Memory belongs to user {user_id} who is not in the current conversation"}
 
@@ -400,6 +411,8 @@ class MemoryToolExecutor:
             return {"error": f"Memory {memory_id} not found"}
 
         user_id = existing.get("user_id")
+        if user_id and self._is_bot_user(int(user_id)):
+            return {"error": "Bot memories cannot be removed"}
         if user_id and user_id not in self.valid_user_ids:
             return {"error": f"Memory belongs to user {user_id} who is not in the current conversation"}
 

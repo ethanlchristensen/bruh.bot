@@ -63,7 +63,7 @@ The conversation transcript will be provided in a user message along with the li
 
 7. **MULTI-USER AWARENESS**: Use conversational context — if one person says something and another agrees, that implies the second person shares that trait/preference/opinion too. Process ALL users in the conversation, not just one.
 
-8. NEVER extract memories for the bot itself. Focus only on the human users from the provided user list.
+8. Bot messages are context only. NEVER extract, update, remove, search, or otherwise perform memory operations for the bot. Focus only on the human users from the provided user list.
 
 9. NEVER create 'admin' category memories — those are manually added by server admins only.
 
@@ -112,6 +112,25 @@ class MemoryExtractionService:
             author_id=message.author.id,
             author_name=message.author.name,
             timestamp=message.created_at,
+        )
+
+    async def enqueue_bot_context(self, message: "discord.Message", content: str):
+        """Stage a bot response as transcript context, never as a memory subject."""
+        if not message.guild or not content.strip():
+            return
+
+        config = await self.bot.config_service.get_config(str(message.guild.id))
+        if not config.memoryConfig.enabled:
+            return
+
+        await self.q.enqueue(
+            guild_id=message.guild.id,
+            message_id=message.id,
+            content=content.strip(),
+            author_id=self.bot.user.id,
+            author_name=self.bot.user.name,
+            timestamp=message.created_at,
+            context_only=True,
         )
 
     async def start_extraction_loops(self):
@@ -209,6 +228,8 @@ class MemoryExtractionService:
 
         author_ids_in_batch = set()
         for msg in messages:
+            if msg.get("context_only"):
+                continue
             author_id = msg.get("author_id")
             if author_id:
                 author_ids_in_batch.add(int(author_id))
@@ -222,10 +243,11 @@ class MemoryExtractionService:
             name = msg.get("author_name", str(msg.get("author_id", "unknown")))
             content = self._resolve_mentions_in_text(msg["content"], id_to_users)
             msg_id = msg.get("message_id")
+            context_marker = " (context only)" if msg.get("context_only") else ""
             if msg_id is not None:
-                conversation_lines.append(f"[{name} (msg:{msg_id})]: {content}")
+                conversation_lines.append(f"[{name}{context_marker} (msg:{msg_id})]: {content}")
             else:
-                conversation_lines.append(f"[{name}]: {content}")
+                conversation_lines.append(f"[{name}{context_marker}]: {content}")
         transcript = "\n".join(conversation_lines)
 
         participants = []

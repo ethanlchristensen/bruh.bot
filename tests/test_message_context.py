@@ -4,6 +4,8 @@ from types import SimpleNamespace
 from bot.bruh_bot import BruhBot
 from bot.services.ai.gateway.schemas.request import Message, MessagePart
 from bot.services.ai.image_generation_service import ImageGenerationService
+from bot.services.memory_extraction_service import MemoryExtractionService
+from bot.services.memory_tools import MemoryToolExecutor
 from bot.services.message_service import MessageService
 
 
@@ -154,6 +156,44 @@ class ImageGenerationContextTests(unittest.TestCase):
         self.assertEqual(messages[-1].parts[0].text, "[Bob]: draw a city")
 
 
+class MemoryExtractionContextTests(unittest.IsolatedAsyncioTestCase):
+    async def test_bot_response_is_staged_as_context_only(self):
+        queued = []
+
+        async def enqueue(**kwargs):
+            queued.append(kwargs)
+
+        bot = SimpleNamespace(
+            user=SimpleNamespace(id=999, name="bruh.bot"),
+            config_service=FakeConfigService(memories_enabled=True),
+            extraction_queue_service=SimpleNamespace(enqueue=enqueue),
+        )
+        service = MemoryExtractionService(bot)
+        response = SimpleNamespace(id=31, guild=SimpleNamespace(id=100), created_at=None)
+
+        await service.enqueue_bot_context(response, "A useful answer.")
+
+        self.assertEqual(len(queued), 1)
+        self.assertTrue(queued[0]["context_only"])
+        self.assertEqual(queued[0]["author_id"], 999)
+        self.assertEqual(queued[0]["content"], "A useful answer.")
+
+    async def test_bot_memory_operation_is_rejected_even_if_its_id_is_allowlisted(self):
+        bot = SimpleNamespace(user=SimpleNamespace(id=999))
+        executor = MemoryToolExecutor(
+            bot=bot,
+            guild_id=100,
+            valid_user_ids={999},
+            id_to_users={},
+            users_to_id={},
+            mem_cfg=SimpleNamespace(),
+        )
+
+        result = await executor.execute("add_memory", {"user_id": 999, "memory": "is a bot"})
+
+        self.assertEqual(result["error"], "Bot memories cannot be created")
+
+
 class ImageIntentPersistenceTests(unittest.IsolatedAsyncioTestCase):
     async def test_image_turn_uses_shared_context_and_saves_assistant_response(self):
         messages = [Message(role="system", parts=[MessagePart(type="text", text="memories")]), Message(role="user", parts=[MessagePart(type="text", text="[Bob]: draw a city")])]
@@ -171,6 +211,7 @@ class ImageIntentPersistenceTests(unittest.IsolatedAsyncioTestCase):
             image_generation_service=image_service,
             response_service=SimpleNamespace(send_response=self._send_response),
             chat_service=SimpleNamespace(save_message=self._save_message),
+            memory_extraction_service=SimpleNamespace(enqueue_bot_context=self._enqueue_bot_context),
             logger=SimpleNamespace(info=lambda *_args: None),
         )
         message = fake_message(30, 3, "Bob", "<@999> draw a city")
@@ -181,6 +222,7 @@ class ImageIntentPersistenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(self.generate_kwargs["messages"], messages)
         self.assertEqual(self.saved_messages[0]["parent_id"], 30)
         self.assertEqual(self.saved_messages[0]["role"], "assistant")
+        self.assertEqual(self.bot_context["content"], "Here is your city.")
 
     async def _can_generate(self, _message):
         return True, ""
@@ -197,10 +239,13 @@ class ImageIntentPersistenceTests(unittest.IsolatedAsyncioTestCase):
         return SimpleNamespace(generated_image=None, text_response="Here is your city.")
 
     async def _send_response(self, _message, _content, _image_file=None):
-        return SimpleNamespace(id=31)
+        return SimpleNamespace(id=31, guild=SimpleNamespace(id=100), created_at=None)
 
     async def _save_message(self, **kwargs):
         self.saved_messages.append(kwargs)
+
+    async def _enqueue_bot_context(self, _message, content):
+        self.bot_context = {"content": content}
 
 
 if __name__ == "__main__":

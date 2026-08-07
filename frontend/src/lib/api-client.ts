@@ -99,6 +99,11 @@ export interface EconomyConfig {
 
 export interface ReputationConfig {
   enabled: boolean;
+  minMessagesForExtraction: number;
+  maxMessagesPerExtraction: number;
+  maxExtractionWaitMinutes: number;
+  extractionIntervalMinutes: number;
+  minConfidence: number;
   warningThreshold: number;
   blockThreshold: number;
   blockDurationHours: number;

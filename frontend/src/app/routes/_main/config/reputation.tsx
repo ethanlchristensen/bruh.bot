@@ -24,7 +24,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
-import { useReputation, useUpdateReputation } from '@/hooks/use-config';
+import { Switch } from '@/components/ui/switch';
+import {
+  useConfig,
+  useReputation,
+  useUpdateConfig,
+  useUpdateReputation,
+} from '@/hooks/use-config';
 import { useGuildMembers } from '@/hooks/use-economy';
 
 export const Route = createFileRoute('/_main/config/reputation')({
@@ -38,11 +44,21 @@ function ReputationComponent() {
     'active' | 'warning' | 'blocked' | 'manual_blocked'
   >('active');
   const [reason, setReason] = useState('Manual dashboard adjustment');
+  const [configDraft, setConfigDraft] = useState<
+    Record<string, number | boolean>
+  >({});
   const { data, isLoading } = useReputation(userId);
   const { data: membersData, isLoading: membersLoading } = useGuildMembers();
+  const { data: configData } = useConfig();
+  const updateConfig = useUpdateConfig();
   const update = useUpdateReputation();
 
   const profile = data?.profile;
+  const reputationConfig = configData?.config?.reputationConfig;
+
+  const configValue = <K extends keyof NonNullable<typeof reputationConfig>>(
+    key: K,
+  ) => configDraft[key as string] ?? reputationConfig?.[key];
 
   useEffect(() => {
     if (profile) setStatus(profile.status);
@@ -67,6 +83,23 @@ function ReputationComponent() {
     }
   };
 
+  const saveConfig = async () => {
+    if (!reputationConfig) return;
+    try {
+      await updateConfig.mutateAsync({
+        reputationConfig: { ...reputationConfig, ...configDraft },
+      });
+      setConfigDraft({});
+      toast.success('Reputation settings saved');
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to save reputation settings',
+      );
+    }
+  };
+
   return (
     <div className="space-y-8 pb-20" data-page="reputation">
       <PageHeader
@@ -74,6 +107,145 @@ function ReputationComponent() {
         title="Reputation"
         description="Review audit history and manage a user's ability to interact with bruh.bot."
       />
+
+      {reputationConfig && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-4">
+              <CardIcon>
+                <ShieldAlert />
+              </CardIcon>
+              <div>
+                <CardTitle>Reputation Rules</CardTitle>
+                <CardDescription>
+                  Configure batch extraction and signed-score enforcement for
+                  this guild.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="flex items-center justify-between rounded-lg border border-border/40 p-4">
+              <div>
+                <p className="font-medium">Enable Reputation</p>
+                <p className="text-sm text-muted-foreground">
+                  Stage messages and apply AI-reviewed reputation events.
+                </p>
+              </div>
+              <Switch
+                checked={Boolean(configValue('enabled'))}
+                onCheckedChange={(enabled) =>
+                  setConfigDraft((draft) => ({ ...draft, enabled }))
+                }
+              />
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <NumberSetting
+                label="Minimum Batch Messages"
+                value={configValue('minMessagesForExtraction')}
+                onChange={(value) =>
+                  setConfigDraft((draft) => ({
+                    ...draft,
+                    minMessagesForExtraction: value,
+                  }))
+                }
+                min={1}
+              />
+              <NumberSetting
+                label="Maximum Batch Messages"
+                value={configValue('maxMessagesPerExtraction')}
+                onChange={(value) =>
+                  setConfigDraft((draft) => ({
+                    ...draft,
+                    maxMessagesPerExtraction: value,
+                  }))
+                }
+                min={1}
+              />
+              <NumberSetting
+                label="Maximum Wait (Minutes)"
+                value={configValue('maxExtractionWaitMinutes')}
+                onChange={(value) =>
+                  setConfigDraft((draft) => ({
+                    ...draft,
+                    maxExtractionWaitMinutes: value,
+                  }))
+                }
+                min={1}
+              />
+              <NumberSetting
+                label="Extraction Interval (Minutes)"
+                value={configValue('extractionIntervalMinutes')}
+                onChange={(value) =>
+                  setConfigDraft((draft) => ({
+                    ...draft,
+                    extractionIntervalMinutes: value,
+                  }))
+                }
+                min={1}
+              />
+              <NumberSetting
+                label="Minimum Confidence"
+                value={configValue('minConfidence')}
+                onChange={(value) =>
+                  setConfigDraft((draft) => ({
+                    ...draft,
+                    minConfidence: value,
+                  }))
+                }
+                min={0}
+                max={1}
+                step="0.05"
+              />
+              <NumberSetting
+                label="Warning Score"
+                value={configValue('warningThreshold')}
+                onChange={(value) =>
+                  setConfigDraft((draft) => ({
+                    ...draft,
+                    warningThreshold: value,
+                  }))
+                }
+              />
+              <NumberSetting
+                label="Block Score"
+                value={configValue('blockThreshold')}
+                onChange={(value) =>
+                  setConfigDraft((draft) => ({
+                    ...draft,
+                    blockThreshold: value,
+                  }))
+                }
+              />
+              <NumberSetting
+                label="Block Duration (Hours)"
+                value={configValue('blockDurationHours')}
+                onChange={(value) =>
+                  setConfigDraft((draft) => ({
+                    ...draft,
+                    blockDurationHours: value,
+                  }))
+                }
+                min={1}
+              />
+              <NumberSetting
+                label="Notice Cooldown (Hours)"
+                value={configValue('noticeCooldownHours')}
+                onChange={(value) =>
+                  setConfigDraft((draft) => ({
+                    ...draft,
+                    noticeCooldownHours: value,
+                  }))
+                }
+                min={0}
+              />
+            </div>
+            <Button onClick={saveConfig} disabled={updateConfig.isPending}>
+              Save Reputation Rules
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -253,6 +425,36 @@ function ReputationComponent() {
           </Card>
         </>
       )}
+    </div>
+  );
+}
+
+function NumberSetting({
+  label,
+  value,
+  onChange,
+  min,
+  max,
+  step,
+}: {
+  label: string;
+  value: number | boolean | undefined;
+  onChange: (value: number) => void;
+  min?: number;
+  max?: number;
+  step?: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <Input
+        type="number"
+        value={typeof value === 'number' ? value : ''}
+        min={min}
+        max={max}
+        step={step}
+        onChange={(event) => onChange(Number(event.target.value))}
+      />
     </div>
   );
 }

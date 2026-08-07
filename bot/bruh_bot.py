@@ -513,8 +513,10 @@ class BruhBot(commands.Bot):
         if blocked:
             until = profile.get("blocked_until")
             expiry = f"Your block has been extended until <t:{int(until.timestamp())}:R>." if until else "This is a manual block."
-            embed = self.embed_service.create_error_embed(f"{message.author.mention}, bruh.bot will not respond to you right now. {expiry}\n\n**Recent audit entries:**\n{audit}\n\nContact a server administrator if you believe this is incorrect.")
+            embed = self.embed_service.create_error_embed(f"{message.author.mention}, bruh.bot will not respond to you right now. {expiry}\n\n**Recent audit entries:**\n{audit}\n\nUse `/reputation me` to view your reputation and recent events privately. Contact a server administrator if you believe this is incorrect.")
             embed.title = "Interaction Blocked"
         else:
-            embed = self.embed_service.create_warning_embed("Interaction Warning", f"{message.author.mention}, your recent interactions have lowered your reputation with bruh.bot.\n\n**Recent audit entries:**\n{audit}\n\nFurther harmful interactions may cause bruh.bot to stop responding.")
+            embed = self.embed_service.create_warning_embed(
+                "Interaction Warning", f"{message.author.mention}, your recent interactions have lowered your reputation with bruh.bot.\n\n**Recent audit entries:**\n{audit}\n\nFurther harmful interactions may cause bruh.bot to stop responding. Use `/reputation me` to view your reputation and recent events privately."
+            )
         await message.reply(embed=embed, files=self.embed_service.get_brand_files(embed=embed))

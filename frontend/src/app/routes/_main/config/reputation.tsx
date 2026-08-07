@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import { PageHeader } from '@/components/layouts/page-header';
+import { ModelSelector } from '@/components/model-selector';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,6 +28,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
 import {
   useConfig,
+  useModels,
   useReputation,
   useUpdateConfig,
   useUpdateReputation,
@@ -45,11 +47,15 @@ function ReputationComponent() {
   >('active');
   const [reason, setReason] = useState('Manual dashboard adjustment');
   const [configDraft, setConfigDraft] = useState<
-    Record<string, number | boolean>
+    Record<string, number | boolean | string>
   >({});
   const { data, isLoading } = useReputation(userId);
   const { data: membersData, isLoading: membersLoading } = useGuildMembers();
   const { data: configData } = useConfig();
+  const { data: ollamaModels, isLoading: isLoadingOllamaModels } =
+    useModels('ollama');
+  const { data: openrouterModels, isLoading: isLoadingOpenrouterModels } =
+    useModels('openrouter');
   const updateConfig = useUpdateConfig();
   const update = useUpdateReputation();
 
@@ -140,6 +146,71 @@ function ReputationComponent() {
               />
             </div>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div className="space-y-2">
+                <Label>Extraction Provider</Label>
+                <Select
+                  value={String(
+                    configValue('extractionProvider') ?? 'openrouter',
+                  )}
+                  onValueChange={(extractionProvider) =>
+                    setConfigDraft((draft) => ({
+                      ...draft,
+                      extractionProvider,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="openrouter">OpenRouter</SelectItem>
+                    <SelectItem value="ollama">Ollama</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <div className="flex items-center justify-between gap-3">
+                  <Label>Extraction Model</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      setConfigDraft((draft) => ({
+                        ...draft,
+                        extractionModel: '',
+                      }))
+                    }
+                  >
+                    Use Memory Extractor
+                  </Button>
+                </div>
+                <ModelSelector
+                  selectedProvider={
+                    configValue('extractionProvider') === 'ollama'
+                      ? 'ollama'
+                      : 'openrouter'
+                  }
+                  selectedModel={String(configValue('extractionModel') ?? '')}
+                  onSelect={(extractionProvider, extractionModel) =>
+                    setConfigDraft((draft) => ({
+                      ...draft,
+                      extractionProvider,
+                      extractionModel,
+                    }))
+                  }
+                  groupedModels={{
+                    ollama: ollamaModels?.models ?? [],
+                    openrouter: openrouterModels?.models ?? [],
+                  }}
+                  isLoading={isLoadingOllamaModels || isLoadingOpenrouterModels}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Use the Tool Use / Function Calling filter in the model
+                  picker. Leaving this blank inherits the memory extraction
+                  model.
+                </p>
+              </div>
               <NumberSetting
                 label="Minimum Batch Messages"
                 value={configValue('minMessagesForExtraction')}
@@ -438,7 +509,7 @@ function NumberSetting({
   step,
 }: {
   label: string;
-  value: number | boolean | undefined;
+  value: number | boolean | string | undefined;
   onChange: (value: number) => void;
   min?: number;
   max?: number;

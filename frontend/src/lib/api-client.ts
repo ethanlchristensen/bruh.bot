@@ -99,6 +99,8 @@ export interface EconomyConfig {
 
 export interface ReputationConfig {
   enabled: boolean;
+  extractionProvider: AIProvider;
+  extractionModel: string;
   minMessagesForExtraction: number;
   maxMessagesPerExtraction: number;
   maxExtractionWaitMinutes: number;

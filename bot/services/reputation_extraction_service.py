@@ -102,7 +102,9 @@ class ReputationExtractionService:
         except Exception as exc:
             # Keep the batch for retry, but avoid a full loop traceback every minute.
             self._last_run[str(guild_id)] = now.timestamp()
-            logger.error("Reputation extraction failed for guild %s using %s/%s: %s", guild_id, cfg.extractionProvider, cfg.extractionModel or config.aiConfig.preferredAiProvider, exc)
+            provider = cfg.extractionProvider if cfg.extractionModel else config.memoryConfig.extractionProvider or cfg.extractionProvider
+            model = cfg.extractionModel or config.memoryConfig.extractionModel or getattr(config.aiConfig, provider, config.aiConfig.openrouter).preferredModel
+            logger.error("Reputation extraction failed for guild %s using %s/%s: %s", guild_id, provider, model, exc)
             return
         await self.q.delete_ids([row["_id_oid"] for row in batch])
         self._last_run[str(guild_id)] = now.timestamp()
@@ -112,10 +114,20 @@ class ReputationExtractionService:
         transcript = "\n".join(f"[{row['author_name']}{' (context only)' if row.get('context_only') else ''} (msg:{row['message_id']})]: {row['content']}" for row in batch)
         prompt = f"## TRANSCRIPT\n{transcript}\n\n## ELIGIBLE HUMAN USER IDS\n{sorted(participants)}"
         cfg = config.reputationConfig
-        provider_config = getattr(config.aiConfig, cfg.extractionProvider, None) or config.aiConfig.openrouter
+        provider = cfg.extractionProvider if cfg.extractionModel else config.memoryConfig.extractionProvider or cfg.extractionProvider
+        model = cfg.extractionModel or config.memoryConfig.extractionModel
+        provider_config = getattr(config.aiConfig, provider, None) or config.aiConfig.openrouter
+        model = model or provider_config.preferredModel
+        if not model or model == provider:
+            raise ValueError("Reputation extraction needs a configured model ID; set reputationConfig.extractionModel or memoryConfig.extractionModel")
         request_messages = [Message(role="system", parts=[MessagePart(type="text", text=SYSTEM_PROMPT)]), Message(role="user", parts=[MessagePart(type="text", text=prompt)])]
+        gateway = get_mesh_gateway()
+        models = await gateway.get_models(provider, credentials={"api_key": provider_config.get_api_key()})
+        model_info = next((item for item in models if item.id == model), None)
+        if model_info and not model_info.capabilities.tools:
+            raise ValueError(f"Reputation extraction model '{model}' does not support tool calls")
         for _ in range(cfg.maxToolRounds):
-            response = await get_mesh_gateway().complete(NormalizedRequest(provider=cfg.extractionProvider, model=cfg.extractionModel or provider_config.preferredModel, messages=request_messages, tools=REPUTATION_TOOLS, temperature=0.1), credentials={"api_key": provider_config.get_api_key()})
+            response = await gateway.complete(NormalizedRequest(provider=provider, model=model, messages=request_messages, tools=REPUTATION_TOOLS, temperature=0.1), credentials={"api_key": provider_config.get_api_key()})
             calls = [part for part in response.parts if part.type == "tool_call"]
             if not calls:
                 return

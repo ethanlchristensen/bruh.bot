@@ -34,8 +34,8 @@ function MemoryConfigComponent() {
   const [embeddingModel, setEmbeddingModel] = useState('openai/text-embedding-3-small');
   const [maxToolRounds, setMaxToolRounds] = useState(8);
   const [maxToolCallsPerBatch, setMaxToolCallsPerBatch] = useState(40);
-  const [maxAddsPerUserPerBatch, setMaxAddsPerUserPerBatch] = useState(10);
-  const [dedupeThreshold, setDedupeThreshold] = useState(0.92);
+const [maxAddsPerUserPerBatch, setMaxAddsPerUserPerBatch] = useState(10);
+const [dedupeThreshold, setDedupeThreshold] = useState(0.92);
   const [semanticRetrieval, setSemanticRetrieval] = useState(true);
   const [retrievalMinScore, setRetrievalMinScore] = useState(0.35);
 

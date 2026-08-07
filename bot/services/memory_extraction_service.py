@@ -78,6 +78,7 @@ class MemoryExtractionService:
         self.logger = logging.getLogger(__name__)
         self._message_locks: dict[str, asyncio.Lock] = {}
         self._last_extraction: dict[str, float] = {}
+        self._last_was_bot: set[str] = set()
         self._running = False
         self._main_task: asyncio.Task | None = None
 
@@ -105,6 +106,8 @@ class MemoryExtractionService:
         if guild_id not in self._last_extraction:
             self._last_extraction[guild_id] = 0.0
 
+        self._last_was_bot.discard(guild_id)
+
         await self.q.enqueue(
             guild_id=message.guild.id,
             message_id=message.id,
@@ -112,6 +115,31 @@ class MemoryExtractionService:
             author_id=message.author.id,
             author_name=message.author.display_name,
             timestamp=message.created_at,
+        )
+
+    async def enqueue_bot_context(self, message: "discord.Message", content: str):
+        """Stage bot responses as transcript context, skipping runs of consecutive bot messages."""
+        if not message.guild or not content.strip():
+            return
+
+        gid = str(message.guild.id)
+        if gid in self._last_was_bot:
+            return
+
+        config = await self.bot.config_service.get_config(gid)
+        if not config.memoryConfig.enabled:
+            return
+
+        self._last_was_bot.add(gid)
+
+        await self.q.enqueue(
+            guild_id=message.guild.id,
+            message_id=message.id,
+            content=content.strip()[:2000],
+            author_id=self.bot.user.id,
+            author_name=self.bot.user.name,
+            timestamp=message.created_at,
+            context_only=True,
         )
 
     async def start_extraction_loops(self):
@@ -193,6 +221,7 @@ class MemoryExtractionService:
 
                     oids = [m["_id_oid"] for m in messages_to_process if m.get("_id_oid")]
                     await self.q.delete_ids(oids)
+                    self._last_was_bot.discard(gid)
                     self._last_extraction[gid] = now_ts
             except Exception:
                 self.logger.exception(f"Error processing guild {guild_id}")
@@ -398,6 +427,7 @@ Analyze the conversation transcript above. Follow your workflow: search for exis
 
             oids = [m["_id_oid"] for m in messages_to_process if m.get("_id_oid")]
             await self.q.delete_ids(oids)
+            self._last_was_bot.discard(guild_id)
             self._last_extraction[guild_id] = datetime.now(UTC).timestamp()
 
         return len(user_ids_in_batch)
@@ -422,5 +452,6 @@ Analyze the conversation transcript above. Follow your workflow: search for exis
 
         oids = [m["_id_oid"] for m in messages_to_process if m.get("_id_oid")]
         await self.q.delete_ids(oids)
+        self._last_was_bot.discard(guild_id)
         self._last_extraction[guild_id] = datetime.now(UTC).timestamp()
         return True

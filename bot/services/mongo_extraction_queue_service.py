@@ -18,15 +18,6 @@ class MongoExtractionQueueService:
 
     async def initialize(self):
         await self._ensure_indexes()
-        await self._cleanup_context_only_rows()
-
-    async def _cleanup_context_only_rows(self):
-        try:
-            result = await self.collection.delete_many({"context_only": True})
-            if result.deleted_count:
-                self.logger.info("Cleaned up %s stale context_only rows from memory queue", result.deleted_count)
-        except Exception:
-            self.logger.exception("Failed to clean up context_only rows from memory queue")
 
     async def _ensure_indexes(self):
         try:
@@ -73,8 +64,21 @@ class MongoExtractionQueueService:
         return await self.collection.count_documents({"guild_id": Int64(guild_id), "context_only": {"$ne": True}})
 
     async def fetch_batch(self, guild_id: int, limit: int) -> list[dict]:
-        cursor = self.collection.find({"guild_id": Int64(guild_id), "context_only": {"$ne": True}}).sort("timestamp", 1).limit(limit)
-        docs = await cursor.to_list(length=limit)
+        cursor = self.collection.find({"guild_id": Int64(guild_id)}).sort("timestamp", 1)
+        docs = []
+        user_message_count = 0
+
+        async for doc in cursor:
+            if doc.get("context_only"):
+                if user_message_count:
+                    docs.append(doc)
+                continue
+
+            if user_message_count >= limit:
+                break
+
+            docs.append(doc)
+            user_message_count += 1
 
         for doc in docs:
             doc["_id_oid"] = doc["_id"]

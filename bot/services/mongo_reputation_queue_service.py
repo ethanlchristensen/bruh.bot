@@ -18,6 +18,9 @@ class MongoReputationQueueService:
         await self.collection.create_index([("guild_id", 1), ("message_id", 1)], unique=True)
         await self.collection.create_index([("guild_id", 1), ("channel_id", 1), ("timestamp", 1)])
         await self.collection.create_index("created_at", expireAfterSeconds=604800)
+        result = await self.collection.delete_many({"interaction": {"$ne": True}})
+        if result.deleted_count:
+            self.logger.info("Removed %s legacy non-interaction reputation queue rows", result.deleted_count)
 
     async def enqueue(self, guild_id: int, channel_id: int, message_id: int, content: str, author_id: int, author_name: str, timestamp: datetime, context_only: bool = False):
         doc = {
@@ -29,23 +32,24 @@ class MongoReputationQueueService:
             "author_name": author_name,
             "timestamp": timestamp,
             "context_only": context_only,
+            "interaction": True,
             "created_at": datetime.now(UTC),
         }
         await self.collection.update_one({"guild_id": Int64(guild_id), "message_id": Int64(message_id)}, {"$set": doc}, upsert=True)
 
     async def count(self, guild_id: int) -> int:
-        return await self.collection.count_documents({"guild_id": Int64(guild_id), "context_only": {"$ne": True}})
+        return await self.collection.count_documents({"guild_id": Int64(guild_id), "interaction": True, "context_only": {"$ne": True}})
 
     async def get_oldest_timestamp(self, guild_id: int):
-        doc = await self.collection.find_one({"guild_id": Int64(guild_id), "context_only": {"$ne": True}}, sort=[("timestamp", 1)])
+        doc = await self.collection.find_one({"guild_id": Int64(guild_id), "interaction": True, "context_only": {"$ne": True}}, sort=[("timestamp", 1)])
         return doc.get("timestamp") if doc else None
 
     async def get_pending_guild_ids(self) -> list[int]:
-        rows = await self.collection.distinct("guild_id", {"context_only": {"$ne": True}})
+        rows = await self.collection.distinct("guild_id", {"interaction": True, "context_only": {"$ne": True}})
         return [int(guild_id) for guild_id in rows]
 
     async def fetch_batch(self, guild_id: int, limit: int) -> list[dict]:
-        cursor = self.collection.find({"guild_id": Int64(guild_id)}).sort("timestamp", 1)
+        cursor = self.collection.find({"guild_id": Int64(guild_id), "interaction": True}).sort("timestamp", 1)
         docs = []
         user_count = 0
         async for doc in cursor:

@@ -61,7 +61,7 @@ class ReputationExtractionService:
         await self.q.enqueue(message.guild.id, message.channel.id, message.id, content, message.author.id, message.author.display_name, message.created_at)
 
     async def enqueue_bot_context(self, message: "discord.Message", content: str):
-        if not message.guild or not content.strip():
+        if not message.guild or not content.strip() or message.author.id != self.bot.user.id:
             return
         config = await self.bot.config_service.get_config(str(message.guild.id))
         if config.reputationConfig.enabled:

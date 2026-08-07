@@ -232,7 +232,7 @@ class ReputationExtractionContextTests(unittest.IsolatedAsyncioTestCase):
         )
         service = ReputationExtractionService(bot)
         human = fake_message(30, 3, "Bob", "hello bot")
-        response = SimpleNamespace(id=31, guild=SimpleNamespace(id=100), channel=SimpleNamespace(id=200), created_at=None)
+        response = SimpleNamespace(id=31, guild=SimpleNamespace(id=100), channel=SimpleNamespace(id=200), author=SimpleNamespace(id=999), created_at=None)
 
         await service.enqueue_message(human)
         await service.enqueue_bot_context(response, "Hello Bob")
@@ -240,6 +240,23 @@ class ReputationExtractionContextTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(queued[0][1].get("context_only", False))
         self.assertTrue(queued[1][1]["context_only"])
         self.assertEqual(queued[1][0][4], 999)
+
+    async def test_other_bot_messages_are_not_staged_as_context(self):
+        queued = []
+
+        async def enqueue(*args, **kwargs):
+            queued.append((args, kwargs))
+
+        bot = SimpleNamespace(
+            user=SimpleNamespace(id=999, name="bruh.bot"),
+            config_service=FakeConfigService(reputation_enabled=True),
+            reputation_queue_service=SimpleNamespace(enqueue=enqueue),
+        )
+        other_bot_message = SimpleNamespace(id=31, guild=SimpleNamespace(id=100), channel=SimpleNamespace(id=200), author=SimpleNamespace(id=123), created_at=None)
+
+        await ReputationExtractionService(bot).enqueue_bot_context(other_bot_message, "External bot output")
+
+        self.assertEqual(queued, [])
 
 
 class ImageIntentPersistenceTests(unittest.IsolatedAsyncioTestCase):

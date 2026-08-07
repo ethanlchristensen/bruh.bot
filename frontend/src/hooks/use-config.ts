@@ -20,6 +20,11 @@ export const memoryKeys = {
   user: (userId: string) => [...memoryKeys.all, userId] as const,
 };
 
+export const reputationKeys = {
+  all: ['reputation'] as const,
+  user: (userId: string) => [...reputationKeys.all, userId] as const,
+};
+
 // Get config
 export function useConfig() {
   return useQuery({
@@ -105,10 +110,16 @@ export function useGuilds() {
   });
 }
 
-export function useModels(provider: string, endpoint?: string, imageGen?: boolean, structuredOutputs?: boolean) {
+export function useModels(
+  provider: string,
+  endpoint?: string,
+  imageGen?: boolean,
+  structuredOutputs?: boolean,
+) {
   return useQuery({
     queryKey: ['models', provider, endpoint, imageGen, structuredOutputs],
-    queryFn: () => apiClient.getModels(provider, endpoint, imageGen, structuredOutputs),
+    queryFn: () =>
+      apiClient.getModels(provider, endpoint, imageGen, structuredOutputs),
     enabled: !!provider,
     staleTime: 30000,
   });
@@ -117,8 +128,19 @@ export function useModels(provider: string, endpoint?: string, imageGen?: boolea
 export function useRefreshModels() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (params: { provider: string; endpoint?: string; imageGen?: boolean; structuredOutputs?: boolean }) =>
-      apiClient.getModels(params.provider, params.endpoint, params.imageGen, params.structuredOutputs, true),
+    mutationFn: (params: {
+      provider: string;
+      endpoint?: string;
+      imageGen?: boolean;
+      structuredOutputs?: boolean;
+    }) =>
+      apiClient.getModels(
+        params.provider,
+        params.endpoint,
+        params.imageGen,
+        params.structuredOutputs,
+        true,
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['models'] });
     },
@@ -149,6 +171,37 @@ export function useUsers() {
     queryKey: ['users'],
     queryFn: () => apiClient.getUsers(),
     staleTime: 30000,
+  });
+}
+
+export function useReputation(userId: string) {
+  return useQuery({
+    queryKey: reputationKeys.user(userId),
+    queryFn: () => apiClient.getReputation(userId),
+    enabled: userId.length > 0,
+    staleTime: 10000,
+  });
+}
+
+export function useUpdateReputation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      userId,
+      data,
+    }: {
+      userId: string;
+      data: {
+        score?: number;
+        status?: 'active' | 'warning' | 'blocked' | 'manual_blocked';
+        reason: string;
+      };
+    }) => apiClient.updateReputation(userId, data),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: reputationKeys.user(variables.userId),
+      });
+    },
   });
 }
 

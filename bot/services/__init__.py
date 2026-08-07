@@ -7,7 +7,7 @@ from .ai.real_time_audio_service import (
     VoiceReceiveSink,
 )
 from .ai.types import ImageGenerationResponse, UserIntent
-from .config_service import BaseConfig, ConfigService, DynamicConfig, EconomyConfig, MemoryConfig, get_config_service
+from .config_service import BaseConfig, ConfigService, DynamicConfig, EconomyConfig, MemoryConfig, ReputationConfig, get_config_service
 from .cooldown_service import CooldownService
 from .discord_messages_service import DiscordMessagesService
 from .embed_service import ConfirmView, EmbedService, NowPlayingView, QueuePaginationView
@@ -23,9 +23,12 @@ from .mongo_guild_member_service import MongoGuildMemberService
 from .mongo_image_limit_service import MongoImageLimitService
 from .mongo_memory_service import MongoMemoryService
 from .mongo_morning_config_service import MongoMorningConfigService
+from .mongo_reputation_queue_service import MongoReputationQueueService
+from .mongo_reputation_service import MongoReputationService
 from .music.audio_service import AudioService
 from .music.music_queue_service import MusicPlayer, MusicQueueService
 from .music.types import AudioMetaData, AudioSource, FilterPreset
+from .reputation_extraction_service import ReputationExtractionService
 from .response_service import ResponseService
 
 __all__ = [
@@ -69,4 +72,8 @@ __all__ = [
     "MemoryToolExecutor",
     "MEMORY_TOOL_SCHEMAS",
     "EconomyConfig",
+    "ReputationConfig",
+    "MongoReputationQueueService",
+    "MongoReputationService",
+    "ReputationExtractionService",
 ]

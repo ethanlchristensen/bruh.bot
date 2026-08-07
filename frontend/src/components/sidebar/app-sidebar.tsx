@@ -1,5 +1,17 @@
 import * as React from 'react';
-import { BrainCircuit, Coins, Gauge, Music, PanelLeft, Server, Settings, Sparkles, Trophy, Users } from 'lucide-react';
+import {
+  BrainCircuit,
+  Coins,
+  Gauge,
+  Music,
+  PanelLeft,
+  Server,
+  Settings,
+  ShieldAlert,
+  Sparkles,
+  Trophy,
+  Users,
+} from 'lucide-react';
 import { Link, useLocation } from '@tanstack/react-router';
 import { useAuth } from '@/hooks/use-auth';
 
@@ -32,6 +44,7 @@ const data = {
         { title: 'Usage', url: '/config/usage', icon: Gauge },
         { title: 'Economy', url: '/config/economy', icon: Coins },
         { title: 'Leaderboard', url: '/config/leaderboard', icon: Trophy },
+        { title: 'Reputation', url: '/config/reputation', icon: ShieldAlert },
       ],
     },
     {
@@ -71,11 +84,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   onClick={toggleSidebar}
                   className="flex items-center justify-center size-8 rounded-md hover:bg-sidebar-accent"
                 >
-                  <img src="/bruh.chat.png" alt="Logo" className="size-6 rounded-sm" />
+                  <img
+                    src="/bruh.chat.png"
+                    alt="Logo"
+                    className="size-6 rounded-sm"
+                  />
                 </button>
               ) : (
                 <div className="flex items-center gap-2 h-8 px-2">
-                  <img src="/bruh.chat.png" alt="Logo" className="size-6 rounded-sm shrink-0" />
+                  <img
+                    src="/bruh.chat.png"
+                    alt="Logo"
+                    className="size-6 rounded-sm shrink-0"
+                  />
                   <span className="font-semibold text-sm">bruh.bot</span>
                 </div>
               )}
@@ -152,9 +173,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           );
         })}
       </SidebarContent>
-      <SidebarFooter>
-        {user && <NavUser />}
-      </SidebarFooter>
+      <SidebarFooter>{user && <NavUser />}</SidebarFooter>
     </Sidebar>
   );
 }

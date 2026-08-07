@@ -25,7 +25,10 @@ from bot.services import (
     MongoImageLimitService,
     MongoMemoryService,
     MongoMorningConfigService,
+    MongoReputationQueueService,
+    MongoReputationService,
     MusicQueueService,
+    ReputationExtractionService,
     ResponseService,
 )
 from bot.services.ai import (
@@ -72,6 +75,9 @@ class BruhBot(commands.Bot):
         self.ai_usage_tracking_service = MongoAIUsageTrackingService(self)
         self.economy_service = MongoEconomyService(self)
         self.guild_member_service = MongoGuildMemberService(self)
+        self.reputation_queue_service = MongoReputationQueueService(self)
+        self.reputation_service = MongoReputationService(self)
+        self.reputation_extraction_service = ReputationExtractionService(self)
 
     async def setup_hook(self):
         # Initialize database services
@@ -124,6 +130,16 @@ class BruhBot(commands.Bot):
             await self.memory_extraction_service.start_extraction_loops()
         except Exception as e:
             self.logger.warning(f"Failed to start memory extraction loops: {e}")
+
+        for service in (self.reputation_queue_service, self.reputation_service):
+            try:
+                await service.initialize()
+            except Exception as e:
+                self.logger.warning(f"Failed to initialize reputation service: {e}")
+        try:
+            await self.reputation_extraction_service.start_extraction_loops()
+        except Exception as e:
+            self.logger.warning(f"Failed to start reputation extraction loop: {e}")
 
         await self.slash_loader.load_commands()
         await self.load_cogs()
@@ -209,6 +225,7 @@ class BruhBot(commands.Bot):
 
         if message.guild:
             await self.memory_extraction_service.enqueue_message(message)
+            await self.reputation_extraction_service.enqueue_message(message)
 
             econ_config = config.economyConfig
             if econ_config.xpEnabled:
@@ -238,6 +255,13 @@ class BruhBot(commands.Bot):
         reference_message = await self.message_service.get_reference_message(message)
         if not await self.message_service.should_respond_to_message(message, reference_message):
             return
+
+        can_respond, reputation = await self.reputation_service.can_respond(message.guild.id, message.author.id)
+        if not can_respond:
+            await self._send_reputation_notice(message, reputation, blocked=True)
+            return
+        if reputation.get("status") == "warning":
+            await self._send_reputation_notice(message, reputation, blocked=False)
 
         # Apply cooldown check
         if not await self.cooldown_service.check_cooldown(message.author.id, message.guild.id, message.author.name):
@@ -396,6 +420,7 @@ class BruhBot(commands.Bot):
                 content=content,
             )
             await self.memory_extraction_service.enqueue_bot_context(sent_msg, content)
+            await self.reputation_extraction_service.enqueue_bot_context(sent_msg, content)
 
     async def _handle_image_generation_intent(self, message: discord.Message, reference_message):
         """Handle image generation intent."""
@@ -449,3 +474,17 @@ class BruhBot(commands.Bot):
                 content=content,
             )
             await self.memory_extraction_service.enqueue_bot_context(sent_msg, content)
+            await self.reputation_extraction_service.enqueue_bot_context(sent_msg, content)
+
+    async def _send_reputation_notice(self, message: discord.Message, profile: dict, blocked: bool):
+        if not await self.reputation_service.should_send_notice(message.guild.id, message.author.id):
+            return
+        events = await self.reputation_service.get_recent_events(message.guild.id, message.author.id)
+        audit_lines = [f"- {event['summary']} (+{event['score_delta']})" for event in events]
+        audit = "\n".join(audit_lines) or "No recent audit entries are available."
+        if blocked:
+            embed = self.embed_service.create_error_embed(f"{message.author.mention}, bruh.bot will not respond to you right now.\n\n**Recent audit entries:**\n{audit}\n\nContact a server administrator if you believe this is incorrect.")
+            embed.title = "Interaction Blocked"
+        else:
+            embed = self.embed_service.create_warning_embed("Interaction Warning", f"{message.author.mention}, your recent interactions have lowered your reputation with bruh.bot.\n\n**Recent audit entries:**\n{audit}\n\nFurther harmful interactions may cause bruh.bot to stop responding.")
+        await message.reply(embed=embed, files=self.embed_service.get_brand_files(embed=embed))

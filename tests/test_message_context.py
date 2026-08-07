@@ -7,6 +7,7 @@ from bot.services.ai.image_generation_service import ImageGenerationService
 from bot.services.memory_extraction_service import MemoryExtractionService
 from bot.services.memory_tools import MemoryToolExecutor
 from bot.services.message_service import MessageService
+from bot.services.reputation_extraction_service import ReputationExtractionService
 
 
 class FakeChatService:
@@ -36,7 +37,7 @@ class FakeMemoryService:
 
 
 class FakeConfigService:
-    def __init__(self, memories_enabled=False):
+    def __init__(self, memories_enabled=False, reputation_enabled=False):
         self.config = SimpleNamespace(
             aiConfig=SimpleNamespace(systemPrompt="You are Bruh."),
             memoryConfig=SimpleNamespace(
@@ -44,6 +45,7 @@ class FakeConfigService:
                 maxInjectionCount=8,
                 semanticRetrieval=False,
             ),
+            reputationConfig=SimpleNamespace(enabled=reputation_enabled, minMessageLength=3),
             idToUsers={"2": "Alice", "3": "Bob"},
             usersToId={"Alice": "2", "Bob": "3"},
         )
@@ -57,10 +59,11 @@ def fake_message(message_id, author_id, author_name, content, mentions=()):
         id=message_id,
         guild=SimpleNamespace(id=100),
         channel=SimpleNamespace(id=200),
-        author=SimpleNamespace(id=author_id, name=author_name),
+        author=SimpleNamespace(id=author_id, name=author_name, bot=False),
         content=content,
         mentions=list(mentions),
         attachments=[],
+        created_at=None,
     )
 
 
@@ -194,6 +197,30 @@ class MemoryExtractionContextTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["error"], "Bot memories cannot be created")
 
 
+class ReputationExtractionContextTests(unittest.IsolatedAsyncioTestCase):
+    async def test_human_and_bot_turns_are_staged_with_distinct_roles(self):
+        queued = []
+
+        async def enqueue(*args, **kwargs):
+            queued.append((args, kwargs))
+
+        bot = SimpleNamespace(
+            user=SimpleNamespace(id=999, name="bruh.bot"),
+            config_service=FakeConfigService(reputation_enabled=True),
+            reputation_queue_service=SimpleNamespace(enqueue=enqueue),
+        )
+        service = ReputationExtractionService(bot)
+        human = fake_message(30, 3, "Bob", "hello bot")
+        response = SimpleNamespace(id=31, guild=SimpleNamespace(id=100), channel=SimpleNamespace(id=200), created_at=None)
+
+        await service.enqueue_message(human)
+        await service.enqueue_bot_context(response, "Hello Bob")
+
+        self.assertFalse(queued[0][1].get("context_only", False))
+        self.assertTrue(queued[1][1]["context_only"])
+        self.assertEqual(queued[1][0][4], 999)
+
+
 class ImageIntentPersistenceTests(unittest.IsolatedAsyncioTestCase):
     async def test_image_turn_uses_shared_context_and_saves_assistant_response(self):
         messages = [Message(role="system", parts=[MessagePart(type="text", text="memories")]), Message(role="user", parts=[MessagePart(type="text", text="[Bob]: draw a city")])]
@@ -212,6 +239,7 @@ class ImageIntentPersistenceTests(unittest.IsolatedAsyncioTestCase):
             response_service=SimpleNamespace(send_response=self._send_response),
             chat_service=SimpleNamespace(save_message=self._save_message),
             memory_extraction_service=SimpleNamespace(enqueue_bot_context=self._enqueue_bot_context),
+            reputation_extraction_service=SimpleNamespace(enqueue_bot_context=self._enqueue_reputation_context),
             logger=SimpleNamespace(info=lambda *_args: None),
         )
         message = fake_message(30, 3, "Bob", "<@999> draw a city")
@@ -246,6 +274,9 @@ class ImageIntentPersistenceTests(unittest.IsolatedAsyncioTestCase):
 
     async def _enqueue_bot_context(self, _message, content):
         self.bot_context = {"content": content}
+
+    async def _enqueue_reputation_context(self, _message, content):
+        self.reputation_context = {"content": content}
 
 
 if __name__ == "__main__":

@@ -18,6 +18,7 @@ import { Route as MainMusicRouteImport } from './app/routes/_main/music'
 import { Route as MainConfigIndexRouteImport } from './app/routes/_main/config/index'
 import { Route as MainConfigUsageRouteImport } from './app/routes/_main/config/usage'
 import { Route as MainConfigServerRouteImport } from './app/routes/_main/config/server'
+import { Route as MainConfigReputationRouteImport } from './app/routes/_main/config/reputation'
 import { Route as MainConfigMemoryRouteImport } from './app/routes/_main/config/memory'
 import { Route as MainConfigMemoriesRouteImport } from './app/routes/_main/config/memories'
 import { Route as MainConfigLeaderboardRouteImport } from './app/routes/_main/config/leaderboard'
@@ -68,6 +69,11 @@ const MainConfigServerRoute = MainConfigServerRouteImport.update({
   path: '/config/server',
   getParentRoute: () => MainRoute,
 } as any)
+const MainConfigReputationRoute = MainConfigReputationRouteImport.update({
+  id: '/config/reputation',
+  path: '/config/reputation',
+  getParentRoute: () => MainRoute,
+} as any)
 const MainConfigMemoryRoute = MainConfigMemoryRouteImport.update({
   id: '/config/memory',
   path: '/config/memory',
@@ -105,6 +111,7 @@ export interface FileRoutesByFullPath {
   '/config/leaderboard': typeof MainConfigLeaderboardRoute
   '/config/memories': typeof MainConfigMemoriesRoute
   '/config/memory': typeof MainConfigMemoryRoute
+  '/config/reputation': typeof MainConfigReputationRoute
   '/config/server': typeof MainConfigServerRoute
   '/config/usage': typeof MainConfigUsageRoute
   '/config/': typeof MainConfigIndexRoute
@@ -120,6 +127,7 @@ export interface FileRoutesByTo {
   '/config/leaderboard': typeof MainConfigLeaderboardRoute
   '/config/memories': typeof MainConfigMemoriesRoute
   '/config/memory': typeof MainConfigMemoryRoute
+  '/config/reputation': typeof MainConfigReputationRoute
   '/config/server': typeof MainConfigServerRoute
   '/config/usage': typeof MainConfigUsageRoute
   '/config': typeof MainConfigIndexRoute
@@ -137,6 +145,7 @@ export interface FileRoutesById {
   '/_main/config/leaderboard': typeof MainConfigLeaderboardRoute
   '/_main/config/memories': typeof MainConfigMemoriesRoute
   '/_main/config/memory': typeof MainConfigMemoryRoute
+  '/_main/config/reputation': typeof MainConfigReputationRoute
   '/_main/config/server': typeof MainConfigServerRoute
   '/_main/config/usage': typeof MainConfigUsageRoute
   '/_main/config/': typeof MainConfigIndexRoute
@@ -154,6 +163,7 @@ export interface FileRouteTypes {
     | '/config/leaderboard'
     | '/config/memories'
     | '/config/memory'
+    | '/config/reputation'
     | '/config/server'
     | '/config/usage'
     | '/config/'
@@ -169,6 +179,7 @@ export interface FileRouteTypes {
     | '/config/leaderboard'
     | '/config/memories'
     | '/config/memory'
+    | '/config/reputation'
     | '/config/server'
     | '/config/usage'
     | '/config'
@@ -185,6 +196,7 @@ export interface FileRouteTypes {
     | '/_main/config/leaderboard'
     | '/_main/config/memories'
     | '/_main/config/memory'
+    | '/_main/config/reputation'
     | '/_main/config/server'
     | '/_main/config/usage'
     | '/_main/config/'
@@ -262,6 +274,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MainConfigServerRouteImport
       parentRoute: typeof MainRoute
     }
+    '/_main/config/reputation': {
+      id: '/_main/config/reputation'
+      path: '/config/reputation'
+      fullPath: '/config/reputation'
+      preLoaderRoute: typeof MainConfigReputationRouteImport
+      parentRoute: typeof MainRoute
+    }
     '/_main/config/memory': {
       id: '/_main/config/memory'
       path: '/config/memory'
@@ -308,6 +327,7 @@ interface MainRouteChildren {
   MainConfigLeaderboardRoute: typeof MainConfigLeaderboardRoute
   MainConfigMemoriesRoute: typeof MainConfigMemoriesRoute
   MainConfigMemoryRoute: typeof MainConfigMemoryRoute
+  MainConfigReputationRoute: typeof MainConfigReputationRoute
   MainConfigServerRoute: typeof MainConfigServerRoute
   MainConfigUsageRoute: typeof MainConfigUsageRoute
   MainConfigIndexRoute: typeof MainConfigIndexRoute
@@ -321,6 +341,7 @@ const MainRouteChildren: MainRouteChildren = {
   MainConfigLeaderboardRoute: MainConfigLeaderboardRoute,
   MainConfigMemoriesRoute: MainConfigMemoriesRoute,
   MainConfigMemoryRoute: MainConfigMemoryRoute,
+  MainConfigReputationRoute: MainConfigReputationRoute,
   MainConfigServerRoute: MainConfigServerRoute,
   MainConfigUsageRoute: MainConfigUsageRoute,
   MainConfigIndexRoute: MainConfigIndexRoute,

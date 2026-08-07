@@ -54,6 +54,7 @@ class UpdateConfigRequest(BaseModel):
     idToUsers: dict[str, str] | None = None
     memoryConfig: dict | None = None
     economyConfig: dict | None = None
+    reputationConfig: dict | None = None
 
 
 class UpdateAIProviderRequest(BaseModel):
@@ -425,6 +426,65 @@ class DeleteMemoryResponse(BaseModel):
 class UsersResponse(BaseModel):
     success: bool
     users: list[dict]
+
+
+class ReputationUpdateRequest(BaseModel):
+    score: int | None = None
+    status: Literal["active", "warning", "blocked", "manual_blocked"] | None = None
+    reason: str = "Manual dashboard adjustment"
+
+
+def _serialize_reputation(doc: dict) -> dict:
+    return {
+        "user_id": str(doc["user_id"]),
+        "score": doc.get("score", 0),
+        "status": doc.get("status", "active"),
+        "blocked_until": doc["blocked_until"].isoformat() if doc.get("blocked_until") else None,
+        "updated_at": doc["updated_at"].isoformat() if doc.get("updated_at") else None,
+    }
+
+
+async def _get_reputation_profile(guild_id: str, user_id: int) -> dict:
+    collection = config_service.col(config_service.base.mongoReputationCollectionName)
+    query = {"guild_id": Int64(int(guild_id)), "user_id": Int64(user_id)}
+    profile = await collection.find_one(query)
+    if not profile:
+        now = datetime.now(UTC)
+        profile = {**query, "score": 0, "status": "active", "blocked_until": None, "last_notice_at": None, "created_at": now, "updated_at": now}
+        await collection.insert_one(profile)
+    return profile
+
+
+@app.get("/reputation/{user_id}")
+async def get_reputation(user_id: int, guild_id: str = Depends(get_guild_id), authorized: bool = Depends(verify_admin)):
+    profile = await _get_reputation_profile(guild_id, user_id)
+    events = await config_service.col(config_service.base.mongoReputationEventsCollectionName).find({"guild_id": Int64(int(guild_id)), "user_id": Int64(user_id)}).sort("created_at", -1).limit(20).to_list(length=20)
+    return {
+        "success": True,
+        "profile": _serialize_reputation(profile),
+        "events": [{"id": str(event["_id"]), "summary": event.get("summary", ""), "reason_code": event.get("reason_code", ""), "score_delta": event.get("score_delta", 0), "source": event.get("source", "ai"), "created_at": event["created_at"].isoformat() if event.get("created_at") else None} for event in events],
+    }
+
+
+@app.patch("/reputation/{user_id}")
+async def update_reputation(user_id: int, data: ReputationUpdateRequest, guild_id: str = Depends(get_guild_id), authorized: bool = Depends(verify_admin)):
+    if data.score is None and data.status is None:
+        raise HTTPException(status_code=400, detail="Provide a score or status")
+    profile = await _get_reputation_profile(guild_id, user_id)
+    now = datetime.now(UTC)
+    updates = {"updated_at": now}
+    if data.score is not None:
+        updates["score"] = max(0, data.score)
+    if data.status is not None:
+        updates["status"] = data.status
+        updates["blocked_until"] = now + timedelta(hours=168) if data.status == "blocked" else None
+    await config_service.col(config_service.base.mongoReputationCollectionName).update_one({"_id": profile["_id"]}, {"$set": updates})
+    score_delta = updates.get("score", profile.get("score", 0)) - profile.get("score", 0)
+    await config_service.col(config_service.base.mongoReputationEventsCollectionName).insert_one(
+        {"guild_id": Int64(int(guild_id)), "user_id": Int64(user_id), "source_message_id": Int64(int(now.timestamp() * 1_000_000)), "reason_code": "admin_adjustment", "summary": data.reason[:300], "score_delta": score_delta, "source": "admin", "created_at": now}
+    )
+    profile.update(updates)
+    return {"success": True, "profile": _serialize_reputation(profile)}
 
 
 @app.get("/users", response_model=UsersResponse)

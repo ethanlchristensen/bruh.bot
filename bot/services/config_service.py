@@ -142,6 +142,24 @@ class EconomyConfig(BaseModel):
     gamblingMaxSlotsPerDay: int = 10
 
 
+class ReputationConfig(BaseModel):
+    enabled: bool = False
+    minMessageLength: int = 3
+    minMessagesForExtraction: int = 10
+    maxMessagesPerExtraction: int = 30
+    maxExtractionWaitMinutes: int = 60
+    extractionIntervalMinutes: int = 15
+    extractionProvider: str = "openrouter"
+    extractionModel: str = ""
+    maxToolRounds: int = 3
+    maxToolCallsPerBatch: int = 10
+    minConfidence: float = 0.85
+    warningThreshold: int = 5
+    blockThreshold: int = 10
+    blockDurationHours: int = 168
+    noticeCooldownHours: int = 24
+
+
 class DiscordScrapeBotConfig(BaseModel):
     databaseName: str = ""
     collectionName: str = ""
@@ -172,6 +190,9 @@ class BaseConfig(BaseModel):
     mongoUserInventoryCollectionName: str = "UserInventory"
     mongoGuildMembersCollectionName: str = "GuildMembers"
     mongoMemoryQueueCollectionName: str = "MemoryExtractionQueue"
+    mongoReputationQueueCollectionName: str = "ReputationQueue"
+    mongoReputationCollectionName: str = "UserReputation"
+    mongoReputationEventsCollectionName: str = "ReputationEvents"
     mongoDiscordScrapeBot: DiscordScrapeBotConfig = Field(default_factory=DiscordScrapeBotConfig)
 
 
@@ -200,6 +221,7 @@ class DynamicConfig(BaseModel):
     mongoChatThreadsCollectionName: str = "ChatThreads"
     memoryConfig: MemoryConfig = Field(default_factory=MemoryConfig)
     economyConfig: EconomyConfig = Field(default_factory=EconomyConfig)
+    reputationConfig: ReputationConfig = Field(default_factory=ReputationConfig)
 
 
 class ConfigService:

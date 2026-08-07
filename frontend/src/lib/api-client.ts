@@ -97,6 +97,37 @@ export interface EconomyConfig {
   gamblingMaxSlotsPerDay: number;
 }
 
+export interface ReputationConfig {
+  enabled: boolean;
+  warningThreshold: number;
+  blockThreshold: number;
+  blockDurationHours: number;
+  noticeCooldownHours: number;
+}
+
+export interface ReputationProfile {
+  user_id: string;
+  score: number;
+  status: 'active' | 'warning' | 'blocked' | 'manual_blocked';
+  blocked_until: string | null;
+  updated_at: string | null;
+}
+
+export interface ReputationEvent {
+  id: string;
+  summary: string;
+  reason_code: string;
+  score_delta: number;
+  source: string;
+  created_at: string | null;
+}
+
+export interface ReputationResponse {
+  success: boolean;
+  profile: ReputationProfile;
+  events: Array<ReputationEvent>;
+}
+
 export interface EconomyProfile {
   user_id: string;
   guild_id: number;
@@ -194,6 +225,7 @@ export interface DynamicConfig {
   globalBlockList: Array<string>;
   memoryConfig: MemoryConfig;
   economyConfig?: EconomyConfig;
+  reputationConfig: ReputationConfig;
 }
 
 export interface ConfigResponse {
@@ -217,6 +249,7 @@ export interface UpdateConfigRequest {
   idToUsers?: Record<string, string>;
   memoryConfig?: Partial<MemoryConfig>;
   economyConfig?: Partial<EconomyConfig>;
+  reputationConfig?: Partial<ReputationConfig>;
 }
 
 export interface UpdateAIProviderRequest {
@@ -313,7 +346,15 @@ export interface LeaderboardEntry {
   total_input_tokens: number;
   total_output_tokens: number;
   total_cost: number;
-  models_used: Record<string, { requests: number; input_tokens: number; output_tokens: number; cost: number }>;
+  models_used: Record<
+    string,
+    {
+      requests: number;
+      input_tokens: number;
+      output_tokens: number;
+      cost: number;
+    }
+  >;
 }
 
 export interface UsageLeaderboardResponse {
@@ -438,17 +479,24 @@ export class ConfigAPIClient {
   }
 
   // Get available models for a provider
-  async getModels(provider: string, endpoint?: string, imageGen?: boolean, structuredOutputs?: boolean, refresh?: boolean): Promise<{ success: boolean; models: Array<string>; error?: string }> {
+  async getModels(
+    provider: string,
+    endpoint?: string,
+    imageGen?: boolean,
+    structuredOutputs?: boolean,
+    refresh?: boolean,
+  ): Promise<{ success: boolean; models: Array<string>; error?: string }> {
     const ep = endpoint ? encodeURIComponent(endpoint) : '';
     const ig = imageGen ? '&image_gen=true' : '';
     const so = structuredOutputs ? '&structured_outputs=true' : '';
     const rf = refresh ? '&refresh=true' : '';
-    return this.fetch<{ success: boolean; models: Array<string>; error?: string }>(
-      `/config/models?provider=${provider}&endpoint=${ep}${ig}${so}${rf}`,
-      {
-        method: 'GET',
-      }
-    );
+    return this.fetch<{
+      success: boolean;
+      models: Array<string>;
+      error?: string;
+    }>(`/config/models?provider=${provider}&endpoint=${ep}${ig}${so}${rf}`, {
+      method: 'GET',
+    });
   }
 
   // Get available guilds
@@ -488,10 +536,13 @@ export class ConfigAPIClient {
   }
 
   // Get economy leaderboard
-  async getEconomyLeaderboard(sortBy: string = 'xp', limit: number = 25): Promise<EconomyLeaderboardResponse> {
+  async getEconomyLeaderboard(
+    sortBy: string = 'xp',
+    limit: number = 25,
+  ): Promise<EconomyLeaderboardResponse> {
     return this.fetch<EconomyLeaderboardResponse>(
       `/economy/leaderboard?sort_by=${sortBy}&limit=${limit}`,
-      { method: 'GET' }
+      { method: 'GET' },
     );
   }
 
@@ -503,11 +554,17 @@ export class ConfigAPIClient {
   }
 
   // Update economy profile
-  async updateEconomyProfile(userId: string, data: UpdateEconomyProfileRequest): Promise<UpdateEconomyProfileResponse> {
-    return this.fetch<UpdateEconomyProfileResponse>(`/economy/profile/${userId}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
+  async updateEconomyProfile(
+    userId: string,
+    data: UpdateEconomyProfileRequest,
+  ): Promise<UpdateEconomyProfileResponse> {
+    return this.fetch<UpdateEconomyProfileResponse>(
+      `/economy/profile/${userId}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      },
+    );
   }
 
   // Get economy rank
@@ -522,6 +579,26 @@ export class ConfigAPIClient {
     const params = search ? `?search=${encodeURIComponent(search)}` : '';
     return this.fetch<MembersResponse>(`/members${params}`, {
       method: 'GET',
+    });
+  }
+
+  async getReputation(userId: string): Promise<ReputationResponse> {
+    return this.fetch<ReputationResponse>(`/reputation/${userId}`, {
+      method: 'GET',
+    });
+  }
+
+  async updateReputation(
+    userId: string,
+    data: {
+      score?: number;
+      status?: ReputationProfile['status'];
+      reason: string;
+    },
+  ): Promise<{ success: boolean; profile: ReputationProfile }> {
+    return this.fetch(`/reputation/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
     });
   }
 

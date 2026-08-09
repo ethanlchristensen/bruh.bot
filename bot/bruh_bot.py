@@ -274,7 +274,6 @@ class BruhBot(commands.Bot):
 
         can_respond, reputation = await self.reputation_service.can_respond(message.guild.id, message.author.id)
         if not can_respond:
-            reputation = await self.reputation_service.refresh_block(message.guild.id, message.author.id)
             await self._send_reputation_notice(message, reputation, blocked=True, force=True)
             return
         if reputation.get("status") == "warning":
@@ -512,7 +511,7 @@ class BruhBot(commands.Bot):
         audit = "\n".join(audit_lines) or "No recent audit entries are available."
         if blocked:
             until = profile.get("blocked_until")
-            expiry = f"Your block has been extended until <t:{int(until.timestamp())}:R>." if until else "This is a manual block."
+            expiry = f"Your block expires <t:{int(until.timestamp())}:R>." if until else "This is a manual block."
             embed = self.embed_service.create_error_embed(f"{message.author.mention}, bruh.bot will not respond to you right now. {expiry}\n\n**Recent audit entries:**\n{audit}\n\nUse `/reputation me` to view your reputation and recent events privately. Contact a server administrator if you believe this is incorrect.")
             embed.title = "Interaction Blocked"
         else:

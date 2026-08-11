@@ -95,6 +95,20 @@ export interface EconomyConfig {
   gamblingMaxCoinflipsPerDay: number;
   gamblingMaxDicePerDay: number;
   gamblingMaxSlotsPerDay: number;
+  cardPacksEnabled: boolean;
+  tradingEnabled: boolean;
+  marketplaceEnabled: boolean;
+  marketplaceFeeRate: number;
+  tradeCooldownMinutes: number;
+  cardSellbackRate: number;
+  cosmeticsShopEnabled: boolean;
+  bruhCardsEnabled: boolean;
+  tradingCardPacksEnabled: boolean;
+  tradingCardTradingEnabled: boolean;
+  tradingCardMarketEnabled: boolean;
+  tradingCardMarketFeeRate: number;
+  tradingCardSellbackRate: number;
+  tradingCardMaxActiveListings: number;
 }
 
 export interface ReputationConfig {

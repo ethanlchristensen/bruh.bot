@@ -1,0 +1,146 @@
+import hashlib
+import logging
+import os
+from io import BytesIO
+from typing import TYPE_CHECKING
+
+from motor.motor_asyncio import AsyncIOMotorGridFSBucket
+from PIL import Image, ImageDraw, ImageFont
+
+from bot.data.trading_card_models import RARITY_FRAME_COLORS, TradingCardRarity
+
+if TYPE_CHECKING:
+    from bot.bruh_bot import BruhBot
+
+CARD_CANVAS = (768, 1024)
+ART_AREA = (20, 20, 748, 900)
+FRAME_WIDTH = 12
+
+
+class TradingCardRenderService:
+    def __init__(self, bot: "BruhBot"):
+        self.bot = bot
+        self.logger = logging.getLogger(__name__)
+        assets_bucket = self.bot.config_service.base.mongoTradingCardAssetsBucketName
+        env = self.bot.config_service.environment or "dev"
+        bucket_name = f"{assets_bucket}_{env}"
+        db = self.bot.config_service.db
+        self.gridfs = AsyncIOMotorGridFSBucket(db, bucket_name=bucket_name)
+        self._rendered_cache: dict[str, bytes] = {}
+        self._art_cache: dict[str, bytes] = {}
+        self._assets_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "trading_cards")
+
+    def _get_asset_path(self, filename: str) -> str:
+        return os.path.join(self._assets_dir, filename)
+
+    def _get_font(self, size: int) -> ImageFont.FreeTypeFont:
+        font_paths = [
+            os.path.join(os.path.dirname(__file__), "..", "static", "font.ttf"),
+            "C:\\Windows\\Fonts\\segoeui.ttf",
+            "C:\\Windows\\Fonts\\arial.ttf",
+        ]
+        for fp in font_paths:
+            if os.path.exists(fp):
+                return ImageFont.truetype(fp, size)
+        return ImageFont.load_default()
+
+    async def _load_art(self, card_id: str) -> Image.Image | None:
+        if card_id in self._art_cache:
+            return Image.open(BytesIO(self._art_cache[card_id])).convert("RGBA")
+
+        # Try GridFS first
+        try:
+            gridfs_out = await self.gridfs.open_download_stream_by_name(card_id)
+            data = await gridfs_out.read()
+            self._art_cache[card_id] = data
+            return Image.open(BytesIO(data)).convert("RGBA")
+        except Exception:
+            pass
+
+        # Fallback: try local filesystem (for migration/development)
+        card = self.bot.trading_card_catalog_service.get_card(card_id)
+        if card and card.art_path:
+            path = self._get_asset_path(card.art_path)
+            if os.path.exists(path):
+                img = Image.open(path).convert("RGBA")
+                data = BytesIO()
+                img.save(data, format="PNG")
+                self._art_cache[card_id] = data.getvalue()
+                return img
+
+        self.logger.debug(f"Card art not found for: {card_id}")
+        return None
+
+    def _create_frame(self, canvas: Image.Image, rarity: TradingCardRarity):
+        color = RARITY_FRAME_COLORS.get(rarity, (160, 160, 160))
+        draw = ImageDraw.Draw(canvas)
+        draw.rounded_rectangle(
+            [0, 0, CARD_CANVAS[0] - 1, CARD_CANVAS[1] - 1],
+            radius=16,
+            outline=color,
+            width=FRAME_WIDTH,
+        )
+
+    def _draw_text_box(self, canvas: Image.Image, rarity: TradingCardRarity, name: str, card_number: int, series_name: str):
+        draw = ImageDraw.Draw(canvas)
+        color = RARITY_FRAME_COLORS.get(rarity, (160, 160, 160))
+        name_bg_top = CARD_CANVAS[1] - 124
+
+        overlay = Image.new("RGBA", CARD_CANVAS, (0, 0, 0, 0))
+        overlay_draw = ImageDraw.Draw(overlay)
+        overlay_draw.rectangle([0, name_bg_top, CARD_CANVAS[0], CARD_CANVAS[1]], fill=(0, 0, 0, 200))
+        canvas.paste(overlay, (0, 0), overlay)
+
+        try:
+            name_font = self._get_font(38)
+            rarity_font = self._get_font(26)
+            series_font = self._get_font(20)
+        except Exception:
+            name_font = ImageFont.load_default()
+            rarity_font = ImageFont.load_default()
+            series_font = ImageFont.load_default()
+
+        draw.text((CARD_CANVAS[0] // 2, name_bg_top + 18), name, fill=color, font=name_font, anchor="mt")
+        draw.text((CARD_CANVAS[0] // 2, name_bg_top + 62), rarity.value.title(), fill=color, font=rarity_font, anchor="mt")
+        draw.text((CARD_CANVAS[0] // 2, name_bg_top + 94), f"{series_name} · #{card_number}", fill=(200, 200, 200), font=series_font, anchor="mt")
+
+    def _cache_key(self, card_id: str) -> str:
+        art_hash = hashlib.md5(self._art_cache.get(card_id, b"")).hexdigest() if card_id in self._art_cache else "noart"
+        return f"{card_id}:{art_hash}:v1"
+
+    async def render_card(self, card_id: str) -> BytesIO | None:
+        cache_key = self._cache_key(card_id)
+        if cache_key in self._rendered_cache:
+            return BytesIO(self._rendered_cache[cache_key])
+
+        card = self.bot.trading_card_catalog_service.get_card(card_id)
+        if not card:
+            return None
+
+        art = await self._load_art(card_id)
+        canvas = Image.new("RGBA", CARD_CANVAS, (20, 20, 24, 255))
+
+        if art:
+            art_resized = art.resize((ART_AREA[2] - ART_AREA[0], ART_AREA[3] - ART_AREA[1]), Image.LANCZOS)
+            canvas.paste(art_resized, (ART_AREA[0], ART_AREA[1]), art_resized)
+        else:
+            draw = ImageDraw.Draw(canvas)
+            for y in range(ART_AREA[3] - ART_AREA[1]):
+                r = int(40 + (y / (ART_AREA[3] - ART_AREA[1])) * 30)
+                g = int(20 + (y / (ART_AREA[3] - ART_AREA[1])) * 20)
+                b = int(30 + (y / (ART_AREA[3] - ART_AREA[1])) * 50)
+                draw.line([(ART_AREA[0], ART_AREA[1] + y), (ART_AREA[2], ART_AREA[1] + y)], fill=(r, g, b))
+
+        display_name = card.series_id.replace("_", " ").title()
+        self._create_frame(canvas, card.rarity)
+        self._draw_text_box(canvas, card.rarity, card.name, card.number, display_name)
+
+        buffer = BytesIO()
+        canvas.save(buffer, format="PNG")
+        buffer.seek(0)
+        self._rendered_cache[cache_key] = buffer.getvalue()
+        return BytesIO(buffer.getvalue())
+
+    def invalidate_cache(self):
+        self._rendered_cache.clear()
+        self._art_cache.clear()

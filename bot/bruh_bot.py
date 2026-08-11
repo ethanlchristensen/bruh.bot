@@ -8,6 +8,8 @@ from discord.ext import commands
 from bot.services import (
     AiOrchestrator,
     AudioService,
+    CardPackService,
+    CharacterRenderService,
     ConfigService,
     CooldownService,
     DiscordMessagesService,
@@ -18,18 +20,23 @@ from bot.services import (
     MessageService,
     MongoAIUsageService,
     MongoAIUsageTrackingService,
+    MongoCardMarketService,
     MongoChatService,
     MongoEconomyService,
     MongoExtractionQueueService,
     MongoGuildMemberService,
     MongoImageLimitService,
+    MongoInventoryService,
     MongoMemoryService,
     MongoMorningConfigService,
     MongoReputationQueueService,
     MongoReputationService,
+    MongoTradingCardCatalogService,
+    MongoTradingCardService,
     MusicQueueService,
     ReputationExtractionService,
     ResponseService,
+    TradingCardRenderService,
 )
 from bot.services.ai import (
     ImageGenerationResponse,
@@ -74,6 +81,13 @@ class BruhBot(commands.Bot):
         self.ai_usage_service = MongoAIUsageService(self)
         self.ai_usage_tracking_service = MongoAIUsageTrackingService(self)
         self.economy_service = MongoEconomyService(self)
+        self.inventory_service = MongoInventoryService(self)
+        self.character_render_service = CharacterRenderService(self)
+        self.card_pack_service = CardPackService(self)
+        self.trading_card_service = MongoTradingCardService(self)
+        self.trading_card_catalog_service = MongoTradingCardCatalogService(self)
+        self.card_market_service = MongoCardMarketService(self)
+        self.trading_card_render_service = TradingCardRenderService(self)
         self.guild_member_service = MongoGuildMemberService(self)
         self.reputation_queue_service = MongoReputationQueueService(self)
         self.reputation_service = MongoReputationService(self)
@@ -115,6 +129,26 @@ class BruhBot(commands.Bot):
             await self.economy_service.initialize()
         except Exception as e:
             self.logger.warning(f"Failed to initialize economy_service: {e}")
+
+        try:
+            await self.inventory_service.initialize()
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize inventory_service: {e}")
+
+        try:
+            await self.trading_card_service.initialize()
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize trading_card_service: {e}")
+
+        try:
+            await self.trading_card_catalog_service.initialize()
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize trading_card_catalog_service: {e}")
+
+        try:
+            await self.card_market_service.initialize()
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize card_market_service: {e}")
 
         try:
             await self.guild_member_service.initialize()

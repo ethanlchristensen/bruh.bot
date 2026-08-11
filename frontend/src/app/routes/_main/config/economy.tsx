@@ -45,6 +45,13 @@ function EconomyConfigComponent() {
   const [gamblingMaxDice, setGamblingMaxDice] = useState(10);
   const [gamblingMaxSlots, setGamblingMaxSlots] = useState(10);
 
+  // bruh.cards
+  const [bruhCardsEnabled, setBruhCardsEnabled] = useState(false);
+  const [tradingCardPacks, setTradingCardPacks] = useState(true);
+  const [tradingCardTrading, setTradingCardTrading] = useState(true);
+  const [tradingCardMarket, setTradingCardMarket] = useState(false);
+  const [marketFeeRate, setMarketFeeRate] = useState(5);
+
   const initialValuesRef = useRef<{
     xpEnabled: boolean;
     coinsEnabled: boolean;
@@ -66,6 +73,11 @@ function EconomyConfigComponent() {
     gamblingMaxCoinflips: number;
     gamblingMaxDice: number;
     gamblingMaxSlots: number;
+    bruhCardsEnabled: boolean;
+    tradingCardPacks: boolean;
+    tradingCardTrading: boolean;
+    tradingCardMarket: boolean;
+    marketFeeRate: number;
   } | null>(null);
 
   useEffect(() => {
@@ -93,6 +105,11 @@ function EconomyConfigComponent() {
           gamblingMaxCoinflips: econ.gamblingMaxCoinflipsPerDay,
           gamblingMaxDice: econ.gamblingMaxDicePerDay,
           gamblingMaxSlots: econ.gamblingMaxSlotsPerDay,
+          bruhCardsEnabled: econ.bruhCardsEnabled ?? false,
+          tradingCardPacks: econ.tradingCardPacksEnabled ?? true,
+          tradingCardTrading: econ.tradingCardTradingEnabled ?? true,
+          tradingCardMarket: econ.tradingCardMarketEnabled ?? false,
+          marketFeeRate: econ.tradingCardMarketFeeRate ?? 5,
         };
         if (!initialValuesRef.current) {
           initialValuesRef.current = vals;
@@ -117,6 +134,11 @@ function EconomyConfigComponent() {
         setGamblingMaxCoinflips(vals.gamblingMaxCoinflips);
         setGamblingMaxDice(vals.gamblingMaxDice);
         setGamblingMaxSlots(vals.gamblingMaxSlots);
+        setBruhCardsEnabled(vals.bruhCardsEnabled);
+        setTradingCardPacks(vals.tradingCardPacks);
+        setTradingCardTrading(vals.tradingCardTrading);
+        setTradingCardMarket(vals.tradingCardMarket);
+        setMarketFeeRate(vals.marketFeeRate);
       }
     }
   }, [data, isSaving]);
@@ -144,7 +166,12 @@ function EconomyConfigComponent() {
       dailyCoinMax !== iv.dailyCoinMax ||
       gamblingMaxCoinflips !== iv.gamblingMaxCoinflips ||
       gamblingMaxDice !== iv.gamblingMaxDice ||
-      gamblingMaxSlots !== iv.gamblingMaxSlots
+      gamblingMaxSlots !== iv.gamblingMaxSlots ||
+      bruhCardsEnabled !== iv.bruhCardsEnabled ||
+      tradingCardPacks !== iv.tradingCardPacks ||
+      tradingCardTrading !== iv.tradingCardTrading ||
+      tradingCardMarket !== iv.tradingCardMarket ||
+      marketFeeRate !== iv.marketFeeRate
     );
   }, [
     xpEnabled, coinsEnabled, levelUpAnnounce,
@@ -152,14 +179,17 @@ function EconomyConfigComponent() {
     mentionXpMin, mentionXpMax,
     messageCoinMin, messageCoinMax, imageCoinBonus, reactionCoin,
     mentionCoinMin, mentionCoinMax, dailyCoinMin, dailyCoinMax,
-    gamblingMaxCoinflips, gamblingMaxDice, gamblingMaxSlots,
+gamblingMaxCoinflips, gamblingMaxDice, gamblingMaxSlots,
+            bruhCardsEnabled, tradingCardPacks, tradingCardTrading, tradingCardMarket, marketFeeRate,
   ]);
 
   const handleSave = () => {
     setIsSaving(true);
+    const current = data?.config?.economyConfig;
     toast.promise(
       updateConfig.mutateAsync({
         economyConfig: {
+          ...current,
           xpEnabled,
           coinsEnabled,
           levelUpAnnounceInChannel: levelUpAnnounce,
@@ -176,6 +206,11 @@ function EconomyConfigComponent() {
           gamblingMaxCoinflipsPerDay: gamblingMaxCoinflips,
           gamblingMaxDicePerDay: gamblingMaxDice,
           gamblingMaxSlotsPerDay: gamblingMaxSlots,
+          bruhCardsEnabled,
+          tradingCardPacksEnabled: tradingCardPacks,
+          tradingCardTradingEnabled: tradingCardTrading,
+          tradingCardMarketEnabled: tradingCardMarket,
+          tradingCardMarketFeeRate: marketFeeRate,
         },
       }).then(() => {
         initialValuesRef.current = {
@@ -184,7 +219,8 @@ function EconomyConfigComponent() {
           mentionXpMin, mentionXpMax,
           messageCoinMin, messageCoinMax, imageCoinBonus, reactionCoin,
 mentionCoinMin, mentionCoinMax, dailyCoinMin, dailyCoinMax,
-            gamblingMaxCoinflips, gamblingMaxDice, gamblingMaxSlots,
+gamblingMaxCoinflips, gamblingMaxDice, gamblingMaxSlots,
+    bruhCardsEnabled, tradingCardPacks, tradingCardTrading, tradingCardMarket, marketFeeRate,
           };
         return queryClient.invalidateQueries({ queryKey: ['config'] });
       }).finally(() => {
@@ -387,6 +423,65 @@ mentionCoinMin, mentionCoinMax, dailyCoinMin, dailyCoinMax,
                 <Input type="number" value={gamblingMaxSlots} onChange={(e) => setGamblingMaxSlots(parseInt(e.target.value) || 0)} className="h-10" />
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* bruh.cards */}
+        <Card variant="hero">
+          <CardHeader>
+            <div className="flex items-center gap-4">
+              <CardIcon><Dices /></CardIcon>
+              <div>
+                <CardTitle>bruh.cards</CardTitle>
+                <CardDescription>Collectible trading cards with packs, trading, and a marketplace.</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30">
+              <div className="space-y-1">
+                <Label className="font-semibold cursor-pointer">Enable bruh.cards</Label>
+                <p className="text-xs text-muted-foreground">Master switch for the entire bruh.cards feature</p>
+              </div>
+              <Switch checked={bruhCardsEnabled} onCheckedChange={setBruhCardsEnabled} />
+            </div>
+
+            {bruhCardsEnabled && (
+              <>
+                <Separator label="Sub-Features" />
+
+                <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30">
+                  <div className="space-y-1">
+                    <Label className="font-semibold cursor-pointer">Enable Pack Purchases</Label>
+                    <p className="text-xs text-muted-foreground">Players can buy and open card packs</p>
+                  </div>
+                  <Switch checked={tradingCardPacks} onCheckedChange={setTradingCardPacks} />
+                </div>
+
+                <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30">
+                  <div className="space-y-1">
+                    <Label className="font-semibold cursor-pointer">Enable Card Trading</Label>
+                    <p className="text-xs text-muted-foreground">Direct player-to-player card trades</p>
+                  </div>
+                  <Switch checked={tradingCardTrading} onCheckedChange={setTradingCardTrading} />
+                </div>
+
+                <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30">
+                  <div className="space-y-1">
+                    <Label className="font-semibold cursor-pointer">Enable Marketplace</Label>
+                    <p className="text-xs text-muted-foreground">Players can list and buy cards with coins</p>
+                  </div>
+                  <Switch checked={tradingCardMarket} onCheckedChange={setTradingCardMarket} />
+                </div>
+
+                {tradingCardMarket && (
+                  <div className="space-y-2">
+                    <Label className="text-sm">Marketplace Fee (%)</Label>
+                    <Input type="number" step="0.1" value={marketFeeRate} onChange={(e) => setMarketFeeRate(parseFloat(e.target.value) || 0)} className="h-10 w-24" />
+                   </div>
+                )}
+              </>
+            )}
           </CardContent>
         </Card>
 

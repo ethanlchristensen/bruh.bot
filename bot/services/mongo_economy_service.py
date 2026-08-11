@@ -15,10 +15,12 @@ class MongoEconomyService:
     def __init__(self, bot: "BruhBot"):
         self.bot = bot
         self.collection = self.bot.config_service.col(self.bot.config_service.base.mongoUserProfilesCollectionName)
+        self.ledger = self.bot.config_service.col(self.bot.config_service.base.mongoTransactionLedgerCollectionName)
         self.logger = logging.getLogger(__name__)
 
     async def initialize(self):
         await self._ensure_indexes()
+        await self._ensure_ledger_indexes()
 
     async def _ensure_indexes(self):
         try:
@@ -29,6 +31,82 @@ class MongoEconomyService:
             self.logger.info("Created indexes on UserProfiles collection")
         except Exception as e:
             self.logger.warning(f"Could not create indexes: {e}")
+
+    async def _ensure_ledger_indexes(self):
+        try:
+            await self.ledger.create_index([("guild_id", 1), ("created_at", -1)])
+            await self.ledger.create_index([("guild_id", 1), ("user_id", 1), ("created_at", -1)])
+            await self.ledger.create_index("idempotency_key", unique=True, sparse=True)
+            self.logger.info("Created indexes on TransactionLedger collection")
+        except Exception as e:
+            self.logger.warning(f"Could not create ledger indexes: {e}")
+
+    async def record_transaction(
+        self,
+        guild_id: int,
+        user_id: int,
+        kind: str,
+        amount: float,
+        balance_after: float,
+        reference_type: str = "",
+        reference_id: str = "",
+        idempotency_key: str = "",
+        metadata: dict | None = None,
+    ):
+        now = datetime.now(UTC)
+        doc = {
+            "guild_id": Int64(guild_id),
+            "user_id": Int64(user_id),
+            "kind": kind,
+            "amount": amount,
+            "balance_after": balance_after,
+            "reference_type": reference_type,
+            "reference_id": reference_id,
+            "metadata": metadata or {},
+            "created_at": now,
+        }
+        if idempotency_key:
+            doc["idempotency_key"] = idempotency_key
+
+        if idempotency_key:
+            existing = await self.ledger.find_one({"idempotency_key": idempotency_key})
+            if existing:
+                return existing
+
+        await self.ledger.insert_one(doc)
+        return doc
+
+    async def deduct_coins_atomic(self, guild_id: int, user_id: int, amount: float, idempotency_key: str = "") -> tuple[bool, float]:
+        if idempotency_key:
+            existing = await self.ledger.find_one({"idempotency_key": idempotency_key})
+            if existing:
+                doc = await self._get_or_create_profile_raw(guild_id, user_id)
+                return True, doc.get("bruh_coins", 0.0)
+
+        doc = await self._get_or_create_profile_raw(guild_id, user_id)
+        current = doc.get("bruh_coins", 0.0)
+        if current < amount:
+            return False, current
+
+        now = datetime.now(UTC)
+        result = await self.collection.find_one_and_update(
+            {"guild_id": Int64(guild_id), "user_id": Int64(user_id), "bruh_coins": {"$gte": amount}},
+            {"$inc": {"bruh_coins": -amount}, "$set": {"updated_at": now}},
+            return_document=True,
+        )
+        if result is None:
+            return False, current
+
+        new_balance = result.get("bruh_coins", 0.0)
+        await self.record_transaction(
+            guild_id,
+            user_id,
+            "debit",
+            -amount,
+            new_balance,
+            idempotency_key=idempotency_key,
+        )
+        return True, new_balance
 
     @staticmethod
     def _calculate_level(xp: int) -> int:
@@ -146,7 +224,9 @@ class MongoEconomyService:
                 {"$inc": {"bruh_coins": amount}, "$set": {"updated_at": now}},
                 return_document=True,
             )
-        return result.get("bruh_coins", 0.0) if result else 0.0
+        balance = result.get("bruh_coins", 0.0) if result else 0.0
+        await self.record_transaction(guild_id, user_id, "credit", amount, balance)
+        return balance
 
     async def deduct_coins(self, guild_id: int, user_id: int, amount: float) -> tuple[bool, float]:
         doc = await self._get_or_create_profile_raw(guild_id, user_id)
@@ -160,6 +240,7 @@ class MongoEconomyService:
             return_document=True,
         )
         new_balance = result.get("bruh_coins", 0.0) if result else 0.0
+        await self.record_transaction(guild_id, user_id, "debit", -amount, new_balance)
         return True, new_balance
 
     async def add_stat(self, guild_id: int, user_id: int, stat_field: str):

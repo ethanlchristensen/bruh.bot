@@ -140,6 +140,21 @@ class EconomyConfig(BaseModel):
     gamblingMaxCoinflipsPerDay: int = 10
     gamblingMaxDicePerDay: int = 10
     gamblingMaxSlotsPerDay: int = 10
+    cardPacksEnabled: bool = True
+    tradingEnabled: bool = True
+    marketplaceEnabled: bool = False
+    marketplaceFeeRate: float = 0.05
+    tradeCooldownMinutes: int = 5
+    cardSellbackRate: float = 0.1
+    cosmeticsShopEnabled: bool = True
+    # Independent trading card settings
+    bruhCardsEnabled: bool = False
+    tradingCardPacksEnabled: bool = True
+    tradingCardTradingEnabled: bool = True
+    tradingCardMarketEnabled: bool = False
+    tradingCardMarketFeeRate: float = 0.05
+    tradingCardSellbackRate: float = 1.0
+    tradingCardMaxActiveListings: int = 20
 
 
 class ReputationConfig(BaseModel):
@@ -186,8 +201,17 @@ class BaseConfig(BaseModel):
     mongoChatThreadsCollectionName: str = "ChatThreads"
     mongoUserMemoriesCollectionName: str = "UserMemories"
     mongoUserProfilesCollectionName: str = "UserProfiles"
-    mongoShopItemsCollectionName: str = "ShopItems"
     mongoUserInventoryCollectionName: str = "UserInventory"
+    mongoTransactionLedgerCollectionName: str = "TransactionLedger"
+    mongoCardPacksCollectionName: str = "CardPacks"
+    mongoTradeListingsCollectionName: str = "TradeListings"
+    mongoTradingCardCollectionsCollectionName: str = "TradingCardCollections"
+    mongoTradingCardMarketListingsCollectionName: str = "TradingCardMarketListings"
+    mongoTradingCardSetsCollectionName: str = "TradingCardSets"
+    mongoTradingCardCatalogCollectionName: str = "TradingCardCatalog"
+    mongoTradingCardPacksCollectionName: str = "TradingCardPacks"
+    mongoTradingCardAssetsBucketName: str = "TradingCardAssets"
+    mongoShopItemsCollectionName: str = "ShopItems"
     mongoGuildMembersCollectionName: str = "GuildMembers"
     mongoMemoryQueueCollectionName: str = "MemoryExtractionQueue"
     mongoReputationQueueCollectionName: str = "ReputationQueue"

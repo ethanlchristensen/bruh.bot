@@ -47,6 +47,7 @@ class MongoTradingCardCatalogService:
                 art_path="",  # GridFS — resolved at render time
                 tradable=doc.get("tradable", True),
                 released=True,
+                asset_sha256=doc.get("asset_sha256", ""),
             )
             self._cards_cache[card.card_id] = card
 
@@ -94,3 +95,35 @@ class MongoTradingCardCatalogService:
 
     def get_packs_by_series(self, series_id: str) -> dict[str, CardPackDefinition]:
         return {k: v for k, v in self._packs_cache.items() if v.series_id == series_id}
+
+    def get_eligible_cards_for_pack(self, pack_id: str) -> dict[str, list[dict]]:
+        """Returns eligible cards for a pack, grouped by rarity.
+
+        Only shows cards that actually belong to this pack's series — the per-rarity
+        fallback to all-series cards (used during gameplay) is intentionally omitted
+        so the admin view accurately reflects the collection's contents.
+        """
+        pack = self.get_pack(pack_id)
+        if not pack:
+            return {}
+
+        series_cards = self.get_cards_by_series(pack.series_id)
+
+        grouped: dict[str, list[dict]] = {}
+        rarity_order = [TradingCardRarity.BASIC, TradingCardRarity.COMMON, TradingCardRarity.RARE, TradingCardRarity.EPIC, TradingCardRarity.LEGENDARY, TradingCardRarity.DIAMOND, TradingCardRarity.PLATINUM]
+
+        for rarity in rarity_order:
+            candidates = [c for c in series_cards if c.rarity == rarity]
+            grouped[rarity.value] = [
+                {
+                    "card_id": c.card_id,
+                    "number": c.number,
+                    "name": c.name,
+                    "rarity": c.rarity.value,
+                    "description": c.description,
+                    "asset_sha256": c.asset_sha256,
+                }
+                for c in sorted(candidates, key=lambda x: x.number)
+            ]
+
+        return grouped

@@ -24,6 +24,7 @@ import os
 import sys
 import tempfile
 import webbrowser
+from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 
@@ -415,6 +416,7 @@ class CardSetGenerator:
             return
         await self.pub.publish_set(set_id)
         await self.pub.packs_col.update_many({"set_id": set_id}, {"$set": {"released": True}})
+        await self.pub.catalog_col.update_many({"set_id": set_id}, {"$set": {"released": True}})
         console.print(f"[green]Set '{s['display_name']}' published! Run /bruh-cards-admin reload in Discord.[/green]")
 
     # ── Promote ──
@@ -449,6 +451,7 @@ class CardSetGenerator:
             cards = await src.get_all_cards(set_id)
             ready = 0
             for c in cards:
+                c["released"] = sd.get("released", True)
                 await dst.upsert_card(c)
                 if c.get("asset_status") == "ready":
                     art = await src.get_asset_bytes(c["card_id"])
@@ -460,6 +463,7 @@ class CardSetGenerator:
             # Copy packs
             packs = await src.packs_col.find({"set_id": set_id}).to_list(length=50)
             for pk in packs:
+                pk["released"] = sd.get("released", True)
                 await dst.upsert_pack(pk)
 
             console.print(f"[green]Promoted {ready}/{len(cards)} cards + {len(packs)} packs to {target_env}.[/green]")
@@ -544,6 +548,263 @@ class CardSetGenerator:
             table.add_row(s["set_id"], s.get("display_name", ""), s.get("status", "?"), f"{ready}/{total}", "yes" if s.get("released") else "no")
         console.print(table)
 
+    # ── Regenerate card art ──
+    async def regenerate_card(self, set_id: str, card_id: str, prompt_override: str | None = None, yes: bool = False):
+        self.set_id = set_id
+        sd = await self.pub.get_set(set_id)
+        if not sd:
+            console.print(f"[red]Set '{set_id}' not found in Mongo.[/red]")
+            return
+
+        doc = await self.pub.catalog_col.find_one({"card_id": card_id})
+        if not doc:
+            console.print(f"[red]Card '{card_id}' not found in catalog.[/red]")
+            return
+        if doc.get("set_id") != set_id:
+            console.print(f"[red]Card '{card_id}' belongs to set '{doc.get('set_id')}', not '{set_id}'.[/red]")
+            return
+
+        rarity = doc.get("rarity", "common")
+        description = doc.get("description", "")
+        card_name = doc.get("name", card_id)
+
+        console.print(f"\n[bold]{sd['display_name']}[/bold] — [cyan]{card_name}[/cyan] ({rarity})")
+        console.print(f"  Description: {description}")
+
+        prompt = prompt_override if prompt_override else description
+        if prompt_override:
+            console.print(f"  [yellow]Prompt override: {prompt}[/yellow]")
+        else:
+            console.print(f"  [dim]Using description as prompt[/dim]")
+
+        base_data = await self.pub.get_asset_bytes(f"{set_id}_base_template")
+        if base_data:
+            self.base_image = Image.open(BytesIO(base_data))
+            console.print("[green]Loaded base template from GridFS[/green]")
+        else:
+            self.base_image = None
+            console.print("[yellow]No base template in GridFS, generating without reference[/yellow]")
+
+        console.print("\n[cyan]Generating card art...[/cyan]")
+        image, _ = await generate_image(prompt, self.api_key, self.base_image)
+        if not image:
+            console.print("[red]Generation returned no image.[/red]")
+            return
+
+        if image.mode != "RGBA":
+            image = image.convert("RGBA")
+
+        tf = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+        image.save(tf.name)
+        console.print(f"[green]Preview: {tf.name}[/green]")
+
+        if not yes:
+            console.print("[dim]Opening for review...[/dim]")
+            webbrowser.open(tf.name)
+            while True:
+                choice = Prompt.ask("Options", choices=["approve", "retry", "cancel"], default="approve")
+                if choice == "cancel":
+                    tf.close()
+                    os.unlink(tf.name)
+                    return
+                if choice == "approve":
+                    break
+                adj = Prompt.ask("Tweak prompt", default="")
+                if adj:
+                    prompt = f"{prompt} {adj}"
+                image, _ = await generate_image(prompt, self.api_key, self.base_image)
+                if image:
+                    if image.mode != "RGBA":
+                        image = image.convert("RGBA")
+                    image.save(tf.name)
+                    webbrowser.open(tf.name)
+                    console.print("[green]Updated.[/green]")
+
+        buf = BytesIO()
+        image.save(buf, format="PNG")
+        data = buf.getvalue()
+        sha = TradingCardPublisher.compute_sha256(data)
+        await self.pub.upload_asset(card_id, data, checksum=sha, replace=True)
+
+        await self.pub.catalog_col.update_one(
+            {"card_id": card_id},
+            {"$set": {
+                "asset_status": "ready",
+                "asset_sha256": sha,
+                "asset_content_type": "image/png",
+                "asset_filename": f"{rarity}_{card_name.lower().replace(' ', '_').replace(chr(39), '')}.png",
+                "asset_error": None,
+                "asset_updated_at": datetime.now(UTC),
+            }},
+        )
+
+        tf.close()
+        os.unlink(tf.name)
+
+        console.print(f"\n[bold green]Card '{card_id}' art updated![/bold green]")
+        console.print(f"  SHA-256: {sha}")
+        console.print(f"[yellow]Run /bruh-cards-admin reload in Discord to refresh the bot cache.[/yellow]")
+
+    # ── Upload pre-generated set ──
+    async def upload_set(self, set_id: str, folder: str, display_name: str | None = None, prefix: str | None = None, manifest: str | None = None):
+        folder_path = Path(folder)
+        if not folder_path.is_dir():
+            console.print(f"[red]Folder not found: {folder}[/red]")
+            return
+
+        prefix = prefix or set_id
+        display_name = display_name or set_id.replace("_", " ").title()
+
+        # Check if set already exists
+        existing = await self.pub.get_set(set_id)
+        if existing:
+            if not Confirm.ask(f"Set '{set_id}' already exists. Overwrite?", default=False):
+                return
+            console.print(f"[yellow]Overwriting existing set '{set_id}'...[/yellow]")
+
+        # Load manifest
+        cards = []
+        if manifest:
+            manifest_path = Path(manifest)
+            if not manifest_path.is_file():
+                console.print(f"[red]Manifest not found: {manifest}[/red]")
+                return
+            manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            cards = manifest_data.get("cards", [])
+            display_name = manifest_data.get("display_name", display_name)
+            console.print(f"[green]Loaded manifest: {len(cards)} cards[/green]")
+
+        # Scan folder for images
+        image_files: dict[int, Path] = {}
+        for ext in ("*.png", "*.jpg", "*.jpeg", "*.webp"):
+            for f in sorted(folder_path.glob(ext)):
+                name = f.stem
+                if name.startswith(prefix):
+                    try:
+                        suffix = name[len(prefix):].lstrip("_")
+                        num = int(suffix)
+                        image_files[num] = f
+                    except ValueError:
+                        pass
+
+        if not image_files:
+            console.print(f"[red]No images found matching prefix '{prefix}_###' in {folder}[/red]")
+            return
+
+        console.print(f"\n[bold]Uploading '{display_name}' to {self.env}...[/bold]")
+        console.print(f"  Found {len(image_files)} images (prefix: {prefix})")
+
+        # Upload base template if present
+        base_file = folder_path / "base_template.png"
+        if not base_file.exists():
+            base_file = folder_path / "base_template.jpg"
+        if not base_file.exists():
+            base_file = folder_path / "base_template.jpeg"
+
+        base_image = None
+        if base_file.exists():
+            base_image = Image.open(base_file).convert("RGBA")
+            buf = BytesIO()
+            base_image.save(buf, format="PNG")
+            await self.pub.upload_asset(f"{set_id}_base_template", buf.getvalue(), replace=True)
+            console.print(f"  [green]Base template uploaded[/green]")
+        else:
+            console.print(f"  [yellow]No base_template.* found — cards will render without a reference[/yellow]")
+
+        # Build card list
+        if not cards:
+            console.print("  [dim]No manifest provided, generating placeholder metadata from filenames[/dim]")
+            for num in sorted(image_files.keys()):
+                card_id = f"{set_id}_{num:03d}"
+                rarity = (
+                    "platinum" if num == 50 else
+                    "diamond" if num >= 47 else
+                    "legendary" if num >= 43 else
+                    "epic" if num >= 37 else
+                    "rare" if num >= 27 else
+                    "common" if num >= 15 else
+                    "basic"
+                )
+                cards.append({
+                    "number": num,
+                    "name": f"{display_name} #{num}",
+                    "rarity": rarity,
+                    "description": f"Card #{num} from {display_name}.",
+                })
+        else:
+            # Validate manifest cards have numbers
+            for i, c in enumerate(cards):
+                if "number" not in c:
+                    c["number"] = i + 1
+
+        # Upload cards
+        uploaded = 0
+        total = len(cards)
+        for card_info in cards:
+            num = card_info["number"]
+            card_id = f"{set_id}_{num:03d}"
+            rarity = card_info.get("rarity", "common").lower()
+            name = card_info.get("name", f"Card #{num}")
+            description = card_info.get("description", "")
+
+            # Find matching image
+            img_path = image_files.get(num)
+            if not img_path:
+                console.print(f"  [{uploaded + 1}/{total}] [yellow]No image for #{num} — skipping {card_id}[/yellow]")
+                continue
+
+            try:
+                img = Image.open(img_path).convert("RGBA")
+                buf = BytesIO()
+                img.save(buf, format="PNG")
+                data = buf.getvalue()
+                sha = TradingCardPublisher.compute_sha256(data)
+                await self.pub.upload_asset(card_id, data, checksum=sha, replace=True)
+
+                await self.pub.upsert_card({
+                    "card_id": card_id,
+                    "set_id": set_id,
+                    "number": num,
+                    "name": name,
+                    "rarity": rarity,
+                    "description": description,
+                    "tradable": True,
+                    "asset_status": "ready",
+                    "asset_sha256": sha,
+                    "asset_content_type": "image/png",
+                    "asset_filename": img_path.name,
+                })
+
+                uploaded += 1
+                console.print(f"  [{uploaded}/{total}] [green]{card_id}[/green] — {name} ({rarity})")
+            except Exception as e:
+                console.print(f"  [{uploaded + 1}/{total}] [red]{card_id} failed: {e}[/red]")
+
+        # Save set metadata
+        await self.pub.upsert_set(set_id, {
+            "display_name": display_name,
+            "description": f"Uploaded from {folder_path.name}",
+            "status": "ready",
+            "version": 1,
+        })
+
+        # Ask for pack definitions
+        if Confirm.ask("\nCreate pack definitions?", default=True):
+            console.print("\n[bold]Pack settings:[/bold]")
+            std_price = int(Prompt.ask("  Standard pack price", default="350"))
+            prem_price = int(Prompt.ask("  Premium pack price", default="1100"))
+            packs = [
+                {"pack_id": f"{set_id}_standard", "series_id": None, "set_id": set_id, "name": f"{display_name} Pack", "price": std_price, "cards_per_pack": 3, "guaranteed_rarity": None, "description": f"Standard pack from {display_name}.", "released": False},
+                {"pack_id": f"{set_id}_premium", "series_id": None, "set_id": set_id, "name": f"{display_name} Premium Pack", "price": prem_price, "cards_per_pack": 3, "guaranteed_rarity": "rare", "description": f"Premium pack from {display_name}. Guaranteed Rare+.", "released": False},
+            ]
+            for pk in packs:
+                await self.pub.upsert_pack(pk)
+            console.print(f"[green]{len(packs)} pack definitions created.[/green]")
+
+        console.print(f"\n[bold green]Done! {uploaded}/{total} cards uploaded to {self.env}.[/bold green]")
+        console.print(f"  Set ID: {set_id}")
+        console.print(f"  Publish: poetry run python tools/card_gen.py publish {set_id} --env {self.env}")
+
     # ── Helpers ──
     def _default_rarity_desc(self, rarity: str) -> str:
         return {
@@ -598,6 +859,19 @@ async def main():
     ex.add_argument("set_id")
     ex.add_argument("--output", default="./exports", help="Output directory")
 
+    rc = sub.add_parser("regenerate-card", help="Replace art for one existing card")
+    rc.add_argument("set_id")
+    rc.add_argument("card_id")
+    rc.add_argument("--prompt", default=None, help="Prompt override (default: card description)")
+    rc.add_argument("--yes", action="store_true", help="Skip review confirmation")
+
+    up = sub.add_parser("upload-set", help="Upload a pre-generated card set from a folder")
+    up.add_argument("set_id")
+    up.add_argument("folder", help="Folder containing card images and optional base template")
+    up.add_argument("--name", default=None, help="Display name (default: derived from set_id)")
+    up.add_argument("--prefix", default=None, help="Filename prefix for card images (default: set_id)")
+    up.add_argument("--manifest", default=None, help="Path to manifest.json with card metadata")
+
     args, unknown = parser.parse_known_args()
     # Allow --env anywhere
     for i, a in enumerate(unknown):
@@ -628,6 +902,10 @@ async def main():
             await gen.promote(args.set_id, args.to)
         elif args.command == "export":
             await gen.export_set(args.set_id, args.output)
+        elif args.command == "regenerate-card":
+            await gen.regenerate_card(args.set_id, args.card_id, prompt_override=args.prompt, yes=args.yes)
+        elif args.command == "upload-set":
+            await gen.upload_set(args.set_id, args.folder, display_name=args.name, prefix=args.prefix, manifest=args.manifest)
     finally:
         await gen.pub.close()
 

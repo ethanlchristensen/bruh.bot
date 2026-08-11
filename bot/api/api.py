@@ -7,6 +7,7 @@ from typing import Literal
 from bson import Int64, ObjectId
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from bot.services.config_service import get_config_service
@@ -955,3 +956,281 @@ if __name__ == "__main__":
 
     port = int(os.getenv("API_PORT", 5000))
     uvicorn.run("api:app", host="0.0.0.0", port=port, reload=False, log_level="info")
+
+
+RARITY_DISPLAY_ORDER = ["basic", "common", "rare", "epic", "legendary", "diamond", "platinum"]
+
+_trading_services = None
+
+
+async def _get_trading_services():
+    global _trading_services
+    if _trading_services is not None:
+        return _trading_services
+
+    from motor.motor_asyncio import AsyncIOMotorGridFSBucket
+
+    from bot.services.mongo_trading_card_catalog_service import MongoTradingCardCatalogService
+    from bot.services.trading_card_render_service import TradingCardRenderService
+
+    catalog = MongoTradingCardCatalogService.__new__(MongoTradingCardCatalogService)
+    render = TradingCardRenderService.__new__(TradingCardRenderService)
+
+    fake_bot = type(
+        "obj",
+        (),
+        {
+            "config_service": config_service,
+            "trading_card_catalog_service": catalog,
+        },
+    )()
+
+    catalog.bot = fake_bot
+    catalog.sets_col = config_service.col(config_service.base.mongoTradingCardSetsCollectionName)
+    catalog.catalog_col = config_service.col(config_service.base.mongoTradingCardCatalogCollectionName)
+    catalog.packs_col = config_service.col(config_service.base.mongoTradingCardPacksCollectionName)
+    catalog.logger = logging.getLogger("api.catalog")
+    catalog._cards_cache = {}
+    catalog._packs_cache = {}
+
+    render.bot = fake_bot
+    render.logger = logging.getLogger("api.render")
+    assets_bucket = config_service.base.mongoTradingCardAssetsBucketName
+    env_name = config_service.environment or "dev"
+    bucket_name = f"{assets_bucket}_{env_name}"
+    render.gridfs = AsyncIOMotorGridFSBucket(config_service.db, bucket_name=bucket_name)
+    render._rendered_cache = {}
+    render._art_cache = {}
+    render._assets_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "bot", "assets", "trading_cards")
+
+    await catalog.reload_catalog()
+
+    _trading_services = (catalog, render)
+    return _trading_services
+
+
+@app.get("/trading-cards/sets")
+async def get_trading_card_sets(guild_id: str = Depends(get_guild_id), authorized: bool = Depends(verify_admin)):
+    try:
+        if config_service.db is None:
+            raise HTTPException(status_code=503, detail="Database not initialized")
+
+        catalog, _render = await _get_trading_services()
+
+        all_packs = catalog.get_all_packs()
+        series_pack_counts: dict[str, int] = {}
+        for pack_def in all_packs.values():
+            series_pack_counts[pack_def.series_id] = series_pack_counts.get(pack_def.series_id, 0) + 1
+
+        result = []
+        for sid in sorted(series_pack_counts):
+            sd = await catalog.sets_col.find_one({"set_id": sid})
+            display_name = sd["display_name"] if sd else sid.replace("_", " ").title()
+            result.append(
+                {
+                    "series_id": sid,
+                    "display_name": display_name,
+                    "pack_count": series_pack_counts[sid],
+                }
+            )
+
+        return {"success": True, "sets": result}
+    except Exception as e:
+        logger.error(f"Error getting trading card sets: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/trading-cards/sets/{series_id}")
+async def get_trading_card_set(series_id: str, guild_id: str = Depends(get_guild_id), authorized: bool = Depends(verify_admin)):
+    try:
+        if config_service.db is None:
+            raise HTTPException(status_code=503, detail="Database not initialized")
+
+        catalog, _render = await _get_trading_services()
+
+        packs_in_series = catalog.get_packs_by_series(series_id)
+        if not packs_in_series:
+            raise HTTPException(status_code=404, detail=f"No packs found for series '{series_id}'")
+
+        sd = await catalog.sets_col.find_one({"set_id": series_id})
+        display_name = sd["display_name"] if sd else series_id.replace("_", " ").title()
+
+        pack_list = []
+        first_pack_id = None
+        for pack_id, pack_def in sorted(packs_in_series.items(), key=lambda x: x[1].name):
+            if first_pack_id is None:
+                first_pack_id = pack_id
+            pack_list.append(
+                {
+                    "pack_id": pack_def.pack_id,
+                    "name": pack_def.name,
+                    "price": pack_def.price,
+                    "cards_per_pack": pack_def.cards_per_pack,
+                    "guaranteed_rarity": pack_def.guaranteed_rarity.value if pack_def.guaranteed_rarity else None,
+                    "description": pack_def.description,
+                }
+            )
+
+        eligible_cards = catalog.get_eligible_cards_for_pack(first_pack_id) if first_pack_id else {}
+
+        return {
+            "success": True,
+            "series_id": series_id,
+            "display_name": display_name,
+            "packs": pack_list,
+            "eligible_cards": eligible_cards,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting trading card set '{series_id}': {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/trading-cards/packs")
+async def get_trading_card_packs(guild_id: str = Depends(get_guild_id), authorized: bool = Depends(verify_admin)):
+    try:
+        if config_service.db is None:
+            raise HTTPException(status_code=503, detail="Database not initialized")
+
+        catalog, _render = await _get_trading_services()
+
+        all_packs = catalog.get_all_packs()
+        result = []
+        for pack_id, pack_def in sorted(all_packs.items(), key=lambda x: (x[1].series_id, x[1].name)):
+            eligible = catalog.get_eligible_cards_for_pack(pack_id)
+            result.append(
+                {
+                    "pack_id": pack_def.pack_id,
+                    "series_id": pack_def.series_id,
+                    "name": pack_def.name,
+                    "price": pack_def.price,
+                    "cards_per_pack": pack_def.cards_per_pack,
+                    "guaranteed_rarity": pack_def.guaranteed_rarity.value if pack_def.guaranteed_rarity else None,
+                    "description": pack_def.description,
+                    "eligible_cards": eligible,
+                }
+            )
+
+        return {"success": True, "packs": result}
+    except Exception as e:
+        logger.error(f"Error getting trading card packs: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/trading-cards/card/{card_id}/image")
+async def get_trading_card_image(card_id: str):
+    try:
+        if config_service.db is None:
+            await _ensure_config_initialized()
+
+        _catalog, render = await _get_trading_services()
+
+        image_bytes = await render.render_card(card_id)
+        if not image_bytes:
+            raise HTTPException(status_code=404, detail="Card not found or no art available")
+
+        return Response(
+            content=image_bytes.getvalue(),
+            media_type="image/png",
+            headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error rendering card image {card_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+class CreatePackRequest(BaseModel):
+    pack_id: str
+    series_id: str
+    name: str
+    price: float
+    cards_per_pack: int = 3
+    guaranteed_rarity: str | None = None
+    description: str = ""
+    released: bool = False
+
+
+class UpdatePackRequest(BaseModel):
+    name: str | None = None
+    price: float | None = None
+    cards_per_pack: int | None = None
+    guaranteed_rarity: str | None = None
+    description: str | None = None
+    released: bool | None = None
+
+
+@app.post("/trading-cards/packs")
+async def create_trading_card_pack(data: CreatePackRequest, guild_id: str = Depends(get_guild_id), authorized: bool = Depends(verify_admin)):
+    try:
+        if config_service.db is None:
+            raise HTTPException(status_code=503, detail="Database not initialized")
+
+        catalog, _render = await _get_trading_services()
+        existing = catalog.get_pack(data.pack_id)
+        if existing:
+            raise HTTPException(status_code=409, detail=f"Pack '{data.pack_id}' already exists")
+
+        doc = {
+            "pack_id": data.pack_id,
+            "set_id": data.series_id,
+            "name": data.name,
+            "price": data.price,
+            "cards_per_pack": data.cards_per_pack,
+            "guaranteed_rarity": data.guaranteed_rarity,
+            "description": data.description,
+            "released": data.released,
+        }
+        await catalog.packs_col.insert_one(doc)
+        await catalog.reload_catalog()
+
+        logger.info(f"Created pack '{data.pack_id}' in series '{data.series_id}'")
+        return {"success": True, "message": f"Pack '{data.pack_id}' created"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating pack: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.patch("/trading-cards/packs/{pack_id}")
+async def update_trading_card_pack(pack_id: str, data: UpdatePackRequest, guild_id: str = Depends(get_guild_id), authorized: bool = Depends(verify_admin)):
+    try:
+        if config_service.db is None:
+            raise HTTPException(status_code=503, detail="Database not initialized")
+
+        catalog, _render = await _get_trading_services()
+        existing = catalog.get_pack(pack_id)
+        if not existing:
+            raise HTTPException(status_code=404, detail=f"Pack '{pack_id}' not found")
+
+        updates = {}
+        for field in ("name", "price", "cards_per_pack", "guaranteed_rarity", "description", "released"):
+            val = getattr(data, field)
+            if val is not None:
+                if field == "guaranteed_rarity" and val == "":
+                    updates[field] = None
+                else:
+                    updates[field] = val
+
+        if not updates:
+            raise HTTPException(status_code=400, detail="No updates provided")
+
+        await catalog.packs_col.update_one({"pack_id": pack_id}, {"$set": updates})
+        await catalog.reload_catalog()
+
+        logger.info(f"Updated pack '{pack_id}': {updates}")
+        return {"success": True, "message": f"Pack '{pack_id}' updated", "updates": updates}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating pack '{pack_id}': {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+async def _ensure_config_initialized():
+    if config_service.base is None:
+        environment = os.getenv("ENVIRONMENT", "dev")
+        await config_service.initialize(environment)

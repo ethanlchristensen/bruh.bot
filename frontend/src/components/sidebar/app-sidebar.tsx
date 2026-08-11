@@ -3,6 +3,7 @@ import {
   BrainCircuit,
   Coins,
   Gauge,
+  Images,
   Music,
   PanelLeft,
   Server,
@@ -46,6 +47,11 @@ const data = {
         { title: 'Leaderboard', url: '/config/leaderboard', icon: Trophy },
         { title: 'Reputation', url: '/config/reputation', icon: ShieldAlert },
       ],
+    },
+    {
+      title: 'Card Packs',
+      url: '/config/card-packs',
+      icon: Images,
     },
     {
       title: 'Music Queue',

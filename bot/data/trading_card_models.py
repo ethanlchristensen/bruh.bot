@@ -74,6 +74,7 @@ class TradingCardDefinition:
     art_path: str
     tradable: bool = True
     released: bool = True
+    asset_sha256: str = ""
 
     @property
     def sellback_value(self) -> float:

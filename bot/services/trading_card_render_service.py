@@ -144,3 +144,9 @@ class TradingCardRenderService:
     def invalidate_cache(self):
         self._rendered_cache.clear()
         self._art_cache.clear()
+
+    def invalidate_card_cache(self, card_id: str):
+        self._art_cache.pop(card_id, None)
+        for key in list(self._rendered_cache.keys()):
+            if key.startswith(f"{card_id}:"):
+                del self._rendered_cache[key]

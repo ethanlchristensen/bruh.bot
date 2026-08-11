@@ -23,6 +23,7 @@ import { Route as MainConfigMemoryRouteImport } from './app/routes/_main/config/
 import { Route as MainConfigMemoriesRouteImport } from './app/routes/_main/config/memories'
 import { Route as MainConfigLeaderboardRouteImport } from './app/routes/_main/config/leaderboard'
 import { Route as MainConfigEconomyRouteImport } from './app/routes/_main/config/economy'
+import { Route as MainConfigCardPacksRouteImport } from './app/routes/_main/config/card-packs'
 import { Route as MainConfigAiRouteImport } from './app/routes/_main/config/ai'
 
 const LoginRoute = LoginRouteImport.update({
@@ -94,6 +95,11 @@ const MainConfigEconomyRoute = MainConfigEconomyRouteImport.update({
   path: '/config/economy',
   getParentRoute: () => MainRoute,
 } as any)
+const MainConfigCardPacksRoute = MainConfigCardPacksRouteImport.update({
+  id: '/config/card-packs',
+  path: '/config/card-packs',
+  getParentRoute: () => MainRoute,
+} as any)
 const MainConfigAiRoute = MainConfigAiRouteImport.update({
   id: '/config/ai',
   path: '/config/ai',
@@ -107,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof MainProfileRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/config/ai': typeof MainConfigAiRoute
+  '/config/card-packs': typeof MainConfigCardPacksRoute
   '/config/economy': typeof MainConfigEconomyRoute
   '/config/leaderboard': typeof MainConfigLeaderboardRoute
   '/config/memories': typeof MainConfigMemoriesRoute
@@ -123,6 +130,7 @@ export interface FileRoutesByTo {
   '/profile': typeof MainProfileRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/config/ai': typeof MainConfigAiRoute
+  '/config/card-packs': typeof MainConfigCardPacksRoute
   '/config/economy': typeof MainConfigEconomyRoute
   '/config/leaderboard': typeof MainConfigLeaderboardRoute
   '/config/memories': typeof MainConfigMemoriesRoute
@@ -141,6 +149,7 @@ export interface FileRoutesById {
   '/_main/profile': typeof MainProfileRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/_main/config/ai': typeof MainConfigAiRoute
+  '/_main/config/card-packs': typeof MainConfigCardPacksRoute
   '/_main/config/economy': typeof MainConfigEconomyRoute
   '/_main/config/leaderboard': typeof MainConfigLeaderboardRoute
   '/_main/config/memories': typeof MainConfigMemoriesRoute
@@ -159,6 +168,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/auth/callback'
     | '/config/ai'
+    | '/config/card-packs'
     | '/config/economy'
     | '/config/leaderboard'
     | '/config/memories'
@@ -175,6 +185,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/auth/callback'
     | '/config/ai'
+    | '/config/card-packs'
     | '/config/economy'
     | '/config/leaderboard'
     | '/config/memories'
@@ -192,6 +203,7 @@ export interface FileRouteTypes {
     | '/_main/profile'
     | '/auth/callback'
     | '/_main/config/ai'
+    | '/_main/config/card-packs'
     | '/_main/config/economy'
     | '/_main/config/leaderboard'
     | '/_main/config/memories'
@@ -309,6 +321,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MainConfigEconomyRouteImport
       parentRoute: typeof MainRoute
     }
+    '/_main/config/card-packs': {
+      id: '/_main/config/card-packs'
+      path: '/config/card-packs'
+      fullPath: '/config/card-packs'
+      preLoaderRoute: typeof MainConfigCardPacksRouteImport
+      parentRoute: typeof MainRoute
+    }
     '/_main/config/ai': {
       id: '/_main/config/ai'
       path: '/config/ai'
@@ -323,6 +342,7 @@ interface MainRouteChildren {
   MainMusicRoute: typeof MainMusicRoute
   MainProfileRoute: typeof MainProfileRoute
   MainConfigAiRoute: typeof MainConfigAiRoute
+  MainConfigCardPacksRoute: typeof MainConfigCardPacksRoute
   MainConfigEconomyRoute: typeof MainConfigEconomyRoute
   MainConfigLeaderboardRoute: typeof MainConfigLeaderboardRoute
   MainConfigMemoriesRoute: typeof MainConfigMemoriesRoute
@@ -337,6 +357,7 @@ const MainRouteChildren: MainRouteChildren = {
   MainMusicRoute: MainMusicRoute,
   MainProfileRoute: MainProfileRoute,
   MainConfigAiRoute: MainConfigAiRoute,
+  MainConfigCardPacksRoute: MainConfigCardPacksRoute,
   MainConfigEconomyRoute: MainConfigEconomyRoute,
   MainConfigLeaderboardRoute: MainConfigLeaderboardRoute,
   MainConfigMemoriesRoute: MainConfigMemoriesRoute,

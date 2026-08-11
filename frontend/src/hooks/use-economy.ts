@@ -9,6 +9,9 @@ export const economyKeys = {
   leaderboard: (sortBy: string) => [...economyKeys.all, 'leaderboard', sortBy] as const,
   profile: (userId: string) => [...economyKeys.all, 'profile', userId] as const,
   rank: (userId: string) => [...economyKeys.all, 'rank', userId] as const,
+  tradingCardPacks: ['trading-card-packs'] as const,
+  tradingCardSets: ['trading-card-sets'] as const,
+  tradingCardSet: (seriesId: string) => [...economyKeys.tradingCardSets, seriesId] as const,
 };
 
 export const memberKeys = {
@@ -58,6 +61,63 @@ export function useUpdateEconomyProfile() {
       apiClient.updateEconomyProfile(userId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: economyKeys.all });
+    },
+  });
+}
+
+export function useTradingCardPacks() {
+  return useQuery({
+    queryKey: economyKeys.tradingCardPacks,
+    queryFn: () => apiClient.getTradingCardPacks(),
+    staleTime: 60000,
+  });
+}
+
+export function useTradingCardSets() {
+  return useQuery({
+    queryKey: economyKeys.tradingCardSets,
+    queryFn: () => apiClient.getTradingCardSets(),
+    staleTime: 60000,
+  });
+}
+
+export function useTradingCardSet(seriesId: string | null) {
+  return useQuery({
+    queryKey: economyKeys.tradingCardSet(seriesId ?? ''),
+    queryFn: () => apiClient.getTradingCardSet(seriesId!),
+    enabled: !!seriesId,
+    staleTime: 30000,
+  });
+}
+
+export function useCreateTradingCardPack() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      pack_id: string;
+      series_id: string;
+      name: string;
+      price: number;
+      cards_per_pack?: number;
+      guaranteed_rarity?: string | null;
+      description?: string;
+      released?: boolean;
+    }) => apiClient.createTradingCardPack(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: economyKeys.tradingCardPacks });
+      queryClient.invalidateQueries({ queryKey: economyKeys.tradingCardSets });
+    },
+  });
+}
+
+export function useUpdateTradingCardPack() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ packId, data }: { packId: string; data: Record<string, unknown> }) =>
+      apiClient.updateTradingCardPack(packId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: economyKeys.tradingCardPacks });
+      queryClient.invalidateQueries({ queryKey: economyKeys.tradingCardSets });
     },
   });
 }

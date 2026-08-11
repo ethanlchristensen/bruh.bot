@@ -386,6 +386,59 @@ export interface UsageLeaderboardResponse {
   summary: { total_requests: number; total_cost: number };
 }
 
+export interface TradingCardPackCard {
+  card_id: string;
+  number: number;
+  name: string;
+  rarity: string;
+  description: string;
+  asset_sha256: string;
+}
+
+export interface TradingCardPack {
+  pack_id: string;
+  series_id: string;
+  name: string;
+  price: number;
+  cards_per_pack: number;
+  guaranteed_rarity: string | null;
+  description: string;
+  eligible_cards: Record<string, Array<TradingCardPackCard>>;
+}
+
+export interface TradingCardPacksResponse {
+  success: boolean;
+  packs: Array<TradingCardPack>;
+}
+
+export interface TradingCardSet {
+  series_id: string;
+  display_name: string;
+  pack_count: number;
+}
+
+export interface TradingCardSetsResponse {
+  success: boolean;
+  sets: Array<TradingCardSet>;
+}
+
+export interface TradingCardSetPack {
+  pack_id: string;
+  name: string;
+  price: number;
+  cards_per_pack: number;
+  guaranteed_rarity: string | null;
+  description: string;
+}
+
+export interface TradingCardSetDetailResponse {
+  success: boolean;
+  series_id: string;
+  display_name: string;
+  packs: Array<TradingCardSetPack>;
+  eligible_cards: Record<string, Array<TradingCardPackCard>>;
+}
+
 export class ConfigAPIClient {
   private baseUrl: string;
   private adminKey: string;
@@ -600,6 +653,62 @@ export class ConfigAPIClient {
     const params = search ? `?search=${encodeURIComponent(search)}` : '';
     return this.fetch<MembersResponse>(`/members${params}`, {
       method: 'GET',
+    });
+  }
+
+  // Get trading card packs with eligible cards
+  async getTradingCardPacks(): Promise<TradingCardPacksResponse> {
+    return this.fetch<TradingCardPacksResponse>('/trading-cards/packs', {
+      method: 'GET',
+    });
+  }
+
+  // Get trading card sets (lightweight — just series list)
+  async getTradingCardSets(): Promise<TradingCardSetsResponse> {
+    return this.fetch<TradingCardSetsResponse>('/trading-cards/sets', {
+      method: 'GET',
+    });
+  }
+
+  // Get a single trading card set with packs and eligible cards
+  async getTradingCardSet(seriesId: string): Promise<TradingCardSetDetailResponse> {
+    return this.fetch<TradingCardSetDetailResponse>(`/trading-cards/sets/${seriesId}`, {
+      method: 'GET',
+    });
+  }
+
+  // Create a new trading card pack
+  async createTradingCardPack(data: {
+    pack_id: string;
+    series_id: string;
+    name: string;
+    price: number;
+    cards_per_pack?: number;
+    guaranteed_rarity?: string | null;
+    description?: string;
+    released?: boolean;
+  }): Promise<{ success: boolean; message: string }> {
+    return this.fetch('/trading-cards/packs', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Update a trading card pack
+  async updateTradingCardPack(
+    packId: string,
+    data: {
+      name?: string;
+      price?: number;
+      cards_per_pack?: number;
+      guaranteed_rarity?: string;
+      description?: string;
+      released?: boolean;
+    },
+  ): Promise<{ success: boolean; message: string; updates: Record<string, unknown> }> {
+    return this.fetch(`/trading-cards/packs/${packId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
     });
   }
 

@@ -409,6 +409,7 @@ export interface TradingCardPack {
 export interface TradingCardPacksResponse {
   success: boolean;
   packs: Array<TradingCardPack>;
+  render_version?: string;
 }
 
 export interface TradingCardSet {
@@ -420,6 +421,7 @@ export interface TradingCardSet {
 export interface TradingCardSetsResponse {
   success: boolean;
   sets: Array<TradingCardSet>;
+  render_version?: string;
 }
 
 export interface TradingCardSetPack {
@@ -437,6 +439,7 @@ export interface TradingCardSetDetailResponse {
   display_name: string;
   packs: Array<TradingCardSetPack>;
   eligible_cards: Record<string, Array<TradingCardPackCard>>;
+  render_version?: string;
 }
 
 export class ConfigAPIClient {

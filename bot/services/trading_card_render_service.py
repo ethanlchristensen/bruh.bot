@@ -1,4 +1,4 @@
-import hashlib
+
 import logging
 import os
 from io import BytesIO
@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from motor.motor_asyncio import AsyncIOMotorGridFSBucket
 from PIL import Image, ImageDraw, ImageFont
 
-from bot.data.trading_card_models import RARITY_FRAME_COLORS, TradingCardRarity
+from bot.data.trading_card_models import CARD_RENDER_VERSION, RARITY_FRAME_COLORS, TradingCardRarity
 
 if TYPE_CHECKING:
     from bot.bruh_bot import BruhBot
@@ -107,8 +107,9 @@ class TradingCardRenderService:
         draw.text((CARD_CANVAS[0] // 2, name_bg_top + 94), f"{series_name} · #{card_number}", fill=(200, 200, 200), font=series_font, anchor="mt")
 
     def _cache_key(self, card_id: str) -> str:
-        art_hash = hashlib.md5(self._art_cache.get(card_id, b"")).hexdigest() if card_id in self._art_cache else "noart"
-        return f"{card_id}:{art_hash}:v1"
+        card = self.bot.trading_card_catalog_service.get_card(card_id)
+        sha = card.asset_sha256 if card else "nocatalog"
+        return f"{card_id}:{sha}:{CARD_RENDER_VERSION}"
 
     async def render_card(self, card_id: str) -> BytesIO | None:
         cache_key = self._cache_key(card_id)

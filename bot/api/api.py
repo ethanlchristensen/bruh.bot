@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
 
+from bot.data.trading_card_models import CARD_RENDER_VERSION
 from bot.services.config_service import get_config_service
 
 logger = logging.getLogger("api")
@@ -1034,7 +1035,7 @@ async def get_trading_card_sets(guild_id: str = Depends(get_guild_id), authorize
                 }
             )
 
-        return {"success": True, "sets": result}
+        return {"success": True, "sets": result, "render_version": CARD_RENDER_VERSION}
     except Exception as e:
         logger.error(f"Error getting trading card sets: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -1079,6 +1080,7 @@ async def get_trading_card_set(series_id: str, guild_id: str = Depends(get_guild
             "display_name": display_name,
             "packs": pack_list,
             "eligible_cards": eligible_cards,
+            "render_version": CARD_RENDER_VERSION,
         }
     except HTTPException:
         raise
@@ -1112,7 +1114,7 @@ async def get_trading_card_packs(guild_id: str = Depends(get_guild_id), authoriz
                 }
             )
 
-        return {"success": True, "packs": result}
+        return {"success": True, "packs": result, "render_version": CARD_RENDER_VERSION}
     except Exception as e:
         logger.error(f"Error getting trading card packs: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e

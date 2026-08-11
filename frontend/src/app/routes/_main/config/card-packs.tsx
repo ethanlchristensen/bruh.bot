@@ -28,6 +28,11 @@ const RARITY_COLORS: Record<string, string> = {
   platinum: '#E5CC80',
 };
 
+function cardImageUrl(cardId: string, assetSha256: string, renderVersion?: string): string {
+  const v = [assetSha256 || '0', renderVersion || '0'].join('-');
+  return `/api/trading-cards/card/${encodeURIComponent(cardId)}/image?v=${encodeURIComponent(v)}`;
+}
+
 function CardPacksComponent() {
   const { data: setsData, isLoading: setsLoading } = useTradingCardSets();
   const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null);
@@ -337,10 +342,11 @@ function CardPacksComponent() {
                                 >
                                   <div className="aspect-[3/4] bg-muted/30 flex items-center justify-center overflow-hidden">
                                     <img
-                                      src={`/api/trading-cards/card/${card.card_id}/image?v=${card.asset_sha256 || '0'}-v2`}
+                                      src={cardImageUrl(card.card_id, card.asset_sha256, setDetail.render_version)}
                                       alt={card.name}
                                       className="w-full h-full object-cover"
                                       loading="lazy"
+                                      decoding="async"
                                       onError={(e) => {
                                         const target = e.currentTarget;
                                         target.style.display = 'none';

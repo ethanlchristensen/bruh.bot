@@ -102,3 +102,5 @@ DEFAULT_DROP_TABLE: list[tuple[TradingCardRarity, float]] = [
     (TradingCardRarity.DIAMOND, 0.008),
     (TradingCardRarity.PLATINUM, 0.002),
 ]
+
+CARD_RENDER_VERSION = "1"

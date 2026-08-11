@@ -1,8 +1,8 @@
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class TradingCardRarity(str, Enum):
+class TradingCardRarity(StrEnum):
     BASIC = "basic"
     COMMON = "common"
     RARE = "rare"

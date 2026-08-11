@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 
-class CosmeticRarity(str, Enum):
+class CosmeticRarity(StrEnum):
     BASIC = "basic"
     COMMON = "common"
     RARE = "rare"
@@ -12,7 +12,7 @@ class CosmeticRarity(str, Enum):
     PLATINUM = "platinum"
 
 
-class CosmeticSlot(str, Enum):
+class CosmeticSlot(StrEnum):
     BACKGROUND = "background"
     BACK_ACCESSORY = "back_accessory"
     OUTFIT = "outfit"
@@ -22,7 +22,7 @@ class CosmeticSlot(str, Enum):
     FOREGROUND = "foreground"
 
 
-class PackType(str, Enum):
+class PackType(StrEnum):
     STANDARD = "standard"
     PREMIUM = "premium"
     EVENT = "event"

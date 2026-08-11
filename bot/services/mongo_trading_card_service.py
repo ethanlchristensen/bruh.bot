@@ -131,27 +131,30 @@ class MongoTradingCardService:
                 return rarity
         return TradingCardRarity.COMMON
 
-    def _pick_card_from_rarity(self, rarity: TradingCardRarity, set_id: str | None = None) -> str:
+    def _pick_card_from_rarity(self, rarity: TradingCardRarity, set_id: str | None = None) -> str | None:
         catalog = self.bot.trading_card_catalog_service
         if set_id:
             candidates = [c for c in catalog.get_cards_by_series(set_id) if c.rarity == rarity]
         else:
             candidates = catalog.get_cards_by_rarity(rarity)
+            if not candidates:
+                candidates = catalog.get_all_released_cards()
         if not candidates:
-            candidates = catalog.get_all_released_cards()
-        if not candidates:
-            return "void_archive_001"
+            return None
         return random.choice(candidates).card_id
 
-    def _roll_pack(self, pack_def, cards_per: int, set_id: str | None = None) -> list[str]:
+    def _roll_pack(self, pack_def, cards_per: int, set_id: str | None = None) -> list[str] | None:
         guaranteed = pack_def.guaranteed_rarity if pack_def else None
         card_ids = []
         guaranteed_slot = random.randint(0, cards_per - 1) if guaranteed else -1
         for i in range(cards_per):
             if i == guaranteed_slot:
-                card_ids.append(self._pick_card_from_rarity(guaranteed, set_id))
+                picked = self._pick_card_from_rarity(guaranteed, set_id)
             else:
-                card_ids.append(self._pick_card_from_rarity(self._roll_rarity(), set_id))
+                picked = self._pick_card_from_rarity(self._roll_rarity(), set_id)
+            if picked is None:
+                return None
+            card_ids.append(picked)
         return card_ids
 
     async def buy_pack(self, guild_id: int, user_id: int, pack_id: str) -> dict:
@@ -195,6 +198,39 @@ class MongoTradingCardService:
             return {"success": False, "error": f"You don't have any unopened **{pack_def.name}** packs."}
 
         card_ids = self._roll_pack(pack_def, pack_def.cards_per_pack, pack_def.series_id)
+        if card_ids is None:
+            set_name = pack_def.series_id.replace("_", " ").title()
+
+            # Remove one pack quantity
+            now = datetime.now(UTC)
+            for i, p in enumerate(packs):
+                if p["pack_id"] == pack_id:
+                    p["quantity"] -= 1
+                    if p["quantity"] <= 0:
+                        packs.pop(i)
+                    break
+            await self.collections_col.update_one(
+                {"guild_id": Int64(guild_id), "user_id": Int64(user_id)},
+                {"$set": {"unopened_packs": packs, "updated_at": now}},
+            )
+
+            # Refund coins
+            new_balance = await self.bot.economy_service.add_coins(guild_id, user_id, pack_def.price)
+            await self.bot.economy_service.record_transaction(
+                guild_id,
+                user_id,
+                "trading_card_pack_refund",
+                pack_def.price,
+                new_balance,
+                reference_type="trading_card_pack",
+                reference_id=pack_id,
+            )
+
+            return {
+                "success": False,
+                "error": f"The **{set_name}** collection has no released cards yet — your pack was refunded 🪙 {pack_def.price:,.2f}.",
+                "refunded": True,
+            }
         rarities = []
         for cid in card_ids:
             card = self.bot.trading_card_catalog_service.get_card(cid)
@@ -269,8 +305,10 @@ class MongoTradingCardService:
 
         if set_id:
             series_total = catalog.get_series_total(set_id)
+            filtered_cards = [c for c in cards if catalog.get_card(c["card_id"]) and catalog.get_card(c["card_id"]).series_id == set_id]
         else:
             series_total = len(catalog.get_all_released_cards())
+            filtered_cards = cards
 
         completion_pct = round(unique_cards / series_total * 100, 1) if series_total else 0
 
@@ -280,7 +318,7 @@ class MongoTradingCardService:
             "series_total": series_total,
             "completion_pct": completion_pct,
             "rarity_counts": rarity_counts,
-            "cards": cards,
+            "cards": filtered_cards,
             "unopened_packs": packs,
             "set_counts": set_counts,
         }

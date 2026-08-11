@@ -432,7 +432,10 @@ class PackSelectView(discord.ui.View):
 
         result = await self.parent.bot.trading_card_service.open_pack(self.parent.guild_id, self.parent.user_id, pack_id)
         if not result["success"]:
-            await interaction.followup.send(f"Failed: {result['error']}", ephemeral=True)
+            if result.get("refunded"):
+                await interaction.followup.send(f"✅ {result['error']}", ephemeral=True)
+            else:
+                await interaction.followup.send(f"Failed: {result['error']}", ephemeral=True)
             return
 
         pack_def = self.parent._catalog.get_pack(pack_id)

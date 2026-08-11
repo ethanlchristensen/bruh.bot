@@ -1438,6 +1438,9 @@ class EconomyCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         result = await self.bot.trading_card_service.open_pack(interaction.guild.id, interaction.user.id, pack_id)
         if not result["success"]:
+            if result.get("refunded"):
+                embed = self.bot.embed_service.create_success_embed(result["error"], title="Pack Refunded")
+                return await interaction.followup.send(embed=embed, ephemeral=True, files=self.bot.embed_service.get_brand_files(embed=embed))
             return await interaction.followup.send(embed=_coins_embed("Cannot Open", result["error"]), ephemeral=True)
         pack_def = self.bot.trading_card_catalog_service.get_pack(pack_id)
         set_display = pack_def.series_id.replace("_", " ").title() if pack_def else "Unknown"
@@ -1585,7 +1588,12 @@ class EconomyCog(commands.Cog):
         top_member = interaction.guild.get_member(int(entries[0]["user_id"]))
         if top_member:
             embed.set_thumbnail(url=top_member.display_avatar.url)
-        embed.set_footer(text="Weighted by rarity value — higher rarities are worth more.")
+        embed.add_field(
+            name="Rarity Points",
+            value="💫 24,500 · 💠 6,600 · 🟠 1,800 · 🟣 375 · 🔵 60 · 🟢 12 · ⬜ 2.4",
+            inline=False,
+        )
+        embed.set_footer(text="Duplicates count! Each copy multiplies the rarity score.")
         await interaction.followup.send(embed=embed, files=self.bot.embed_service.get_brand_files(embed=embed))
 
     @app_commands.autocomplete(card_id=card_id_autocomplete)

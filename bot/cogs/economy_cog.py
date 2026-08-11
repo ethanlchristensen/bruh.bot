@@ -1600,6 +1600,11 @@ class EconomyCog(commands.Cog):
         if not card:
             return await interaction.followup.send(embed=_coins_embed("Not Found", f"No card with ID `{card_id}`."), ephemeral=True)
         owned = await self.bot.trading_card_service.get_card_quantity(interaction.guild.id, interaction.user.id, card_id)
+        if owned == 0:
+            return await interaction.followup.send(
+                embed=_coins_embed("Not Owned", "You don't own this card yet. Open packs to collect it!"),
+                ephemeral=True,
+            )
         image_buffer = await self.bot.trading_card_render_service.render_card(card_id)
         color = RARITY_DISCORD_COLORS.get(card.rarity, 0x5865F2)
         embed = discord.Embed(

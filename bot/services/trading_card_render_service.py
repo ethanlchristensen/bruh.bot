@@ -94,9 +94,9 @@ class TradingCardRenderService:
         canvas.paste(overlay, (0, 0), overlay)
 
         try:
-            name_font = self._get_font(48)
-            rarity_font = self._get_font(34)
-            series_font = self._get_font(26)
+            name_font = self._get_font(38)
+            rarity_font = self._get_font(26)
+            series_font = self._get_font(20)
         except Exception:
             name_font = ImageFont.load_default()
             rarity_font = ImageFont.load_default()

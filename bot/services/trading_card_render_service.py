@@ -38,6 +38,8 @@ class TradingCardRenderService:
             os.path.join(os.path.dirname(__file__), "..", "static", "font.ttf"),
             "C:\\Windows\\Fonts\\segoeui.ttf",
             "C:\\Windows\\Fonts\\arial.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         ]
         for fp in font_paths:
             if os.path.exists(fp):

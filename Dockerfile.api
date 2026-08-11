@@ -18,6 +18,10 @@ RUN poetry install --only=main --no-root && rm -rf $POETRY_CACHE_DIR
 # --- Runtime stage ---
 FROM python:3.13-slim AS runtime
 
+RUN apt-get update \
+    && apt-get install -y fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV VIRTUAL_ENV=/app/.venv \
     PATH="/app/.venv/bin:$PATH"
 

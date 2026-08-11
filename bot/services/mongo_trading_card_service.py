@@ -135,6 +135,8 @@ class MongoTradingCardService:
         catalog = self.bot.trading_card_catalog_service
         if set_id:
             candidates = [c for c in catalog.get_cards_by_series(set_id) if c.rarity == rarity]
+            if not candidates:
+                candidates = catalog.get_cards_by_series(set_id)
         else:
             candidates = catalog.get_cards_by_rarity(rarity)
             if not candidates:

@@ -291,3 +291,28 @@ class MongoTradingCardService:
             {"guild_id": Int64(guild_id), "user_id": Int64(user_id)},
             {"$set": {"cards": [], "unopened_packs": [], "updated_at": now}},
         )
+
+    async def get_collection_leaderboard(self, guild_id: int, limit: int = 25) -> list[dict]:
+        catalog = self.bot.trading_card_catalog_service
+        cursor = self.collections_col.find({"guild_id": Int64(guild_id), "cards.0": {"$exists": True}})
+        entries = []
+        async for doc in cursor:
+            total_cards = 0
+            weighted_score = 0.0
+            for entry in doc.get("cards", []):
+                card = catalog.get_card(entry["card_id"])
+                if not card:
+                    continue
+                qty = entry.get("quantity", 1)
+                total_cards += qty
+                weighted_score += card.sellback_value * qty
+            if total_cards > 0:
+                entries.append(
+                    {
+                        "user_id": str(doc["user_id"]),
+                        "total_cards": total_cards,
+                        "weighted_score": round(weighted_score, 2),
+                    }
+                )
+        entries.sort(key=lambda e: e["weighted_score"], reverse=True)
+        return entries[:limit]

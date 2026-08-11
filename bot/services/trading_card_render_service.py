@@ -150,3 +150,44 @@ class TradingCardRenderService:
         for key in list(self._rendered_cache.keys()):
             if key.startswith(f"{card_id}:"):
                 del self._rendered_cache[key]
+
+    async def render_collection_grid(self, card_ids: list[str], cards_per_row: int = 5, thumb_width: int = 192) -> BytesIO | None:
+        if not card_ids:
+            return None
+
+        THUMB_HEIGHT = int(thumb_width * 4 / 3)
+        GAP = 8
+        MAX_CARDS = 50
+
+        card_ids = card_ids[:MAX_CARDS]
+        images: list[Image.Image] = []
+
+        for cid in card_ids:
+            rendered = await self.render_card(cid)
+            if rendered:
+                img = Image.open(rendered).convert("RGBA")
+                img = img.resize((thumb_width, THUMB_HEIGHT), Image.LANCZOS)
+                images.append(img)
+
+        if not images:
+            return None
+
+        cols = min(cards_per_row, len(images))
+        rows = (len(images) + cols - 1) // cols
+
+        grid_w = cols * thumb_width + (cols - 1) * GAP
+        grid_h = rows * THUMB_HEIGHT + (rows - 1) * GAP
+
+        canvas = Image.new("RGBA", (grid_w, grid_h), (30, 30, 30, 255))
+
+        for idx, img in enumerate(images):
+            row = idx // cols
+            col = idx % cols
+            x = col * (thumb_width + GAP)
+            y = row * (THUMB_HEIGHT + GAP)
+            canvas.paste(img, (x, y), img)
+
+        buf = BytesIO()
+        canvas.save(buf, format="PNG")
+        buf.seek(0)
+        return buf

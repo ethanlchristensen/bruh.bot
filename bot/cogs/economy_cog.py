@@ -213,6 +213,13 @@ async def pack_id_autocomplete(interaction: discord.Interaction, current: str) -
     return [app_commands.Choice(name=f"{pk.name} — 🪙 {pk.price:,}", value=pk.pack_id) for pk in bot.trading_card_catalog_service.get_all_packs().values() if cur in pk.name.lower() or cur in pk.pack_id.lower()][:25]
 
 
+async def set_id_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
+    bot = interaction.client
+    cur = current.lower()
+    series = bot.trading_card_catalog_service.get_series_list()
+    return [app_commands.Choice(name=sid.replace("_", " ").title(), value=sid) for sid in sorted(series) if cur in sid.lower()][:25]
+
+
 async def is_bruh_cards_enabled(bot, guild_id: int) -> bool:
     config = await bot.config_service.get_config(str(guild_id))
     return config.economyConfig.bruhCardsEnabled
@@ -1506,13 +1513,89 @@ class EconomyCog(commands.Cog):
         embed.add_field(name="Unopened Packs", value=str(sum(p.get("quantity", 1) for p in stats["unopened_packs"])), inline=True)
         await interaction.followup.send(embed=embed)
 
+    @bruh_cards_group.command(name="show-collection", description="Show off your collected cards from a set as a grid image!")
+    @app_commands.describe(set_id="The collection to show", user="Who to show (defaults to you)")
+    @app_commands.autocomplete(set_id=set_id_autocomplete)
+    @log_command_usage()
+    @is_globally_blocked()
+    async def bruh_cards_show_collection(self, interaction: discord.Interaction, set_id: str, user: discord.Member | None = None):
+        await interaction.response.defer()
+        target = user or interaction.user
+        stats = await self.bot.trading_card_service.get_collection_stats(interaction.guild.id, target.id, set_id=set_id)
+        owned_cards = stats.get("cards", [])
+        if not owned_cards:
+            owners = "your" if target.id == interaction.user.id else f"{target.display_name}'s"
+            set_display = set_id.replace("_", " ").title()
+            embed = self.bot.embed_service._create_base_embed(
+                title=f"{target.display_name}'s {set_display} Collection",
+                description=f"No cards from {set_display} in {owners} collection yet.",
+            )
+            embed.set_thumbnail(url=target.display_avatar.url)
+            return await interaction.followup.send(embed=embed, files=self.bot.embed_service.get_brand_files(embed=embed))
+
+        card_ids = [c["card_id"] for c in owned_cards]
+        grid_buf = await self.bot.trading_card_render_service.render_collection_grid(card_ids)
+        set_display = set_id.replace("_", " ").title()
+        completion = f"{stats['unique_cards']}/{stats['series_total']} ({stats['completion_pct']}%)"
+
+        if grid_buf:
+            file = discord.File(grid_buf, filename="collection.png")
+            embed = self.bot.embed_service._create_base_embed(
+                title=f"{target.display_name}'s {set_display} Collection",
+                description=f"{completion} complete",
+            )
+            embed.set_image(url="attachment://collection.png")
+            embed.set_thumbnail(url=target.display_avatar.url)
+            await interaction.followup.send(embed=embed, file=file)
+        else:
+            embed = self.bot.embed_service._create_base_embed(
+                title=f"{target.display_name}'s {set_display} Collection",
+                description=f"{completion} complete — no card art available.",
+            )
+            embed.set_thumbnail(url=target.display_avatar.url)
+            await interaction.followup.send(embed=embed)
+
+    @bruh_cards_group.command(name="leaderboard", description="Card collection leaderboard weighted by rarity.")
+    @app_commands.describe(limit="How many users to show (max 25)")
+    @log_command_usage()
+    @is_globally_blocked()
+    async def bruh_cards_leaderboard(self, interaction: discord.Interaction, limit: app_commands.Range[int, 1, 25] = 10):
+        await interaction.response.defer()
+        entries = await self.bot.trading_card_service.get_collection_leaderboard(interaction.guild.id, limit=limit)
+        if not entries:
+            return await interaction.followup.send(
+                embed=self.bot.embed_service.create_info_embed(
+                    title="Card Collection Leaderboard",
+                    description="No one has collected any cards yet! Open some packs with `/bruh-cards open`.",
+                ),
+                files=self.bot.embed_service.get_brand_files(),
+            )
+
+        lines = []
+        for i, entry in enumerate(entries, 1):
+            member = interaction.guild.get_member(int(entry["user_id"]))
+            name = member.display_name if member else f"User {entry['user_id']}"
+            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"`#{i}`"
+            lines.append(f"{medal} **{name}** — 🏆 {entry['weighted_score']:,.2f} pts · {entry['total_cards']} cards")
+
+        embed = self.bot.embed_service._create_base_embed(
+            title="🏆 Card Collector Leaderboard",
+            description="\n".join(lines),
+        )
+        top_member = interaction.guild.get_member(int(entries[0]["user_id"]))
+        if top_member:
+            embed.set_thumbnail(url=top_member.display_avatar.url)
+        embed.set_footer(text="Weighted by rarity value — higher rarities are worth more.")
+        await interaction.followup.send(embed=embed, files=self.bot.embed_service.get_brand_files(embed=embed))
+
     @app_commands.autocomplete(card_id=card_id_autocomplete)
-    @bruh_cards_group.command(name="inspect", description="View a trading card in detail.")
-    @app_commands.describe(card_id="The card to inspect")
+    @bruh_cards_group.command(name="inspect", description="Show a trading card to the server with its image.")
+    @app_commands.describe(card_id="The card to show")
+    @app_commands.autocomplete(card_id=card_id_autocomplete)
     @log_command_usage()
     @is_globally_blocked()
     async def bruh_cards_inspect(self, interaction: discord.Interaction, card_id: str):
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer()
         card = self.bot.trading_card_catalog_service.get_card(card_id)
         if not card:
             return await interaction.followup.send(embed=_coins_embed("Not Found", f"No card with ID `{card_id}`."), ephemeral=True)
@@ -1521,21 +1604,21 @@ class EconomyCog(commands.Cog):
         color = RARITY_DISCORD_COLORS.get(card.rarity, 0x5865F2)
         embed = discord.Embed(
             title=f"#{card.number} {card.name}",
-            description=card.description,
+            description=f"*{interaction.user.display_name} is showing a card from their collection.*\n\n{card.description}",
             color=color,
             timestamp=datetime.now(UTC),
         )
-        embed.set_footer(text="bruh.bot")
+        embed.set_footer(text="Use /bruh-cards inventory to open packs and build your collection!")
         embed.add_field(name="Rarity", value=f"{TC_EMOJI.get(card.rarity, '')} {card.rarity.value.title()}", inline=True)
         embed.add_field(name="Series", value=card.series_id.replace("_", " ").title(), inline=True)
         embed.add_field(name="Owned", value=f"{owned}x", inline=True)
         embed.add_field(name="Sellback", value=f"🪙 {card.sellback_value:,.2f}", inline=True)
+        files = self.bot.embed_service.get_brand_files(embed=embed)
         if image_buffer:
             file = discord.File(image_buffer, filename="card.png")
             embed.set_image(url="attachment://card.png")
-            await interaction.followup.send(embed=embed, file=file, ephemeral=True)
-        else:
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            files.append(file)
+        await interaction.followup.send(embed=embed, files=files)
 
     @bruh_cards_group.command(name="sell", description="Sell a trading card for coins.")
     @app_commands.describe(card_id="The card to sell", quantity="How many to sell")

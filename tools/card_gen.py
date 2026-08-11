@@ -466,6 +466,9 @@ class CardSetGenerator:
                 pk["released"] = sd.get("released", True)
                 await dst.upsert_pack(pk)
 
+            await dst.catalog_col.update_many({"set_id": set_id}, {"$set": {"released": True}})
+            await dst.packs_col.update_many({"set_id": set_id}, {"$set": {"released": True}})
+
             console.print(f"[green]Promoted {ready}/{len(cards)} cards + {len(packs)} packs to {target_env}.[/green]")
             console.print(f"  Run /bruh-cards-admin reload in Discord ({target_env} bot).")
         finally:

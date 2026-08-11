@@ -287,13 +287,14 @@ class MongoEconomyService:
         )
         return count + 1
 
-    async def claim_daily(self, guild_id: int, user_id: int) -> tuple[bool, float, str]:
+    async def claim_daily(self, guild_id: int, user_id: int) -> tuple[bool, float, str, datetime | None]:
         econ_config = await self._get_economy_config(guild_id)
         doc = await self._get_or_create_profile_raw(guild_id, user_id)
         now = datetime.now(UTC)
         today_reset = datetime(now.year, now.month, now.day, 6, 0, 0, tzinfo=UTC)
         if now < today_reset:
             today_reset -= timedelta(days=1)
+        next_reset = today_reset + timedelta(days=1)
         last_claim = doc.get("last_daily_claim")
         if last_claim:
             if isinstance(last_claim, str):
@@ -301,17 +302,13 @@ class MongoEconomyService:
             if last_claim.tzinfo is None:
                 last_claim = last_claim.replace(tzinfo=UTC)
             if last_claim >= today_reset:
-                next_reset = today_reset + timedelta(days=1)
-                remaining = next_reset - now
-                hours = remaining.seconds // 3600
-                minutes = (remaining.seconds % 3600) // 60
-                return False, 0.0, f"Already claimed today! Resets at 12:00 AM CST (in {hours}h {minutes}m)."
+                return False, 0.0, f"Already claimed today! Resets <t:{int(next_reset.timestamp())}:R>.", next_reset
         amount = round(random.uniform(econ_config.dailyCoinMin, econ_config.dailyCoinMax), 2)
         await self.collection.update_one(
             {"guild_id": Int64(guild_id), "user_id": Int64(user_id)},
             {"$inc": {"bruh_coins": amount}, "$set": {"last_daily_claim": now, "updated_at": now}},
         )
-        return True, amount, ""
+        return True, amount, "", next_reset
 
     async def set_xp(self, guild_id: int, user_id: int, amount: int) -> int:
         await self._get_or_create_profile_raw(guild_id, user_id)

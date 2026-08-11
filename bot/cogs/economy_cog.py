@@ -320,10 +320,11 @@ class EconomyCog(commands.Cog):
     @log_command_usage()
     @is_globally_blocked()
     async def economy_daily(self, interaction: discord.Interaction):
-        success, amount, cooldown_msg = await self.bot.economy_service.claim_daily(interaction.guild.id, interaction.user.id)
+        success, amount, cooldown_msg, next_reset = await self.bot.economy_service.claim_daily(interaction.guild.id, interaction.user.id)
         if success:
+            reset_text = f"\nNext daily available <t:{int(next_reset.timestamp())}:R>." if next_reset else ""
             embed = self.bot.embed_service.create_success_embed(
-                f"You claimed **🪙 {amount:.2f}** bruh.coins!\nCome back in 24 hours for more.",
+                f"You claimed **🪙 {amount:.2f}** bruh.coins!{reset_text}",
                 title="Daily Reward Claimed!",
             )
         else:
@@ -1341,7 +1342,7 @@ class EconomyCog(commands.Cog):
     # ═══════════════════════════════════════════════════════════════
     # /bruh-cards  (trading card subgroup)
     # ═══════════════════════════════════════════════════════════════
-    bruh_cards_group = app_commands.Group(name="bruh-cards", description="Collect and trade Void Archive bruh.cards!")
+    bruh_cards_group = app_commands.Group(name="bruh-cards", description="Collect and trade bruh.cards!")
 
     @bruh_cards_group.command(name="inventory", description="Open your interactive bruh.cards dashboard.")
     @log_command_usage()
@@ -1355,14 +1356,24 @@ class EconomyCog(commands.Cog):
         view._update_buttons()
         await interaction.followup.send(embed=view._dashboard_embed(), view=view, ephemeral=True)
 
+    @bruh_cards_group.command(name="shop", description="Browse available trading card packs.")
+    @log_command_usage()
+    @is_globally_blocked()
     async def bruh_cards_shop(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         packs = self.bot.trading_card_catalog_service.get_all_packs()
+        if not packs:
+            return await interaction.followup.send(
+                embed=self.bot.embed_service.create_info_embed(title="Card Pack Shop", description="No packs are currently available."),
+                ephemeral=True,
+                files=self.bot.embed_service.get_brand_files(),
+            )
         lines = []
         for key, pack in packs.items():
             guaranteed = pack.guaranteed_rarity
             g_text = f"Guaranteed: **{guaranteed.value.title()}**+" if guaranteed else "No guaranteed rarity"
-            lines.append(f"**{pack.name}** — 🪙 {pack.price:,}\n　{pack.description}\n　{g_text} · {pack.cards_per_pack} cards per pack\n　Buy: `/bruh-cards buy-pack {key}`")
+            set_display = pack.series_id.replace("_", " ").title()
+            lines.append(f"**{pack.name}** ({set_display}) — 🪙 {pack.price:,}\n　{pack.description}\n　{g_text} · {pack.cards_per_pack} cards per pack\n　Buy: `/bruh-cards buy-pack {key}`")
         embed = self.bot.embed_service._create_base_embed(
             title="Trading Card Shop",
             description="\n\n".join(lines),
@@ -1374,27 +1385,55 @@ class EconomyCog(commands.Cog):
         )
         await interaction.followup.send(embed=embed, ephemeral=True, files=self.bot.embed_service.get_brand_files(embed=embed))
 
+    @bruh_cards_group.command(name="buy-pack", description="Buy a trading card pack.")
+    @app_commands.describe(pack_id="The pack to buy", quantity="How many to buy")
     @app_commands.autocomplete(pack_id=pack_id_autocomplete)
-    async def bruh_cards_buy_pack(self, interaction: discord.Interaction, pack_id: str, quantity: int = 1):
+    @log_command_usage()
+    @is_globally_blocked()
+    async def bruh_cards_buy_pack(self, interaction: discord.Interaction, pack_id: str, quantity: app_commands.Range[int, 1, 10] = 1):
         await interaction.response.defer(ephemeral=True)
+        pack_def = self.bot.trading_card_catalog_service.get_pack(pack_id)
+        if not pack_def:
+            return await interaction.followup.send(embed=_coins_embed("Invalid Pack", f"No pack with ID `{pack_id}`."), ephemeral=True)
+        total_cost = pack_def.price * quantity
+        success, current = await self.bot.economy_service.deduct_coins(interaction.guild.id, interaction.user.id, total_cost)
+        if not success:
+            return await interaction.followup.send(
+                embed=_coins_embed("Not Enough Coins", f"You need **🪙 {total_cost:,}** for {quantity}x {pack_def.name}. You have **🪙 {current:,.2f}**."),
+                ephemeral=True,
+            )
         for _ in range(quantity):
-            result = await self.bot.trading_card_service.buy_pack(interaction.guild.id, interaction.user.id, pack_id)
-        if not result["success"]:
-            return await interaction.followup.send(embed=_coins_embed("Purchase Failed", result["error"]), ephemeral=True)
+            await self.bot.trading_card_service.add_packs(interaction.guild.id, interaction.user.id, pack_id)
+        await self.bot.economy_service.record_transaction(
+            interaction.guild.id,
+            interaction.user.id,
+            "trading_card_pack_purchase",
+            -total_cost,
+            0.0,
+            reference_type="trading_card_pack",
+            reference_id=pack_id,
+            metadata={"quantity": quantity},
+        )
         await interaction.followup.send(
             embed=_coins_embed(
                 "Pack Purchased!",
-                f"You bought **{quantity}x {result['pack_name']}** for 🪙 {result['price'] * quantity:,}!\nOpen with `/bruh-cards open`",
+                f"You bought **{quantity}x {pack_def.name}** for 🪙 {total_cost:,}!\nOpen with `/bruh-cards open {pack_id}`",
             ),
             ephemeral=True,
         )
 
+    @bruh_cards_group.command(name="open", description="Open a trading card pack.")
+    @app_commands.describe(pack_id="The pack to open")
     @app_commands.autocomplete(pack_id=pack_id_autocomplete)
+    @log_command_usage()
+    @is_globally_blocked()
     async def bruh_cards_open(self, interaction: discord.Interaction, pack_id: str):
         await interaction.response.defer(ephemeral=True)
         result = await self.bot.trading_card_service.open_pack(interaction.guild.id, interaction.user.id, pack_id)
         if not result["success"]:
             return await interaction.followup.send(embed=_coins_embed("Cannot Open", result["error"]), ephemeral=True)
+        pack_def = self.bot.trading_card_catalog_service.get_pack(pack_id)
+        set_display = pack_def.series_id.replace("_", " ").title() if pack_def else "Unknown"
         lines = []
         for i, (card_id, rarity_val) in enumerate(zip(result["card_ids"], result["rarities"], strict=False)):
             try:
@@ -1411,8 +1450,9 @@ class EconomyCog(commands.Cog):
             timestamp=datetime.now(UTC),
         )
         embed.set_footer(text="bruh.bot")
-        stats = await self.bot.trading_card_service.get_collection_stats(interaction.guild.id, interaction.user.id)
-        embed.add_field(name="Collection", value=f"{stats['unique_cards']}/{stats['series_total']} Void Archive ({stats['completion_pct']}%)", inline=True)
+        if pack_def:
+            stats = await self.bot.trading_card_service.get_collection_stats(interaction.guild.id, interaction.user.id, set_id=pack_def.series_id)
+            embed.add_field(name="Collection", value=f"{stats['unique_cards']}/{stats['series_total']} {set_display} ({stats['completion_pct']}%)", inline=True)
         embed.add_field(name="Total Cards", value=str(len(result["card_ids"])), inline=True)
         await interaction.followup.send(embed=embed, ephemeral=True)
 
@@ -1444,6 +1484,13 @@ class EconomyCog(commands.Cog):
             lines.append(f"{TC_EMOJI.get(card.rarity, '')} **#{card.number} {card.name}**{' x' + str(qty) if qty > 1 else ''}")
 
         rarity_summary = " · ".join(f"{TC_EMOJI.get(r, '')} {count}" for r, count in stats["rarity_counts"].items() if count > 0)
+        set_display = ""
+        if stats.get("set_counts"):
+            parts = []
+            for sid, count in stats["set_counts"].items():
+                set_total = self.bot.trading_card_catalog_service.get_series_total(sid)
+                parts.append(f"**{sid.replace('_', ' ').title()}** {count}/{set_total}")
+            set_display = " · ".join(parts)
 
         embed = self.bot.embed_service._create_base_embed(
             title=f"{target.display_name}'s Collection",
@@ -1452,7 +1499,9 @@ class EconomyCog(commands.Cog):
         embed.set_thumbnail(url=target.display_avatar.url)
         if len(lines) > 20:
             embed.set_footer(text=f"bruh.bot · {len(lines)} unique cards total")
-        embed.insert_field_at(0, name=f"Void Archive ({stats['unique_cards']}/{stats['series_total']} · {stats['completion_pct']}%)", value=rarity_summary, inline=False)
+        embed.insert_field_at(0, name=f"Overview ({stats['unique_cards']}/{stats['series_total']} · {stats['completion_pct']}%)", value=rarity_summary, inline=False)
+        if set_display:
+            embed.add_field(name="Per Collection", value=set_display, inline=False)
         embed.add_field(name="Total Cards", value=str(stats["total_cards"]), inline=True)
         embed.add_field(name="Unopened Packs", value=str(sum(p.get("quantity", 1) for p in stats["unopened_packs"])), inline=True)
         await interaction.followup.send(embed=embed)
@@ -1476,9 +1525,9 @@ class EconomyCog(commands.Cog):
             color=color,
             timestamp=datetime.now(UTC),
         )
-        embed.set_footer(text="bruh.bot · Void Archive")
+        embed.set_footer(text="bruh.bot")
         embed.add_field(name="Rarity", value=f"{TC_EMOJI.get(card.rarity, '')} {card.rarity.value.title()}", inline=True)
-        embed.add_field(name="Series", value="Void Archive", inline=True)
+        embed.add_field(name="Series", value=card.series_id.replace("_", " ").title(), inline=True)
         embed.add_field(name="Owned", value=f"{owned}x", inline=True)
         embed.add_field(name="Sellback", value=f"🪙 {card.sellback_value:,.2f}", inline=True)
         if image_buffer:
@@ -1488,8 +1537,12 @@ class EconomyCog(commands.Cog):
         else:
             await interaction.followup.send(embed=embed, ephemeral=True)
 
+    @bruh_cards_group.command(name="sell", description="Sell a trading card for coins.")
+    @app_commands.describe(card_id="The card to sell", quantity="How many to sell")
     @app_commands.autocomplete(card_id=card_id_autocomplete)
-    async def bruh_cards_sell(self, interaction: discord.Interaction, card_id: str, quantity: int = 1):
+    @log_command_usage()
+    @is_globally_blocked()
+    async def bruh_cards_sell(self, interaction: discord.Interaction, card_id: str, quantity: app_commands.Range[int, 1, 100] = 1):
         await interaction.response.defer(ephemeral=True)
         result = await self.bot.trading_card_service.sell_cards(interaction.guild.id, interaction.user.id, card_id, quantity)
         if not result["success"]:
@@ -1503,7 +1556,7 @@ class EconomyCog(commands.Cog):
     # ═══════════════════════════════════════════════════════════════
     # /card-trade  (independent trading card trade subgroup)
     # ═══════════════════════════════════════════════════════════════
-    card_trade_group = app_commands.Group(name="bruh-card-trade", description="Trade Void Archive cards!")
+    card_trade_group = app_commands.Group(name="bruh-card-trade", description="Trade bruh.cards!")
 
     @card_trade_group.command(name="offer", description="Offer a trading card trade.")
     @app_commands.describe(

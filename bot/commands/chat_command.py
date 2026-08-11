@@ -11,46 +11,66 @@ from bot.services.ai.gateway.schemas.request import Message, MessagePart, Normal
 from bot.utils.decarators.command_logging import log_command_usage
 from bot.utils.decarators.global_block_check import is_globally_blocked
 
+MAX_MESSAGE_LENGTH = 1900
+
 
 class ChatCommand(app_commands.Command):
     def __init__(self, tree: app_commands.CommandTree, args=None):
-        @tree.command(name="chat", description="Command to chat will llms")
+        @tree.command(name="chat", description="Chat with the bot's AI using a text prompt.")
         @log_command_usage()
         @is_globally_blocked()
         async def chat(interaction: discord.Interaction, message: str):
             await interaction.response.defer(ephemeral=False)
 
             client: BruhBot = interaction.client
-            can_request, limit_message = await client.ai_usage_service.consume_request(interaction.user.id, interaction.guild.id)
-            if not can_request:
-                await interaction.followup.send(limit_message)
-                return
-            config = (await client.config_service.get_config(str(interaction.guild.id))).aiConfig
 
-            provider = config.preferredAiProvider
-            provider_config = getattr(config, provider, None) or config.openrouter
-            api_key = provider_config.get_api_key()
-            preferred_model = provider_config.preferredModel
+            try:
+                can_request, limit_message = await client.ai_usage_service.consume_request(interaction.user.id, interaction.guild.id)
+                if not can_request:
+                    await interaction.followup.send(limit_message)
+                    return
+            except Exception:
+                pass
 
-            # Construct gateway request
-            req = NormalizedRequest(provider=provider, model=preferred_model, messages=[Message(role="user", parts=[MessagePart(type="text", text=message)])])
+            try:
+                config = (await client.config_service.get_config(str(interaction.guild.id))).aiConfig
 
-            gateway = get_mesh_gateway()
-            response = await gateway.complete(req, credentials={"api_key": api_key})
+                provider = config.preferredAiProvider
+                provider_config = getattr(config, provider, None) or config.openrouter
+                api_key = provider_config.get_api_key()
+                preferred_model = provider_config.preferredModel
 
-            if response.usage:
-                try:
-                    client.ai_usage_tracking_service.track_usage(
-                        user_id=interaction.user.id,
-                        guild_id=interaction.guild.id,
-                        input_tokens=response.usage.get("input_tokens", 0),
-                        output_tokens=response.usage.get("output_tokens", 0),
-                        cost=response.usage.get("cost", 0),
-                        model=response.model or preferred_model,
-                    )
-                except Exception:
-                    pass
+                req = NormalizedRequest(provider=provider, model=preferred_model, messages=[Message(role="user", parts=[MessagePart(type="text", text=message)])])
 
-            content = "".join(part.content for part in response.parts if part.type == "text")
+                gateway = get_mesh_gateway()
+                response = await gateway.complete(req, credentials={"api_key": api_key})
 
-            await interaction.followup.send(content)
+                if response.usage:
+                    try:
+                        await client.ai_usage_tracking_service.track_usage(
+                            user_id=interaction.user.id,
+                            guild_id=interaction.guild.id,
+                            input_tokens=response.usage.get("input_tokens", 0),
+                            output_tokens=response.usage.get("output_tokens", 0),
+                            cost=response.usage.get("cost", 0),
+                            model=response.model or preferred_model,
+                        )
+                    except Exception:
+                        pass
+
+                content = "".join(part.content for part in response.parts if part.type == "text")
+
+                if len(content) <= MAX_MESSAGE_LENGTH:
+                    await interaction.followup.send(content)
+                else:
+                    for i in range(0, len(content), MAX_MESSAGE_LENGTH):
+                        chunk = content[i : i + MAX_MESSAGE_LENGTH]
+                        if i == 0:
+                            await interaction.followup.send(chunk)
+                        else:
+                            await interaction.channel.send(chunk)
+
+            except Exception as e:
+                client.logger.error(f"Error in /chat command: {e}", exc_info=True)
+                embed = client.embed_service.create_error_embed(f"An error occurred: {str(e)[:500]}")
+                await interaction.followup.send(embed=embed, files=client.embed_service.get_brand_files(embed=embed))

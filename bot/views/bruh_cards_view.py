@@ -355,17 +355,19 @@ class BruhCardsInventoryView(discord.ui.View):
     async def inspect_card_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not await self._check_owner(interaction):
             return
+        options = []
         if self.screen == "collection":
             cards_data = self._stats.get("cards", []) if self._stats else []
-            if not cards_data:
-                await interaction.response.send_message("No cards to inspect.", ephemeral=True)
-                return
-            options = []
+            filtered = []
             for entry in cards_data:
                 card = self._catalog.get_card(entry["card_id"])
                 if not card or (self.binder_rarity and card.rarity.value != self.binder_rarity):
                     continue
-                options.append(discord.SelectOption(label=f"#{card.number} {card.name}", value=card.card_id, description=f"Owned: {entry.get('quantity', 1)}x"))
+                filtered.append((card, entry.get("quantity", 1)))
+            start = self.binder_page * CARDS_PER_PAGE
+            page_items = filtered[start : start + CARDS_PER_PAGE]
+            for card, qty in page_items:
+                options.append(discord.SelectOption(label=f"#{card.number} {card.name}", value=card.card_id, description=f"Owned: {qty}x"))
         elif self.screen == "catalog":
             all_cards = self._catalog.get_all_released_cards()
             if self.catalog_rarity:
@@ -374,11 +376,14 @@ class BruhCardsInventoryView(discord.ui.View):
                     all_cards = [c for c in all_cards if c.rarity == r]
                 except ValueError:
                     pass
-            options = [discord.SelectOption(label=f"#{c.number} {c.name}", value=c.card_id, description=c.rarity.value.title()) for c in all_cards]
+            start = self.catalog_page * CARDS_PER_PAGE
+            page_items = all_cards[start : start + CARDS_PER_PAGE]
+            for c in page_items:
+                options.append(discord.SelectOption(label=f"#{c.number} {c.name}", value=c.card_id, description=c.rarity.value.title()))
         else:
             return
         if not options:
-            await interaction.response.send_message("No cards to inspect.", ephemeral=True)
+            await interaction.response.send_message("No cards on this page.", ephemeral=True)
             return
         select = CardInspectSelect(self, options[:25])
         await interaction.response.send_message("Choose a card to inspect:", view=select, ephemeral=True)

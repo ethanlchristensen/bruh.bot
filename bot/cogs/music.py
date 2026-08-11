@@ -129,7 +129,6 @@ class MusicCog(commands.Cog):
 
     @app_commands.command(name="queue", description="View the current music queue.")
     @log_command_usage()
-    @require_voice_channel(ephemeral=True, allow_admin_bypass=True)
     @is_globally_blocked()
     async def queue(self, interaction: discord.Interaction):
         player = self.bot.music_queue_service.get_player(interaction.guild)

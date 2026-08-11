@@ -131,6 +131,24 @@ class MongoTradingCardService:
                 return rarity
         return TradingCardRarity.COMMON
 
+    def _roll_rarity_for_set(self, set_id: str) -> TradingCardRarity:
+        catalog = self.bot.trading_card_catalog_service
+        series_cards = catalog.get_cards_by_series(set_id)
+        available = {c.rarity for c in series_cards}
+        if not available:
+            return TradingCardRarity.COMMON
+        table = [(r, p) for r, p in DEFAULT_DROP_TABLE if r in available]
+        if not table:
+            return TradingCardRarity.COMMON
+        total = sum(p for _, p in table)
+        roll = random.random() * total
+        cumulative = 0.0
+        for rarity, prob in table:
+            cumulative += prob
+            if roll < cumulative:
+                return rarity
+        return table[-1][0]
+
     def _pick_card_from_rarity(self, rarity: TradingCardRarity, set_id: str | None = None) -> str | None:
         catalog = self.bot.trading_card_catalog_service
         if set_id:
@@ -152,6 +170,8 @@ class MongoTradingCardService:
         for i in range(cards_per):
             if i == guaranteed_slot:
                 picked = self._pick_card_from_rarity(guaranteed, set_id)
+            elif set_id:
+                picked = self._pick_card_from_rarity(self._roll_rarity_for_set(set_id), set_id)
             else:
                 picked = self._pick_card_from_rarity(self._roll_rarity(), set_id)
             if picked is None:

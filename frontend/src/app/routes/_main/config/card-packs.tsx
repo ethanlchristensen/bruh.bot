@@ -337,7 +337,7 @@ function CardPacksComponent() {
                                 >
                                   <div className="aspect-[3/4] bg-muted/30 flex items-center justify-center overflow-hidden">
                                     <img
-                                      src={`/api/trading-cards/card/${card.card_id}/image?v=${card.asset_sha256 || '0'}`}
+                                      src={`/api/trading-cards/card/${card.card_id}/image?v=${card.asset_sha256 || '0'}-v2`}
                                       alt={card.name}
                                       className="w-full h-full object-cover"
                                       loading="lazy"

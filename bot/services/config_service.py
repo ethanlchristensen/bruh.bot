@@ -155,6 +155,7 @@ class EconomyConfig(BaseModel):
     tradingCardMarketFeeRate: float = 0.05
     tradingCardSellbackRate: float = 1.0
     tradingCardMaxActiveListings: int = 20
+    purchaseTaxRate: float = 0.02
 
 
 class ReputationConfig(BaseModel):

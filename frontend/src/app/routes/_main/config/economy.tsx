@@ -51,6 +51,7 @@ function EconomyConfigComponent() {
   const [tradingCardTrading, setTradingCardTrading] = useState(true);
   const [tradingCardMarket, setTradingCardMarket] = useState(false);
   const [marketFeeRate, setMarketFeeRate] = useState(5);
+  const [purchaseTaxRate, setPurchaseTaxRate] = useState(2);
 
   const initialValuesRef = useRef<{
     xpEnabled: boolean;
@@ -78,6 +79,7 @@ function EconomyConfigComponent() {
     tradingCardTrading: boolean;
     tradingCardMarket: boolean;
     marketFeeRate: number;
+    purchaseTaxRate: number;
   } | null>(null);
 
   useEffect(() => {
@@ -110,6 +112,7 @@ function EconomyConfigComponent() {
           tradingCardTrading: econ.tradingCardTradingEnabled ?? true,
           tradingCardMarket: econ.tradingCardMarketEnabled ?? false,
           marketFeeRate: econ.tradingCardMarketFeeRate ?? 5,
+          purchaseTaxRate: econ.purchaseTaxRate ? Math.round(econ.purchaseTaxRate * 100) : 2,
         };
         if (!initialValuesRef.current) {
           initialValuesRef.current = vals;
@@ -139,6 +142,7 @@ function EconomyConfigComponent() {
         setTradingCardTrading(vals.tradingCardTrading);
         setTradingCardMarket(vals.tradingCardMarket);
         setMarketFeeRate(vals.marketFeeRate);
+        setPurchaseTaxRate(vals.purchaseTaxRate);
       }
     }
   }, [data, isSaving]);
@@ -171,7 +175,8 @@ function EconomyConfigComponent() {
       tradingCardPacks !== iv.tradingCardPacks ||
       tradingCardTrading !== iv.tradingCardTrading ||
       tradingCardMarket !== iv.tradingCardMarket ||
-      marketFeeRate !== iv.marketFeeRate
+      marketFeeRate !== iv.marketFeeRate ||
+      purchaseTaxRate !== iv.purchaseTaxRate
     );
   }, [
     xpEnabled, coinsEnabled, levelUpAnnounce,
@@ -180,7 +185,7 @@ function EconomyConfigComponent() {
     messageCoinMin, messageCoinMax, imageCoinBonus, reactionCoin,
     mentionCoinMin, mentionCoinMax, dailyCoinMin, dailyCoinMax,
 gamblingMaxCoinflips, gamblingMaxDice, gamblingMaxSlots,
-            bruhCardsEnabled, tradingCardPacks, tradingCardTrading, tradingCardMarket, marketFeeRate,
+            bruhCardsEnabled, tradingCardPacks, tradingCardTrading, tradingCardMarket, marketFeeRate, purchaseTaxRate,
   ]);
 
   const handleSave = () => {
@@ -211,6 +216,7 @@ gamblingMaxCoinflips, gamblingMaxDice, gamblingMaxSlots,
           tradingCardTradingEnabled: tradingCardTrading,
           tradingCardMarketEnabled: tradingCardMarket,
           tradingCardMarketFeeRate: marketFeeRate,
+          purchaseTaxRate: purchaseTaxRate / 100,
         },
       }).then(() => {
         initialValuesRef.current = {
@@ -220,7 +226,7 @@ gamblingMaxCoinflips, gamblingMaxDice, gamblingMaxSlots,
           messageCoinMin, messageCoinMax, imageCoinBonus, reactionCoin,
 mentionCoinMin, mentionCoinMax, dailyCoinMin, dailyCoinMax,
 gamblingMaxCoinflips, gamblingMaxDice, gamblingMaxSlots,
-    bruhCardsEnabled, tradingCardPacks, tradingCardTrading, tradingCardMarket, marketFeeRate,
+    bruhCardsEnabled, tradingCardPacks, tradingCardTrading, tradingCardMarket, marketFeeRate, purchaseTaxRate,
           };
         return queryClient.invalidateQueries({ queryKey: ['config'] });
       }).finally(() => {
@@ -422,6 +428,26 @@ gamblingMaxCoinflips, gamblingMaxDice, gamblingMaxSlots,
                 <Label className="text-sm">Max Slots/Day</Label>
                 <Input type="number" value={gamblingMaxSlots} onChange={(e) => setGamblingMaxSlots(parseInt(e.target.value) || 0)} className="h-10" />
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Purchase Tax */}
+        <Card variant="hero">
+          <CardHeader>
+            <div className="flex items-center gap-4">
+              <CardIcon><Coins /></CardIcon>
+              <div>
+                <CardTitle>Admin Tax</CardTitle>
+                <CardDescription>A small cut of all purchases, gambling bets, and gifts distributed evenly among configured admins.</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label className="text-sm">Tax Rate (%)</Label>
+              <Input type="number" step="0.1" min="0" max="100" value={purchaseTaxRate} onChange={(e) => setPurchaseTaxRate(parseFloat(e.target.value) || 0)} className="h-10 w-24" />
+              <p className="text-xs text-muted-foreground">Included in the listed price. Set to 0 to disable.</p>
             </div>
           </CardContent>
         </Card>

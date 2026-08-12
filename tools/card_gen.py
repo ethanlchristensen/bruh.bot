@@ -46,7 +46,7 @@ logger = logging.getLogger("card_gen")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 CARD_IMAGE_MODEL = "google/gemini-3.1-flash-image"
-CARD_TEXT_MODEL = "deepseek/deepseek-v4-flash"
+CARD_TEXT_MODEL = "deepseek/deepseek-v4-pro"
 CARD_ASPECT_RATIO = "3:4"
 
 RARITY_COUNTS = {"basic": 14, "common": 12, "rare": 9, "epic": 6, "legendary": 4, "diamond": 3, "platinum": 2}
@@ -165,6 +165,43 @@ Platinum cards should be the ultimate chase cards. Each description must be uniq
     return cards if len(cards) >= 10 else None
 
 
+async def generate_rarity_themes(theme_name: str, theme_desc: str, api_key: str) -> dict[str, str] | None:
+    prompt = f"""For a trading card set called "{theme_name}" with this theme: {theme_desc}
+
+Define what each rarity tier represents in this specific theme. Each tier should feel distinct and logically escalate in power/importance:
+
+- Basic ({RARITY_COUNTS['basic']} cards): Common, everyday elements of this theme.
+- Common ({RARITY_COUNTS['common']} cards): Familiar but notable elements.
+- Rare ({RARITY_COUNTS['rare']} cards): Significant, respected elements.
+- Epic ({RARITY_COUNTS['epic']} cards): Heroic, powerful elements.
+- Legendary ({RARITY_COUNTS['legendary']} cards): Mythical, near-pinnacle elements.
+- Diamond ({RARITY_COUNTS['diamond']} cards): Transcendent, reality-bending elements.
+- Platinum ({RARITY_COUNTS['platinum']} cards): The absolute pinnacle — embodiment of the theme itself.
+
+Return ONLY valid JSON: {{"basic": "description", "common": "...", "rare": "...", "epic": "...", "legendary": "...", "diamond": "...", "platinum": "..."}}"""
+
+    request = NormalizedRequest(
+        provider="openrouter", model=CARD_TEXT_MODEL,
+        messages=[Message(role="user", parts=[MessagePart(type="text", text=prompt)])], stream=False,
+    )
+    response = await get_mesh_gateway().complete(request, credentials={"api_key": api_key})
+    text = "".join(p.content for p in response.parts if p.type == "text")
+
+    import re
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    if not match:
+        return None
+    try:
+        data = json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return None
+
+    expected = list(RARITY_COUNTS.keys())
+    if not all(k in data for k in expected):
+        return None
+    return {k: str(data[k]) for k in expected}
+
+
 # ── Card Set Generator ──
 class CardSetGenerator:
     def __init__(self, env: str = "dev"):
@@ -186,11 +223,29 @@ class CardSetGenerator:
         theme_name = Prompt.ask("[bold]Display name[/bold]", default=self.set_id.replace("_", " ").title())
         theme_desc = Prompt.ask("[bold]Theme description[/bold]", default="A mysterious collection of dark fantasy trading cards.")
 
-        console.print("\n[bold]Define what each rarity tier represents:[/bold]")
-        rarity_themes = {}
+        console.print("\n[cyan]Generating rarity tier descriptions with AI...[/cyan]")
+        rarity_themes = None
+        while not rarity_themes:
+            rarity_themes = await generate_rarity_themes(theme_name, theme_desc, self.api_key)
+            if not rarity_themes:
+                console.print("[red]AI generation failed.[/red]")
+                if not Confirm.ask("Retry?", default=True):
+                    return
+
+        table = Table(title=f"Rarity Themes — {theme_name}")
+        table.add_column("Rarity", style="bold")
+        table.add_column("#")
+        table.add_column("Theme", max_width=60)
         for rarity in RARITY_COUNTS:
-            default = self._default_rarity_desc(rarity)
-            rarity_themes[rarity] = Prompt.ask(f"  [bold]{rarity.title()}[/bold] ({RARITY_COUNTS[rarity]} cards)", default=default)
+            table.add_row(rarity.title(), str(RARITY_COUNTS[rarity]), rarity_themes.get(rarity, ""))
+        console.print(table)
+
+        if not Confirm.ask("\nApprove rarity themes?", default=True):
+            console.print("\n[bold]Enter custom rarity themes:[/bold]")
+            rarity_themes = {}
+            for rarity in RARITY_COUNTS:
+                default = self._default_rarity_desc(rarity)
+                rarity_themes[rarity] = Prompt.ask(f"  [bold]{rarity.title()}[/bold] ({RARITY_COUNTS[rarity]} cards)", default=default)
 
         # Generate card names
         console.print("\n[cyan]Generating card names and descriptions with AI...[/cyan]")
@@ -324,7 +379,12 @@ class CardSetGenerator:
             card["asset_status"] = "generating"
             await self.pub.upsert_card(card)
 
-            prompt = card["description"]
+            prompt = (
+                f"Use the provided base template card to create a trading card. "
+                f"Depict the following concept as a character or scene illustration: {card['description']} "
+                f"CRITICAL: Do NOT put any text, words, letters, titles, names, placeholders, "
+                f"or description text on the card. The card must have zero text — only artwork."
+            )
             console.print(f"  [{i + 1}/{total}] [cyan]{card['card_id']} ({card['rarity']})...[/cyan]")
 
             try:
@@ -574,7 +634,12 @@ class CardSetGenerator:
         console.print(f"\n[bold]{sd['display_name']}[/bold] — [cyan]{card_name}[/cyan] ({rarity})")
         console.print(f"  Description: {description}")
 
-        prompt = prompt_override if prompt_override else description
+        prompt = prompt_override if prompt_override else (
+            f"Use the provided base template card to create a trading card. "
+            f"Depict the following concept as a character or scene illustration: {description} "
+            f"CRITICAL: Do NOT put any text, words, letters, titles, names, placeholders, "
+            f"or description text on the card. The card must have zero text — only artwork."
+        )
         if prompt_override:
             console.print(f"  [yellow]Prompt override: {prompt}[/yellow]")
         else:
@@ -647,6 +712,100 @@ class CardSetGenerator:
         console.print(f"\n[bold green]Card '{card_id}' art updated![/bold green]")
         console.print(f"  SHA-256: {sha}")
         console.print(f"[yellow]Run /bruh-cards-admin reload in Discord to refresh the bot cache.[/yellow]")
+
+    # ── Regenerate all cards ──
+    async def regenerate_all(self, set_id: str, yes: bool = False, skip_base: bool = False):
+        self.set_id = set_id
+        sd = await self.pub.get_set(set_id)
+        if not sd:
+            console.print(f"[red]Set '{set_id}' not found in Mongo.[/red]")
+            return
+
+        st = await self.pub.get_set_status(set_id)
+        console.print(f"\n[bold]{st['display_name']}[/bold]")
+        console.print(f"   Total: {st['total_cards']} | Ready: {st['ready']} | Pending: {st['pending']} | Failed: {st['failed']}")
+
+        if st["total_cards"] == 0:
+            console.print("[red]No cards found for this set.[/red]")
+            return
+
+        if not yes:
+            if not Confirm.ask(f"\nReset all {st['total_cards']} cards to pending and regenerate?", default=False):
+                return
+
+        console.print(f"\n[cyan]Resetting {st['total_cards']} cards to pending...[/cyan]")
+        await self.pub.catalog_col.update_many(
+            {"set_id": set_id},
+            {"$set": {"asset_status": "pending", "asset_error": None}},
+        )
+        console.print("[green]All cards reset to pending.[/green]")
+
+        if skip_base:
+            console.print("[dim]Skipping base template regeneration — loading existing...[/dim]")
+            base_data = await self.pub.get_asset_bytes(f"{set_id}_base_template")
+            if base_data:
+                self.base_image = Image.open(BytesIO(base_data))
+                console.print("[green]Loaded existing base template.[/green]")
+            else:
+                self.base_image = None
+                console.print("[yellow]No base template found — generating cards without reference.[/yellow]")
+        else:
+            base_prompt = sd.get("base_prompt", "")
+            theme_name = sd.get("display_name", set_id)
+            theme_desc = sd.get("description", "")
+            if not base_prompt:
+                base_prompt = self._build_base_prompt(theme_name, theme_desc)
+
+            console.print(f"\n[cyan]Generating base template...[/cyan]")
+            self.base_image, _ = await generate_image(base_prompt, self.api_key)
+            if not self.base_image:
+                console.print("[red]Base template generation failed.[/red]")
+                base_data = await self.pub.get_asset_bytes(f"{set_id}_base_template")
+                if base_data:
+                    self.base_image = Image.open(BytesIO(base_data))
+                    console.print("[yellow]Falling back to existing base template.[/yellow]")
+                else:
+                    self.base_image = None
+                    console.print("[yellow]No base template available — generating cards without reference.[/yellow]")
+            else:
+                tf = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+                self.base_image.save(tf.name)
+                console.print(f"[green]Base template preview: {tf.name}[/green]")
+                if not yes:
+                    console.print("[dim]Opening for review...[/dim]")
+                    webbrowser.open(tf.name)
+                    while True:
+                        choice = Prompt.ask("Approve base template?", choices=["approve", "retry", "cancel"], default="approve")
+                        if choice == "cancel":
+                            tf.close()
+                            os.unlink(tf.name)
+                            console.print("[yellow]Cancelled.[/yellow]")
+                            return
+                        if choice == "approve":
+                            break
+                        adj = Prompt.ask("Tweak prompt", default="")
+                        if adj:
+                            base_prompt += f" {adj}"
+                        self.base_image, _ = await generate_image(base_prompt, self.api_key)
+                        if self.base_image:
+                            self.base_image.save(tf.name)
+                            webbrowser.open(tf.name)
+                            console.print("[green]Updated.[/green]")
+                        else:
+                            console.print("[red]Generation failed, keeping previous version.[/red]")
+                            break
+
+                buf = BytesIO()
+                self.base_image.save(buf, format="PNG")
+                await self.pub.upload_asset(f"{set_id}_base_template", buf.getvalue(), replace=True)
+                console.print("[green]Base template uploaded.[/green]")
+                tf.close()
+                os.unlink(tf.name)
+
+        cards = await self.pub.get_cards_by_status(set_id, "pending")
+        console.print(f"\nGenerating {len(cards)} cards...")
+        await self._generate_cards_direct(cards)
+        console.print(f"\n[green]Done. Check status: poetry run python tools/card_gen.py status {set_id} --env {self.env}[/green]")
 
     # ── Upload pre-generated set ──
     async def upload_set(self, set_id: str, folder: str, display_name: str | None = None, prefix: str | None = None, manifest: str | None = None):
@@ -822,13 +981,15 @@ class CardSetGenerator:
 
     def _build_base_prompt(self, name: str, desc: str) -> str:
         return (
-            f"A dark fantasy trading card template frame, 768x1024 portrait orientation, "
+            f"A trading card template frame, 768x1024 portrait orientation, "
             f"for the '{name}' card set. {desc} "
             f"Stylized flat-color cartoon illustration with bold clean outlines and cel-shading "
             f"— similar to Hades game art or Castlevania animated series. "
-            f"The center shows a subtle gradient background matching the theme. No text, no characters, "
-            f"no specific objects — just the atmospheric backdrop and decorative frame elements. "
-            f"Deep moody color palette with vibrant accent highlights."
+            f"The center shows a subtle gradient background matching the theme. "
+            f"CRITICAL: No text, no words, no letters, no card titles, no placeholder text, "
+            f"no name plates, no stat boxes — absolutely zero text of any kind. "
+            f"No characters, no specific objects — just the atmospheric backdrop and decorative frame elements. "
+            f"Color palette and lighting should match the theme description."
         )
 
 
@@ -867,6 +1028,11 @@ async def main():
     rc.add_argument("card_id")
     rc.add_argument("--prompt", default=None, help="Prompt override (default: card description)")
     rc.add_argument("--yes", action="store_true", help="Skip review confirmation")
+
+    ra = sub.add_parser("regenerate-all", help="Regenerate art for ALL cards in a set")
+    ra.add_argument("set_id")
+    ra.add_argument("--yes", action="store_true", help="Skip confirmation prompt")
+    ra.add_argument("--skip-base", action="store_true", help="Skip base template regeneration")
 
     up = sub.add_parser("upload-set", help="Upload a pre-generated card set from a folder")
     up.add_argument("set_id")
@@ -907,6 +1073,8 @@ async def main():
             await gen.export_set(args.set_id, args.output)
         elif args.command == "regenerate-card":
             await gen.regenerate_card(args.set_id, args.card_id, prompt_override=args.prompt, yes=args.yes)
+        elif args.command == "regenerate-all":
+            await gen.regenerate_all(args.set_id, yes=args.yes, skip_base=args.skip_base)
         elif args.command == "upload-set":
             await gen.upload_set(args.set_id, args.folder, display_name=args.name, prefix=args.prefix, manifest=args.manifest)
     finally:

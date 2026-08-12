@@ -188,21 +188,12 @@ class MongoTradingCardService:
         if not config.economyConfig.bruhCardsEnabled or not config.economyConfig.tradingCardPacksEnabled:
             return {"success": False, "error": "Trading card packs are currently disabled."}
 
-        success, _ = await self.bot.economy_service.deduct_coins(guild_id, user_id, pack_def.price)
-        if not success:
+        settlement = await self.bot.economy_service.settle_purchase(guild_id, user_id, pack_def.price, "trading_card_pack_purchase", reference_type="trading_card_pack", reference_id=pack_id)
+        if not settlement["success"]:
             return {"success": False, "error": f"You need **🪙 {pack_def.price:,}** for a {pack_def.name}."}
 
-        await self.bot.economy_service.record_transaction(
-            guild_id,
-            user_id,
-            "trading_card_pack_purchase",
-            -pack_def.price,
-            0.0,
-            reference_type="trading_card_pack",
-            reference_id=pack_id,
-        )
         await self.add_packs(guild_id, user_id, pack_id)
-        return {"success": True, "pack_name": pack_def.name, "price": pack_def.price}
+        return {"success": True, "pack_name": pack_def.name, "price": pack_def.price, "tax_amount": settlement["tax_amount"]}
 
     async def open_pack(self, guild_id: int, user_id: int, pack_id: str) -> dict:
         pack_def = self.bot.trading_card_catalog_service.get_pack(pack_id)

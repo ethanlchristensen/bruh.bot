@@ -243,6 +243,119 @@ class MongoEconomyService:
         await self.record_transaction(guild_id, user_id, "debit", -amount, new_balance)
         return True, new_balance
 
+    async def settle_purchase(
+        self,
+        guild_id: int,
+        buyer_id: int,
+        gross_amount: float,
+        purchase_type: str,
+        reference_type: str = "",
+        reference_id: str = "",
+        idempotency_key: str = "",
+        metadata: dict | None = None,
+    ) -> dict:
+        if idempotency_key:
+            existing = await self.ledger.find_one({"idempotency_key": idempotency_key})
+            if existing:
+                existing_metadata = existing.get("metadata", {})
+                return {
+                    "success": True,
+                    "gross_amount": existing_metadata.get("gross_amount", gross_amount),
+                    "tax_rate": existing_metadata.get("tax_rate", 0.0),
+                    "tax_amount": existing_metadata.get("tax_amount", 0.0),
+                    "admin_shares": existing_metadata.get("admin_shares", []),
+                    "net_amount": existing_metadata.get("net_amount", gross_amount),
+                    "buyer_new_balance": existing.get("balance_after", 0.0),
+                }
+
+        config = await self._get_economy_config(guild_id)
+        tax_rate = getattr(config, "purchaseTaxRate", 0.02)
+        guild_config = await self.bot.config_service.get_config(str(guild_id))
+        configured_admin_ids = guild_config.adminIds
+
+        active_admin_ids: list[int] = []
+        guild = self.bot.get_guild(guild_id)
+        if guild:
+            for admin_id_str in configured_admin_ids:
+                try:
+                    admin_id = int(admin_id_str)
+                    member = guild.get_member(admin_id)
+                    if member:
+                        active_admin_ids.append(admin_id)
+                except (ValueError, TypeError):
+                    pass
+
+        tax_amount = 0.0
+        admin_shares: list[dict] = []
+        net_amount = gross_amount
+
+        if tax_rate > 0 and active_admin_ids:
+            tax_amount = round(gross_amount * tax_rate, 2)
+            if tax_amount > 0:
+                net_amount = round(gross_amount - tax_amount, 2)
+                base_share = tax_amount // len(active_admin_ids)
+                remainder_cents = int(round((tax_amount - base_share * len(active_admin_ids)) * 100))
+                for i, admin_id in enumerate(sorted(active_admin_ids)):
+                    share = base_share + (0.01 if i < remainder_cents else 0.0)
+                    share = round(share, 2)
+                    if share > 0:
+                        admin_shares.append({"admin_id": admin_id, "share": share})
+
+        success, buyer_balance = await self.deduct_coins(guild_id, buyer_id, gross_amount)
+        if not success:
+            return {
+                "success": False,
+                "error": f"Insufficient coins. Need {gross_amount:.2f}, have {buyer_balance:.2f}.",
+                "gross_amount": gross_amount,
+                "tax_rate": tax_rate,
+                "tax_amount": 0.0,
+                "admin_shares": [],
+                "net_amount": gross_amount,
+                "buyer_new_balance": buyer_balance,
+            }
+
+        for share_info in admin_shares:
+            await self.add_coins(guild_id, share_info["admin_id"], share_info["share"])
+            await self.record_transaction(
+                guild_id,
+                share_info["admin_id"],
+                f"{purchase_type}_admin_tax_credit",
+                share_info["share"],
+                0.0,
+                reference_type=reference_type,
+                reference_id=reference_id,
+                metadata={"buyer_id": buyer_id, "gross_amount": gross_amount, "tax_rate": tax_rate},
+            )
+
+        await self.record_transaction(
+            guild_id,
+            buyer_id,
+            f"{purchase_type}_debit",
+            -gross_amount,
+            buyer_balance,
+            reference_type=reference_type,
+            reference_id=reference_id,
+            idempotency_key=idempotency_key,
+            metadata={
+                **(metadata or {}),
+                "gross_amount": gross_amount,
+                "tax_rate": tax_rate,
+                "tax_amount": tax_amount,
+                "admin_shares": admin_shares,
+                "net_amount": net_amount,
+            },
+        )
+
+        return {
+            "success": True,
+            "gross_amount": gross_amount,
+            "tax_rate": tax_rate,
+            "tax_amount": tax_amount,
+            "admin_shares": admin_shares,
+            "net_amount": net_amount,
+            "buyer_new_balance": buyer_balance,
+        }
+
     async def add_stat(self, guild_id: int, user_id: int, stat_field: str):
         now = datetime.now(UTC)
         await self.collection.update_one(

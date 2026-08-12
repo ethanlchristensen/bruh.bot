@@ -109,6 +109,7 @@ export interface EconomyConfig {
   tradingCardMarketFeeRate: number;
   tradingCardSellbackRate: number;
   tradingCardMaxActiveListings: number;
+  purchaseTaxRate: number;
 }
 
 export interface ReputationConfig {

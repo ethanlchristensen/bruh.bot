@@ -29,8 +29,6 @@ DICE_MIN = 10
 DICE_MAX = 5_000
 SLOTS_MIN = 10
 SLOTS_MAX = 5_000
-GIFT_TAX_THRESHOLD = 1_000
-GIFT_TAX_RATE = 0.05
 
 XP_BOOSTER_DURATIONS = {
     "xp_booster_1": (1, 300),
@@ -383,17 +381,13 @@ class EconomyCog(commands.Cog):
             return await interaction.followup.send(embed=_coins_embed("Invalid Amount", "Amount must be at least 1 coin."), ephemeral=True)
         if interaction.user.id == user.id:
             return await interaction.followup.send(embed=_coins_embed("Invalid Target", "You can't gift coins to yourself."), ephemeral=True)
-        success, _ = await self.bot.economy_service.deduct_coins(guild_id, sender_id, amount)
-        if not success:
+        settlement = await self.bot.economy_service.settle_purchase(guild_id, sender_id, amount, "gift", reference_type="gift", reference_id=str(user.id))
+        if not settlement["success"]:
             return await interaction.followup.send(embed=_coins_embed("Not Enough Coins", "You don't have enough coins to send that amount."), ephemeral=True)
-        taxed = amount
-        tax_line = ""
-        if amount > GIFT_TAX_THRESHOLD:
-            tax = round(amount * GIFT_TAX_RATE, 2)
-            taxed = amount - tax
-            tax_line = f"\n*(Tax: 🪙 {tax:.2f} on gifts over {GIFT_TAX_THRESHOLD})*"
-        await self.bot.economy_service.add_coins(guild_id, user.id, taxed)
-        await interaction.followup.send(embed=_coins_embed("🎁 Gift Sent!", f"Sent **🪙 {taxed:.2f}** to {user.mention}.{tax_line}"), ephemeral=True)
+
+        await self.bot.economy_service.add_coins(guild_id, user.id, settlement["net_amount"])
+        tax_line = f"\n*(Tax: 🪙 {settlement['tax_amount']:.2f})*" if settlement["tax_amount"] > 0 else ""
+        await interaction.followup.send(embed=_coins_embed("🎁 Gift Sent!", f"Sent **🪙 {settlement['net_amount']:.2f}** to {user.mention}.{tax_line}"), ephemeral=True)
 
     # ═══════════════════════════════════════════════════════════════
     # /shop  (subgroup)
@@ -418,9 +412,10 @@ class EconomyCog(commands.Cog):
         user_id = interaction.user.id
         if item == "mystery_box":
             cost = MYSTERY_BOX_COST
-            success, _ = await self.bot.economy_service.deduct_coins(guild_id, user_id, cost)
-            if not success:
+            settlement = await self.bot.economy_service.settle_purchase(guild_id, user_id, cost, "shop_mystery_box", reference_type="shop", reference_id="mystery_box")
+            if not settlement["success"]:
                 return await interaction.followup.send(embed=_coins_embed("Not Enough Coins", f"You need **{cost}** coins for a Mystery Box."), ephemeral=True)
+            tax_line = f" *(Tax: 🪙 {settlement['tax_amount']:.2f})*" if settlement["tax_amount"] > 0 else ""
             roll = random.random()
             cumulative = 0.0
             reward = None
@@ -443,11 +438,12 @@ class EconomyCog(commands.Cog):
                 await interaction.followup.send(embed=_coins_embed("🎁 Mystery Box", f"You found **🪙 {amount:.2f}**{' (' + label + ')' if cat == 'jackpot' else ''}!\nNew balance: **🪙 {new_balance:.2f}**"), ephemeral=True)
         elif item.startswith("xp_booster"):
             hours, cost = XP_BOOSTER_DURATIONS[item]
-            success, _ = await self.bot.economy_service.deduct_coins(guild_id, user_id, cost)
-            if not success:
+            settlement = await self.bot.economy_service.settle_purchase(guild_id, user_id, cost, "shop_xp_booster", reference_type="shop", reference_id=item)
+            if not settlement["success"]:
                 return await interaction.followup.send(embed=_coins_embed("Not Enough Coins", f"You need **{cost}** coins for an XP Booster."), ephemeral=True)
+            tax_line = f" *(Tax: 🪙 {settlement['tax_amount']:.2f})*" if settlement["tax_amount"] > 0 else ""
             await self.bot.economy_service.activate_booster(guild_id, user_id, hours)
-            await interaction.followup.send(embed=_coins_embed(f"⚡ XP Booster ({hours}h)", f"2x XP active for **{hours}** hour{'s' if hours > 1 else ''}! Go chat!"), ephemeral=True)
+            await interaction.followup.send(embed=_coins_embed(f"⚡ XP Booster ({hours}h)", f"2x XP active for **{hours}** hour{'s' if hours > 1 else ''}! Go chat!{tax_line}"), ephemeral=True)
 
     @shop_group.command(name="status", description="Check your active boosters and coin balance.")
     @log_command_usage()
@@ -495,8 +491,8 @@ class EconomyCog(commands.Cog):
         else:
             actual_turns = turns
         if actual_turns == 1:
-            success, _ = await self.bot.economy_service.deduct_coins(guild_id, user_id, amount)
-            if not success:
+            settlement = await self.bot.economy_service.settle_purchase(guild_id, user_id, amount, "gambling_coinflip", reference_type="gambling", reference_id="coinflip")
+            if not settlement["success"]:
                 return await interaction.followup.send(embed=_coins_embed("Not Enough Coins", "You don't have enough coins for that bet."))
             if not is_admin_user:
                 await self.bot.economy_service.increment_gambling_plays(guild_id, user_id, "coinflip")
@@ -505,9 +501,10 @@ class EconomyCog(commands.Cog):
             if result["won"]:
                 await self.bot.economy_service.add_coins(guild_id, user_id, payout)
             profile = await self.bot.economy_service.get_profile(guild_id, user_id)
+            tax_line = f"\n*(Tax: 🪙 {settlement['tax_amount']:.2f})*" if settlement["tax_amount"] > 0 else ""
             embed = _coins_embed(
                 f"🪙 Coin Flip — {'You Won!' if result['won'] else 'Lost'}",
-                f"Coin landed **{result['result'].upper()}** · You chose **{choice.upper()}**\n{interaction.user.mention}\n\n{'**+🪙 ' + f'{payout:.2f}' + '**' if result['won'] else 'Lost **🪙 ' + f'{amount:.2f}' + '**'}\nBalance: **🪙 {profile['bruh_coins']:.2f}**",
+                f"Coin landed **{result['result'].upper()}** · You chose **{choice.upper()}**\n{interaction.user.mention}\n\n{'**+🪙 ' + f'{payout:.2f}' + '**' if result['won'] else 'Lost **🪙 ' + f'{amount:.2f}' + '**'}\nBalance: **🪙 {profile['bruh_coins']:.2f}**{tax_line}",
             )
             await interaction.followup.send(embed=embed)
         else:
@@ -515,15 +512,17 @@ class EconomyCog(commands.Cog):
             losses = 0
             total_wagered = 0
             total_won = 0
+            total_tax = 0.0
             stopped_early = False
             for _ in range(actual_turns):
-                success, _ = await self.bot.economy_service.deduct_coins(guild_id, user_id, amount)
-                if not success:
+                settlement = await self.bot.economy_service.settle_purchase(guild_id, user_id, amount, "gambling_coinflip", reference_type="gambling", reference_id="coinflip")
+                if not settlement["success"]:
                     stopped_early = True
                     break
                 if not is_admin_user:
                     await self.bot.economy_service.increment_gambling_plays(guild_id, user_id, "coinflip")
                 total_wagered += amount
+                total_tax += settlement["tax_amount"]
                 result = _roll_coinflip(choice)
                 if result["won"]:
                     wins += 1
@@ -536,6 +535,8 @@ class EconomyCog(commands.Cog):
             net = total_won - total_wagered
             title = f"🪙 Batch Coinflip — {choice.upper()} | {turns_played}/{actual_turns} turns {'(stopped: out of coins)' if stopped_early else ''} @ 🪙 {amount}/turn"
             desc = f"Wins: **{wins}** · Losses: **{losses}**\nWagered 🪙 {total_wagered:,.2f} · Won 🪙 {total_won:,.2f}\n━━━━━━━━━━━━━━━━━━━━━\nNet {'+' if net >= 0 else ''}🪙 {net:,.2f}  |  Balance 🪙 {profile['bruh_coins']:.2f}"
+            if total_tax > 0:
+                desc += f"\n*(Tax: 🪙 {total_tax:.2f})*"
             await interaction.followup.send(embed=_coins_embed(title, desc))
 
     @gamble_group.command(name="dice", description="Roll a die against the bot!")
@@ -558,8 +559,8 @@ class EconomyCog(commands.Cog):
         else:
             actual_turns = turns
         if actual_turns == 1:
-            success, _ = await self.bot.economy_service.deduct_coins(guild_id, user_id, bet)
-            if not success:
+            settlement = await self.bot.economy_service.settle_purchase(guild_id, user_id, bet, "gambling_dice", reference_type="gambling", reference_id="dice")
+            if not settlement["success"]:
                 return await interaction.followup.send(embed=_coins_embed("Not Enough Coins", "You don't have enough coins for that bet."))
             if not is_admin_user:
                 await self.bot.economy_service.increment_gambling_plays(guild_id, user_id, "dice")
@@ -570,7 +571,8 @@ class EconomyCog(commands.Cog):
             profile = await self.bot.economy_service.get_profile(guild_id, user_id)
             titles = {"crushing": "🎲 Crushing Victory!", "win": "🎲 You Win!", "tie": "🎲 Tie!", "loss": "🎲 You Lost"}
             payout_line = f"**+🪙 {payout:.2f}**" if payout > 0 else f"Lost **🪙 {bet:.2f}**"
-            await interaction.followup.send(embed=_coins_embed(titles[result["result"]], f"{interaction.user.mention}\n**Your roll:** {result['user_roll']}\n**Bot's roll:** {result['bot_roll']}\n\n{payout_line}\nBalance: **🪙 {profile['bruh_coins']:.2f}**"))
+            tax_line = f"\n*(Tax: 🪙 {settlement['tax_amount']:.2f})*" if settlement["tax_amount"] > 0 else ""
+            await interaction.followup.send(embed=_coins_embed(titles[result["result"]], f"{interaction.user.mention}\n**Your roll:** {result['user_roll']}\n**Bot's roll:** {result['bot_roll']}\n\n{payout_line}\nBalance: **🪙 {profile['bruh_coins']:.2f}**{tax_line}"))
         else:
             crushing = 0
             wins = 0
@@ -578,15 +580,17 @@ class EconomyCog(commands.Cog):
             losses = 0
             total_wagered = 0
             total_won = 0
+            total_tax = 0.0
             stopped_early = False
             for _ in range(actual_turns):
-                success, _ = await self.bot.economy_service.deduct_coins(guild_id, user_id, bet)
-                if not success:
+                settlement = await self.bot.economy_service.settle_purchase(guild_id, user_id, bet, "gambling_dice", reference_type="gambling", reference_id="dice")
+                if not settlement["success"]:
                     stopped_early = True
                     break
                 if not is_admin_user:
                     await self.bot.economy_service.increment_gambling_plays(guild_id, user_id, "dice")
                 total_wagered += bet
+                total_tax += settlement["tax_amount"]
                 result = _roll_dice()
                 payout = round(bet * result["multiplier"], 2)
                 if payout > 0:
@@ -605,6 +609,8 @@ class EconomyCog(commands.Cog):
             net = total_won - total_wagered
             title = f"🎲 Batch Dice — {turns_played}/{actual_turns} turns {'(stopped: out of coins)' if stopped_early else ''} @ 🪙 {bet}/turn"
             desc = f"Crushing: **{crushing}** · Wins: **{wins}** · Ties: **{ties}** · Losses: **{losses}**\nWagered 🪙 {total_wagered:,.2f} · Won 🪙 {total_won:,.2f}\n━━━━━━━━━━━━━━━━━━━━━\nNet {'+' if net >= 0 else ''}🪙 {net:,.2f}  |  Balance 🪙 {profile['bruh_coins']:.2f}"
+            if total_tax > 0:
+                desc += f"\n*(Tax: 🪙 {total_tax:.2f})*"
             await interaction.followup.send(embed=_coins_embed(title, desc))
 
     @gamble_group.command(name="slots", description="Play the slot machine!")
@@ -628,8 +634,8 @@ class EconomyCog(commands.Cog):
             actual_turns = turns
         result_titles = {"jackpot": "💎💎💎 JACKPOT! 💎💎💎", "sevens": "7️⃣7️⃣7️⃣ SEVENS! 7️⃣7️⃣7️⃣", "grand": "🎰🎰🎰 GRAND PRIZE! 🎰🎰🎰", "triple": "🎰 Triple Match!", "pair": "🎰 Pair!", "miss": "🎰 No Match"}
         if actual_turns == 1:
-            success, _ = await self.bot.economy_service.deduct_coins(guild_id, user_id, bet)
-            if not success:
+            settlement = await self.bot.economy_service.settle_purchase(guild_id, user_id, bet, "gambling_slots", reference_type="gambling", reference_id="slots")
+            if not settlement["success"]:
                 return await interaction.followup.send(embed=_coins_embed("Not Enough Coins", "You don't have enough coins for that bet."))
             if not is_admin_user:
                 await self.bot.economy_service.increment_gambling_plays(guild_id, user_id, "slots")
@@ -640,20 +646,23 @@ class EconomyCog(commands.Cog):
                 await self.bot.economy_service.add_coins(guild_id, user_id, payout)
             profile = await self.bot.economy_service.get_profile(guild_id, user_id)
             payout_line = f"**+🪙 {payout:.2f}**" if payout > 0 else f"Lost **🪙 {bet:.2f}**"
-            await interaction.followup.send(embed=_coins_embed(result_titles[result["result"]], f"{interaction.user.mention}\n`{display}`\n\n{payout_line}\nBalance: **🪙 {profile['bruh_coins']:.2f}**"))
+            tax_line = f"\n*(Tax: 🪙 {settlement['tax_amount']:.2f})*" if settlement["tax_amount"] > 0 else ""
+            await interaction.followup.send(embed=_coins_embed(result_titles[result["result"]], f"{interaction.user.mention}\n`{display}`\n\n{payout_line}\nBalance: **🪙 {profile['bruh_coins']:.2f}**{tax_line}"))
         else:
             stats = {"jackpot": 0, "sevens": 0, "grand": 0, "triple": 0, "pair": 0, "miss": 0}
             total_wagered = 0
             total_won = 0
+            total_tax = 0.0
             stopped_early = False
             for _ in range(actual_turns):
-                success, _ = await self.bot.economy_service.deduct_coins(guild_id, user_id, bet)
-                if not success:
+                settlement = await self.bot.economy_service.settle_purchase(guild_id, user_id, bet, "gambling_slots", reference_type="gambling", reference_id="slots")
+                if not settlement["success"]:
                     stopped_early = True
                     break
                 if not is_admin_user:
                     await self.bot.economy_service.increment_gambling_plays(guild_id, user_id, "slots")
                 total_wagered += bet
+                total_tax += settlement["tax_amount"]
                 result = _roll_slots()
                 stats[result["result"]] += 1
                 payout = round(bet * result["multiplier"], 2)
@@ -671,6 +680,8 @@ class EconomyCog(commands.Cog):
                 "━━━━━━━━━━━━━━━━━━━━━\n"
                 f"Net {'+' if net >= 0 else ''}🪙 {net:,.2f}  |  Balance 🪙 {profile['bruh_coins']:.2f}"
             )
+            if total_tax > 0:
+                desc += f"\n*(Tax: 🪙 {total_tax:.2f})*"
             await interaction.followup.send(embed=_coins_embed(title, desc))
 
     # ═══════════════════════════════════════════════════════════════
@@ -830,15 +841,15 @@ class EconomyCog(commands.Cog):
             return await interaction.followup.send(embed=_coins_embed("Not Found", f"No cosmetic with ID `{item_id}`."), ephemeral=True)
         guild_id = interaction.guild.id
         user_id = interaction.user.id
-        success, _ = await self.bot.economy_service.deduct_coins(guild_id, user_id, cosmetic.price)
-        if not success:
+        settlement = await self.bot.economy_service.settle_purchase(guild_id, user_id, cosmetic.price, "cosmetic_purchase", reference_type="cosmetic", reference_id=item_id)
+        if not settlement["success"]:
             return await interaction.followup.send(embed=_coins_embed("Not Enough Coins", f"You need **🪙 {cosmetic.price:,.2f}** to buy {cosmetic.name}."), ephemeral=True)
-        await self.bot.economy_service.record_transaction(guild_id, user_id, "cosmetic_purchase", -cosmetic.price, 0.0, reference_type="cosmetic", reference_id=item_id)
         await self.bot.inventory_service.add_item(guild_id, user_id, item_id, "purchase")
         profile = await self.bot.economy_service.get_profile(guild_id, user_id)
+        tax_note = f"\n*(Tax: 🪙 {settlement['tax_amount']:.2f})*" if settlement["tax_amount"] > 0 else ""
         embed = discord.Embed(
             title="Purchase Complete!",
-            description=f"You bought {RARITY_DISPLAY_EMOJI.get(cosmetic.rarity, '')} **{cosmetic.name}** for 🪙 {cosmetic.price:,.2f}!\nNew balance: **🪙 {profile['bruh_coins']:.2f}**\n\nEquip it with `/wardrobe equip {item_id}`",
+            description=f"You bought {RARITY_DISPLAY_EMOJI.get(cosmetic.rarity, '')} **{cosmetic.name}** for 🪙 {cosmetic.price:,.2f}!{tax_note}\nNew balance: **🪙 {profile['bruh_coins']:.2f}**\n\nEquip it with `/wardrobe equip {item_id}`",
             color=RARITY_COLORS.get(cosmetic.rarity, 0x57F287),
             timestamp=datetime.now(UTC),
         )
@@ -1403,28 +1414,27 @@ class EconomyCog(commands.Cog):
         if not pack_def:
             return await interaction.followup.send(embed=_coins_embed("Invalid Pack", f"No pack with ID `{pack_id}`."), ephemeral=True)
         total_cost = pack_def.price * quantity
-        success, current = await self.bot.economy_service.deduct_coins(interaction.guild.id, interaction.user.id, total_cost)
-        if not success:
+        settlement = await self.bot.economy_service.settle_purchase(
+            interaction.guild.id,
+            interaction.user.id,
+            total_cost,
+            "trading_card_pack_purchase",
+            reference_type="trading_card_pack",
+            reference_id=pack_id,
+            metadata={"quantity": quantity, "pack_id": pack_id},
+        )
+        if not settlement["success"]:
             return await interaction.followup.send(
-                embed=_coins_embed("Not Enough Coins", f"You need **🪙 {total_cost:,}** for {quantity}x {pack_def.name}. You have **🪙 {current:,.2f}**."),
+                embed=_coins_embed("Not Enough Coins", f"You need **🪙 {total_cost:,}** for {quantity}x {pack_def.name}. You have **🪙 {settlement['buyer_new_balance']:,.2f}**."),
                 ephemeral=True,
             )
         for _ in range(quantity):
             await self.bot.trading_card_service.add_packs(interaction.guild.id, interaction.user.id, pack_id)
-        await self.bot.economy_service.record_transaction(
-            interaction.guild.id,
-            interaction.user.id,
-            "trading_card_pack_purchase",
-            -total_cost,
-            0.0,
-            reference_type="trading_card_pack",
-            reference_id=pack_id,
-            metadata={"quantity": quantity},
-        )
+        tax_note = f"\n*(Tax: 🪙 {settlement['tax_amount']:.2f})*" if settlement["tax_amount"] > 0 else ""
         await interaction.followup.send(
             embed=_coins_embed(
                 "Pack Purchased!",
-                f"You bought **{quantity}x {pack_def.name}** for 🪙 {total_cost:,}!\nOpen with `/bruh-cards open {pack_id}`",
+                f"You bought **{quantity}x {pack_def.name}** for 🪙 {total_cost:,}!{tax_note}\nOpen with `/bruh-cards open {pack_id}`",
             ),
             ephemeral=True,
         )
@@ -1800,10 +1810,11 @@ class EconomyCog(commands.Cog):
         result = await self.bot.card_market_service.buy(interaction.guild.id, interaction.user.id, listing_id, quantity)
         if not result["success"]:
             return await interaction.followup.send(embed=_coins_embed("Purchase Failed", result["error"]), ephemeral=True)
+        tax_note = f"\n*(Tax: 🪙 {result.get('tax_amount', 0):.2f})*" if result.get("tax_amount", 0) > 0 else ""
         await interaction.followup.send(
             embed=_coins_embed(
                 "Purchase Complete!",
-                f"Bought **{result['quantity']}x {result['card_name']}** at 🪙 {result['price_each']:,.2f} each\nTotal: 🪙 {result['total_cost']:,.2f}",
+                f"Bought **{result['quantity']}x {result['card_name']}** at 🪙 {result['price_each']:,.2f} each\nTotal: 🪙 {result['total_cost']:,.2f}{tax_note}",
             ),
             ephemeral=True,
         )
@@ -1949,6 +1960,93 @@ class EconomyCog(commands.Cog):
             title="Catalog Reloaded",
         )
         await interaction.followup.send(embed=embed, ephemeral=True, files=self.bot.embed_service.get_brand_files(embed=embed))
+
+    @bruh_cards_admin_group.command(name="announce-set", description="Announce a trading card set with pack info and sample cards.")
+    @app_commands.describe(set_id="The card set to announce", channel="The channel to announce in")
+    @app_commands.autocomplete(set_id=set_id_autocomplete)
+    @log_command_usage()
+    @is_admin()
+    @is_globally_blocked()
+    async def bruh_cards_admin_announce_set(self, interaction: discord.Interaction, set_id: str, channel: discord.TextChannel):
+        c = self.bot.trading_card_catalog_service
+        cards = c.get_cards_by_series(set_id)
+        if not cards:
+            embed = self.bot.embed_service.create_error_embed(f"No released cards found for set `{set_id}`.")
+            return await interaction.followup.send(embed=embed, ephemeral=True, files=self.bot.embed_service.get_brand_files(embed=embed))
+        packs = c.get_packs_by_series(set_id)
+        if not packs:
+            embed = self.bot.embed_service.create_error_embed(f"No released packs found for set `{set_id}`.")
+            return await interaction.followup.send(embed=embed, ephemeral=True, files=self.bot.embed_service.get_brand_files(embed=embed))
+
+        eligible = [
+            card
+            for card in cards
+            if card.rarity
+            in (
+                TradingCardRarity.BASIC,
+                TradingCardRarity.COMMON,
+                TradingCardRarity.RARE,
+                TradingCardRarity.EPIC,
+                TradingCardRarity.LEGENDARY,
+            )
+        ]
+        if not eligible:
+            eligible = cards
+        sample_count = min(3, len(eligible))
+        samples = random.sample(eligible, sample_count)
+
+        set_display = set_id.replace("_", " ").title()
+
+        pack_lines = []
+        for pk in packs.values():
+            guaranteed = pk.guaranteed_rarity
+            g_text = f"Guaranteed: **{guaranteed.value.title()}**+" if guaranteed else "No guaranteed rarity"
+            pack_lines.append(f"**{pk.name}** — 🪙 {pk.price:,}\n{pk.description}\n{g_text} · {pk.cards_per_pack} cards per pack\nBuy: `/bruh-cards buy-pack {pk.pack_id}`")
+
+        overview_embed = self.bot.embed_service._create_base_embed(
+            title=f"🃏 New Card Set: {set_display}",
+            description=f"Check out the brand-new **{set_display}** collection!\n\n" + "\n\n".join(pack_lines),
+        )
+        overview_embed.add_field(
+            name="How to Get Started",
+            value="Browse packs with `/bruh-cards shop`",
+            inline=False,
+        )
+
+        sample_embeds = []
+        files = self.bot.embed_service.get_brand_files(embed=overview_embed)
+        for i, card in enumerate(samples):
+            image_buffer = await self.bot.trading_card_render_service.render_card(card.card_id)
+            color = RARITY_DISCORD_COLORS.get(card.rarity, 0x5865F2)
+            sample_embed = discord.Embed(
+                title=f"#{card.number} {card.name}",
+                description=card.description or "",
+                color=color,
+            )
+            sample_embed.add_field(name="Rarity", value=f"{TC_EMOJI.get(card.rarity, '')} {card.rarity.value.title()}", inline=True)
+            sample_embed.add_field(name="Set", value=set_display, inline=True)
+            if image_buffer:
+                filename = f"sample-{i + 1}.png"
+                file = discord.File(image_buffer, filename=filename)
+                sample_embed.set_image(url=f"attachment://{filename}")
+                files.append(file)
+            sample_embeds.append(sample_embed)
+
+        embeds = [overview_embed] + sample_embeds
+        try:
+            await channel.send(embeds=embeds, files=files)
+        except discord.Forbidden:
+            embed = self.bot.embed_service.create_error_embed(f"I don't have permission to send messages in {channel.mention}.")
+            return await interaction.followup.send(embed=embed, ephemeral=True, files=self.bot.embed_service.get_brand_files(embed=embed))
+
+        await interaction.followup.send(
+            embed=self.bot.embed_service.create_success_embed(
+                f"Set `{set_id}` announced in {channel.mention}!",
+                title="Set Announced",
+            ),
+            ephemeral=True,
+            files=self.bot.embed_service.get_brand_files(),
+        )
 
 
 async def setup(bot: "BruhBot"):

@@ -136,19 +136,9 @@ class CardPackService:
             return {"success": False, "error": "Card packs are currently disabled."}
 
         price = pack_def["price"]
-        success, _ = await self.bot.economy_service.deduct_coins(guild_id, user_id, price)
-        if not success:
+        settlement = await self.bot.economy_service.settle_purchase(guild_id, user_id, price, "cosmetic_pack_purchase", reference_type="card_pack", reference_id=pack_type)
+        if not settlement["success"]:
             return {"success": False, "error": f"You need **🪙 {price:,}** for a {pack_def['name']}."}
-
-        await self.bot.economy_service.record_transaction(
-            guild_id,
-            user_id,
-            "pack_purchase",
-            -price,
-            0.0,
-            reference_type="card_pack",
-            reference_id=pack_type,
-        )
 
         await self.bot.inventory_service.add_card_pack(guild_id, user_id, pack_type)
 
@@ -156,6 +146,7 @@ class CardPackService:
             "success": True,
             "pack_name": pack_def["name"],
             "price": price,
+            "tax_amount": settlement["tax_amount"],
         }
 
     def get_pack_info(self, pack_type: str) -> dict | None:

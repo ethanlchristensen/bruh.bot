@@ -128,9 +128,6 @@ class MongoCardMarketService:
             return []
 
     async def buy(self, guild_id: int, buyer_id: int, listing_id: str, quantity: int = 0) -> dict:
-        config = await self.bot.config_service.get_config(str(guild_id))
-        fee_rate = config.economyConfig.tradingCardMarketFeeRate
-
         listing = await self.listings_col.find_one(
             {
                 "listing_id": listing_id,
@@ -149,11 +146,18 @@ class MongoCardMarketService:
             return {"success": False, "error": f"Only {listing['quantity_remaining']} available."}
 
         total_cost = round(listing["price_each"] * buy_qty, 2)
-        success, _ = await self.bot.economy_service.deduct_coins(guild_id, buyer_id, total_cost)
-        if not success:
+        settlement = await self.bot.economy_service.settle_purchase(
+            guild_id,
+            buyer_id,
+            total_cost,
+            "market_buy",
+            reference_type="market",
+            reference_id=listing_id,
+        )
+        if not settlement["success"]:
             return {"success": False, "error": f"You need **🪙 {total_cost:,.2f}** for this purchase."}
 
-        seller_payout = round(total_cost * (1.0 - fee_rate), 2)
+        seller_payout = settlement["net_amount"]
         await self.bot.economy_service.add_coins(guild_id, listing["seller_id"], seller_payout)
         await self.bot.trading_card_service.add_cards(guild_id, buyer_id, [listing["card_id"]] * buy_qty)
 
@@ -170,15 +174,6 @@ class MongoCardMarketService:
 
         await self.bot.economy_service.record_transaction(
             guild_id,
-            buyer_id,
-            "market_buy_debit",
-            -total_cost,
-            0.0,
-            reference_type="market",
-            reference_id=listing_id,
-        )
-        await self.bot.economy_service.record_transaction(
-            guild_id,
             listing["seller_id"],
             "market_sale_credit",
             seller_payout,
@@ -193,6 +188,7 @@ class MongoCardMarketService:
             "quantity": buy_qty,
             "price_each": listing["price_each"],
             "total_cost": total_cost,
+            "tax_amount": settlement["tax_amount"],
         }
 
     async def cancel_listing(self, guild_id: int, user_id: int, listing_id: str) -> dict:

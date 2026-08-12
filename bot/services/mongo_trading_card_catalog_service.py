@@ -37,17 +37,19 @@ class MongoTradingCardCatalogService:
         self._packs_cache.clear()
 
         async for doc in self.catalog_col.find({"released": True}):
+            friendly = doc.get("friendly_description") or doc.get("description", "")
             card = TradingCardDefinition(
                 card_id=doc["card_id"],
                 series_id=doc["set_id"],
                 number=doc["number"],
                 rarity=TradingCardRarity(doc["rarity"]),
                 name=doc["name"],
-                description=doc.get("description", ""),
+                description=friendly,
                 art_path="",  # GridFS — resolved at render time
                 tradable=doc.get("tradable", True),
                 released=True,
                 asset_sha256=doc.get("asset_sha256", ""),
+                generation_description=doc.get("description", ""),
             )
             self._cards_cache[card.card_id] = card
 

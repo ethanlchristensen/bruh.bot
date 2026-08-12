@@ -47,6 +47,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 CARD_IMAGE_MODEL = "google/gemini-3.1-flash-image"
 CARD_TEXT_MODEL = "deepseek/deepseek-v4-pro"
+CARD_FRIENDLY_DESCRIPTION_MODEL = "google/gemini-3.1-flash-lite"
 CARD_ASPECT_RATIO = "3:4"
 
 RARITY_COUNTS = {"basic": 14, "common": 12, "rare": 9, "epic": 6, "legendary": 4, "diamond": 3, "platinum": 2}
@@ -126,15 +127,20 @@ async def generate_card_names(theme_name: str, theme_desc: str, rarity_themes: d
         theme = rarity_themes.get(rarity, f"Cards of {rarity} tier.")
         sections.append(f"{rarity.upper()} ({count} cards): {theme}")
 
-    prompt = f"""Generate {sum(RARITY_COUNTS.values())} trading card names and descriptions for a card set called "{theme_name}".
+    prompt = f"""Generate {sum(RARITY_COUNTS.values())} trading card names and art-direction descriptions for a card set called "{theme_name}".
 
 Theme description: {theme_desc}
 
 Rarity tiers and what each represents:
 {chr(10).join(sections)}
 
-For EACH card, provide card number (1-50), name (2-4 words, evocative), rarity, and description (1-2 sentences, vivid).
-Return ONLY valid JSON as a list: [{{"number": 1, "name": "Card Name", "rarity": "basic", "description": "Vivid description."}}, ...]
+For EACH card, provide card number (1-50), name (2-4 words, evocative), rarity, and description.
+The description should be VISUAL ART DIRECTION ONLY: describe the subject, composition, setting, mood,
+color palette, lighting, and notable visual details to guide an AI image generator.
+Do NOT write player-facing lore, flavor text, or story snippets.
+Do NOT write "A trading card of..." or "This card features..." — just the visual scene.
+
+Return ONLY valid JSON as a list: [{{"number": 1, "name": "Card Name", "rarity": "basic", "description": "Visual description."}}, ...]
 Start BASIC (1-14), COMMON (15-26), RARE (27-35), EPIC (36-41), LEGENDARY (42-45), DIAMOND (46-48), PLATINUM (49-50).
 Platinum cards should be the ultimate chase cards. Each description must be unique."""
 
@@ -202,6 +208,33 @@ Return ONLY valid JSON: {{"basic": "description", "common": "...", "rare": "..."
     return {k: str(data[k]) for k in expected}
 
 
+async def generate_friendly_description(image: Image.Image, card_name: str, rarity: str, api_key: str) -> str | None:
+    buf = BytesIO()
+    image.save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode()
+
+    prompt = (
+        f"Based on the card art above, write 1-2 short, evocative sentences describing this trading card "
+        f"for players. The card is named \"{card_name}\" and is {rarity} rarity. "
+        f"Describe what is depicted — the character, creature, object, or scene — in a way that feels "
+        f"exciting and collectible. Do NOT say \"This card shows\" or \"The card features\" — just describe "
+        f"the subject directly. Keep it concise. Return ONLY the description text, no title or prefix."
+    )
+
+    request = NormalizedRequest(
+        provider="openrouter", model=CARD_FRIENDLY_DESCRIPTION_MODEL,
+        messages=[Message(role="user", parts=[
+            MessagePart(type="image", url=f"data:image/png;base64,{b64}"),
+            MessagePart(type="text", text=prompt),
+        ])],
+        stream=False,
+    )
+    response = await get_mesh_gateway().complete(request, credentials={"api_key": api_key})
+    text = "".join(p.content for p in response.parts if p.type == "text")
+    text = text.strip().strip('"').strip()
+    return text if text else None
+
+
 # ── Card Set Generator ──
 class CardSetGenerator:
     def __init__(self, env: str = "dev"):
@@ -261,7 +294,7 @@ class CardSetGenerator:
         table.add_column("#", style="dim")
         table.add_column("Name")
         table.add_column("Rarity")
-        table.add_column("Description", max_width=50)
+        table.add_column("Generation Prompt", max_width=50)
         for c in ai_cards[:10]:
             table.add_row(str(c["number"]), c["name"], c["rarity"], c["description"][:50])
         if len(ai_cards) > 10:
@@ -403,6 +436,40 @@ class CardSetGenerator:
                     card["asset_filename"] = f"{card['rarity']}_{card['name'].lower().replace(' ', '_').replace(chr(39), '')}.png"
                     await self.pub.upsert_card(card)
                     console.print("    [green]Uploaded[/green]")
+
+                    console.print("    [dim]Generating friendly description...[/dim]")
+                    try:
+                        friendly = await generate_friendly_description(image, card.get("name", ""), card.get("rarity", "common"), self.api_key)
+                        if friendly:
+                            now = datetime.now(UTC)
+                            await self.pub.catalog_col.update_one(
+                                {"card_id": card["card_id"]},
+                                {"$set": {
+                                    "friendly_description": friendly,
+                                    "friendly_description_status": "ready",
+                                    "friendly_description_error": None,
+                                    "friendly_description_updated_at": now,
+                                }},
+                            )
+                            console.print(f"    [green]Description: {friendly[:60]}...[/green]")
+                        else:
+                            await self.pub.catalog_col.update_one(
+                                {"card_id": card["card_id"]},
+                                {"$set": {
+                                    "friendly_description_status": "failed",
+                                    "friendly_description_error": "No description returned",
+                                }},
+                            )
+                            console.print("    [yellow]Friendly description generation returned empty[/yellow]")
+                    except Exception as e:
+                        await self.pub.catalog_col.update_one(
+                            {"card_id": card["card_id"]},
+                            {"$set": {
+                                "friendly_description_status": "failed",
+                                "friendly_description_error": str(e)[:200],
+                            }},
+                        )
+                        console.print(f"    [yellow]Friendly description failed: {e}[/yellow]")
                 else:
                     card["asset_status"] = "failed"
                     card["asset_error"] = "No image returned"
@@ -643,7 +710,7 @@ class CardSetGenerator:
         if prompt_override:
             console.print(f"  [yellow]Prompt override: {prompt}[/yellow]")
         else:
-            console.print(f"  [dim]Using description as prompt[/dim]")
+            console.print("  [dim]Using description as prompt[/dim]")
 
         base_data = await self.pub.get_asset_bytes(f"{set_id}_base_template")
         if base_data:
@@ -711,7 +778,42 @@ class CardSetGenerator:
 
         console.print(f"\n[bold green]Card '{card_id}' art updated![/bold green]")
         console.print(f"  SHA-256: {sha}")
-        console.print(f"[yellow]Run /bruh-cards-admin reload in Discord to refresh the bot cache.[/yellow]")
+
+        console.print("\n[dim]Generating friendly description from final art...[/dim]")
+        try:
+            friendly = await generate_friendly_description(image, card_name, rarity, self.api_key)
+            if friendly:
+                now = datetime.now(UTC)
+                await self.pub.catalog_col.update_one(
+                    {"card_id": card_id},
+                    {"$set": {
+                        "friendly_description": friendly,
+                        "friendly_description_status": "ready",
+                        "friendly_description_error": None,
+                        "friendly_description_updated_at": now,
+                    }},
+                )
+                console.print(f"[green]Friendly description: {friendly}[/green]")
+            else:
+                await self.pub.catalog_col.update_one(
+                    {"card_id": card_id},
+                    {"$set": {
+                        "friendly_description_status": "failed",
+                        "friendly_description_error": "No description returned",
+                    }},
+                )
+                console.print("[yellow]Friendly description generation returned empty[/yellow]")
+        except Exception as e:
+            await self.pub.catalog_col.update_one(
+                {"card_id": card_id},
+                {"$set": {
+                    "friendly_description_status": "failed",
+                    "friendly_description_error": str(e)[:200],
+                }},
+            )
+            console.print(f"[yellow]Friendly description failed: {e}[/yellow]")
+
+        console.print("[yellow]Run /bruh-cards-admin reload in Discord to refresh the bot cache.[/yellow]")
 
     # ── Regenerate all cards ──
     async def regenerate_all(self, set_id: str, yes: bool = False, skip_base: bool = False):
@@ -756,7 +858,7 @@ class CardSetGenerator:
             if not base_prompt:
                 base_prompt = self._build_base_prompt(theme_name, theme_desc)
 
-            console.print(f"\n[cyan]Generating base template...[/cyan]")
+            console.print("\n[cyan]Generating base template...[/cyan]")
             self.base_image, _ = await generate_image(base_prompt, self.api_key)
             if not self.base_image:
                 console.print("[red]Base template generation failed.[/red]")
@@ -869,9 +971,9 @@ class CardSetGenerator:
             buf = BytesIO()
             base_image.save(buf, format="PNG")
             await self.pub.upload_asset(f"{set_id}_base_template", buf.getvalue(), replace=True)
-            console.print(f"  [green]Base template uploaded[/green]")
+            console.print("  [green]Base template uploaded[/green]")
         else:
-            console.print(f"  [yellow]No base_template.* found — cards will render without a reference[/yellow]")
+            console.print("  [yellow]No base_template.* found — cards will render without a reference[/yellow]")
 
         # Build card list
         if not cards:
@@ -967,6 +1069,140 @@ class CardSetGenerator:
         console.print(f"  Set ID: {set_id}")
         console.print(f"  Publish: poetry run python tools/card_gen.py publish {set_id} --env {self.env}")
 
+    # ── Backfill friendly descriptions ──
+    async def backfill_friendly_descriptions(self, set_id: str | None = None, force: bool = False, retry_failed: bool = False, yes: bool = False):
+        query: dict = {"asset_status": "ready"}
+        if set_id:
+            query["set_id"] = set_id
+
+        if not force:
+            if retry_failed:
+                query["friendly_description_status"] = {"$in": ["pending", "failed", None]}
+            else:
+                query["$or"] = [
+                    {"friendly_description_status": {"$exists": False}},
+                    {"friendly_description_status": "pending"},
+                    {"friendly_description": {"$exists": False}},
+                    {"friendly_description": ""},
+                ]
+
+        cursor = self.pub.catalog_col.find(query).sort("set_id", 1).sort("number", 1)
+        cards = await cursor.to_list(length=10000)
+        if not cards:
+            console.print("[green]No cards need friendly descriptions.[/green]")
+            return
+
+        sets = sorted({c["set_id"] for c in cards})
+        console.print("\n[bold]Friendly Description Backfill[/bold]")
+        console.print(f"  Cards to process: {len(cards)} across {len(sets)} set(s)")
+        console.print(f"  Mode: {'force' if force else 'retry-failed' if retry_failed else 'missing only'}")
+        for sid in sets:
+            sub = [c for c in cards if c["set_id"] == sid]
+            ready_desc = sum(1 for c in sub if c.get("friendly_description") and c.get("friendly_description_status") == "ready")
+            console.print(f"    {sid}: {len(sub)} cards ({ready_desc} already have descriptions)")
+
+        if not yes:
+            if not Confirm.ask("\nProceed?", default=True):
+                return
+
+        for i, card in enumerate(cards):
+            console.print(f"  [{i + 1}/{len(cards)}] [cyan]{card['card_id']}[/cyan] ({card.get('name', '?')})")
+            try:
+                art = await self.pub.get_asset_bytes(card["card_id"])
+                if not art:
+                    console.print("    [yellow]No art found in GridFS, skipping[/yellow]")
+                    continue
+
+                image = Image.open(BytesIO(art))
+                if image.mode != "RGBA":
+                    image = image.convert("RGBA")
+
+                friendly = await generate_friendly_description(
+                    image, card.get("name", ""), card.get("rarity", "common"), self.api_key,
+                )
+                if friendly:
+                    now = datetime.now(UTC)
+                    await self.pub.catalog_col.update_one(
+                        {"card_id": card["card_id"]},
+                        {"$set": {
+                            "friendly_description": friendly,
+                            "friendly_description_status": "ready",
+                            "friendly_description_error": None,
+                            "friendly_description_updated_at": now,
+                        }},
+                    )
+                    console.print(f"    [green]{friendly[:80]}...[/green]")
+                else:
+                    await self.pub.catalog_col.update_one(
+                        {"card_id": card["card_id"]},
+                        {"$set": {
+                            "friendly_description_status": "failed",
+                            "friendly_description_error": "No description returned",
+                        }},
+                    )
+                    console.print("    [yellow]No description returned[/yellow]")
+            except Exception as e:
+                await self.pub.catalog_col.update_one(
+                    {"card_id": card["card_id"]},
+                    {"$set": {
+                        "friendly_description_status": "failed",
+                        "friendly_description_error": str(e)[:200],
+                    }},
+                )
+                console.print(f"    [red]{e}[/red]")
+
+            await asyncio.sleep(0.5)
+
+        console.print("\n[green]Backfill complete. Run /bruh-cards-admin reload to refresh.[/green]")
+
+    # ── Promote friendly descriptions ──
+    async def promote_friendly_descriptions(self, set_id: str | None = None, target_env: str = "prod", yes: bool = False):
+        src = self.pub
+        dst = TradingCardPublisher(env=target_env)
+        await dst.connect()
+
+        try:
+            query = {"friendly_description_status": "ready", "friendly_description": {"$exists": True, "$ne": ""}}
+            if set_id:
+                query["set_id"] = set_id
+
+            cursor = src.catalog_col.find(query).sort("set_id", 1).sort("number", 1)
+            cards = await cursor.to_list(length=10000)
+            if not cards:
+                console.print("[green]No cards have ready friendly descriptions to promote.[/green]")
+                return
+
+            console.print("\n[bold]Promote Friendly Descriptions[/bold]")
+            console.print(f"  Source: {self.env} → Target: {target_env}")
+            console.print(f"  Cards with ready descriptions: {len(cards)}")
+
+            matched = 0
+            skipped = 0
+            for i, src_card in enumerate(cards):
+                dst_card = await dst.catalog_col.find_one({"card_id": src_card["card_id"]})
+                if not dst_card:
+                    console.print(f"  [{i + 1}/{len(cards)}] [yellow]{src_card['card_id']} — not in target env, skipping[/yellow]")
+                    skipped += 1
+                    continue
+
+                await dst.catalog_col.update_one(
+                    {"card_id": src_card["card_id"]},
+                    {"$set": {
+                        "friendly_description": src_card["friendly_description"],
+                        "friendly_description_status": src_card["friendly_description_status"],
+                        "friendly_description_error": src_card.get("friendly_description_error"),
+                        "friendly_description_updated_at": src_card.get("friendly_description_updated_at"),
+                        "description": src_card.get("description", dst_card.get("description", "")),
+                    }},
+                )
+                console.print(f"  [{i + 1}/{len(cards)}] [green]{src_card['card_id']}[/green]")
+                matched += 1
+
+            console.print(f"\n[green]Promoted {matched} descriptions ({skipped} skipped).[/green]")
+            console.print(f"[yellow]Run /bruh-cards-admin reload in Discord ({target_env} bot) to refresh.[/yellow]")
+        finally:
+            await dst.close()
+
     # ── Helpers ──
     def _default_rarity_desc(self, rarity: str) -> str:
         return {
@@ -1041,6 +1277,17 @@ async def main():
     up.add_argument("--prefix", default=None, help="Filename prefix for card images (default: set_id)")
     up.add_argument("--manifest", default=None, help="Path to manifest.json with card metadata")
 
+    fd = sub.add_parser("generate-friendly-descriptions", help="Backfill friendly descriptions for existing cards")
+    fd.add_argument("set_id", nargs="?", default=None, help="Set ID (omit for all sets)")
+    fd.add_argument("--force", action="store_true", help="Regenerate descriptions that already exist")
+    fd.add_argument("--retry-failed", action="store_true", help="Retry only previously failed descriptions")
+    fd.add_argument("--yes", action="store_true", help="Skip confirmation prompt")
+
+    pf = sub.add_parser("promote-friendly-descriptions", help="Push friendly descriptions from dev to prod")
+    pf.add_argument("set_id", nargs="?", default=None, help="Set ID (omit for all sets)")
+    pf.add_argument("--to", default="prod", help="Target environment (default: prod)")
+    pf.add_argument("--yes", action="store_true", help="Skip confirmation prompt")
+
     args, unknown = parser.parse_known_args()
     # Allow --env anywhere
     for i, a in enumerate(unknown):
@@ -1077,6 +1324,14 @@ async def main():
             await gen.regenerate_all(args.set_id, yes=args.yes, skip_base=args.skip_base)
         elif args.command == "upload-set":
             await gen.upload_set(args.set_id, args.folder, display_name=args.name, prefix=args.prefix, manifest=args.manifest)
+        elif args.command == "generate-friendly-descriptions":
+            await gen.backfill_friendly_descriptions(
+                set_id=args.set_id, force=args.force, retry_failed=args.retry_failed, yes=args.yes,
+            )
+        elif args.command == "promote-friendly-descriptions":
+            await gen.promote_friendly_descriptions(
+                set_id=args.set_id, target_env=args.to, yes=args.yes,
+            )
     finally:
         await gen.pub.close()
 

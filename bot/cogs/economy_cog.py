@@ -2009,7 +2009,7 @@ class EconomyCog(commands.Cog):
         )
         overview_embed.add_field(
             name="How to Get Started",
-            value="Browse packs with `/bruh-cards shop`",
+            value="Open your collection with `/bruh-cards inventory`",
             inline=False,
         )
 
@@ -2039,13 +2039,14 @@ class EconomyCog(commands.Cog):
             embed = self.bot.embed_service.create_error_embed(f"I don't have permission to send messages in {channel.mention}.")
             return await interaction.followup.send(embed=embed, ephemeral=True, files=self.bot.embed_service.get_brand_files(embed=embed))
 
+        success_embed = self.bot.embed_service.create_success_embed(
+            f"Set `{set_id}` announced in {channel.mention}!",
+            title="Set Announced",
+        )
         await interaction.followup.send(
-            embed=self.bot.embed_service.create_success_embed(
-                f"Set `{set_id}` announced in {channel.mention}!",
-                title="Set Announced",
-            ),
+            embed=success_embed,
             ephemeral=True,
-            files=self.bot.embed_service.get_brand_files(),
+            files=self.bot.embed_service.get_brand_files(embed=success_embed),
         )
 
 

@@ -1386,19 +1386,27 @@ class EconomyCog(commands.Cog):
                 ephemeral=True,
                 files=self.bot.embed_service.get_brand_files(),
             )
-        lines = []
+        by_set: dict[str, list] = {}
         for key, pack in packs.items():
-            guaranteed = pack.guaranteed_rarity
-            g_text = f"Guaranteed: **{guaranteed.value.title()}**+" if guaranteed else "No guaranteed rarity"
-            set_display = pack.series_id.replace("_", " ").title()
-            lines.append(f"**{pack.name}** ({set_display}) — 🪙 {pack.price:,}\n　{pack.description}\n　{g_text} · {pack.cards_per_pack} cards per pack\n　Buy: `/bruh-cards buy-pack {key}`")
+            by_set.setdefault(pack.series_id, []).append((key, pack))
+
+        blocks = []
+        for sid in sorted(by_set):
+            set_display = sid.replace("_", " ").title()
+            pk_lines = []
+            for key, pack in by_set[sid]:
+                guaranteed = pack.guaranteed_rarity
+                g_text = f"Guaranteed: **{guaranteed.value.title()}**+" if guaranteed else "No guaranteed rarity"
+                pk_lines.append(f"**{pack.name}** — 🪙 {pack.price:,}\n　{pack.description}\n　{g_text} · {pack.cards_per_pack} cards per pack\n　Buy: `/bruh-cards buy-pack {key}`")
+            blocks.append(f"**{set_display}**\n" + "\n".join(pk_lines))
+
         embed = self.bot.embed_service._create_base_embed(
             title="Trading Card Shop",
-            description="\n\n".join(lines),
+            description="\n\n".join(blocks),
         )
         embed.add_field(
             name="Getting Started",
-            value="Buy packs → open them → build your collection!\nView with `/bruh-cards collection`",
+            value="Buy packs → open them → build your collection!\nView with `/bruh-cards inventory`",
             inline=False,
         )
         await interaction.followup.send(embed=embed, ephemeral=True, files=self.bot.embed_service.get_brand_files(embed=embed))
@@ -1476,19 +1484,26 @@ class EconomyCog(commands.Cog):
         embed.add_field(name="Total Cards", value=str(len(result["card_ids"])), inline=True)
         await interaction.followup.send(embed=embed, ephemeral=True)
 
-    @bruh_cards_group.command(name="collection", description="View your or another user's trading card collection.")
-    @app_commands.describe(user="User to view (defaults to you)", rarity="Filter by rarity")
+    @bruh_cards_group.command(name="collection", description="View your or another user's trading cards from a specific set.")
+    @app_commands.describe(set_id="The card set to view", user="User to view (defaults to you)", rarity="Filter by rarity")
+    @app_commands.autocomplete(set_id=set_id_autocomplete)
     @app_commands.choices(rarity=[app_commands.Choice(name=r.value.title(), value=r.value) for r in TradingCardRarity])
     @log_command_usage()
     @is_globally_blocked()
-    async def bruh_cards_collection(self, interaction: discord.Interaction, user: discord.Member | None = None, rarity: str | None = None):
+    async def bruh_cards_collection(self, interaction: discord.Interaction, set_id: str, user: discord.Member | None = None, rarity: str | None = None):
         await interaction.response.defer()
         target = user or interaction.user
-        stats = await self.bot.trading_card_service.get_collection_stats(interaction.guild.id, target.id)
+        set_display = set_id.replace("_", " ").title()
+        set_total = self.bot.trading_card_catalog_service.get_series_total(set_id)
+        if set_total == 0:
+            embed = self.bot.embed_service.create_error_embed(f"No cards found for set `{set_id}`.")
+            return await interaction.followup.send(embed=embed, ephemeral=True, files=self.bot.embed_service.get_brand_files(embed=embed))
+
+        stats = await self.bot.trading_card_service.get_collection_stats(interaction.guild.id, target.id, set_id=set_id)
         if stats["total_cards"] == 0:
             embed = self.bot.embed_service._create_base_embed(
-                title=f"{target.display_name}'s Collection",
-                description="No cards yet! Buy packs with `/bruh-cards buy-pack`.",
+                title=f"{target.display_name}'s Collection — {set_display}",
+                description=f"No cards from {set_display} yet.\nBuy packs with `/bruh-cards inventory`.",
             )
             embed.set_thumbnail(url=target.display_avatar.url)
             return await interaction.followup.send(embed=embed)
@@ -1498,30 +1513,30 @@ class EconomyCog(commands.Cog):
             card = self.bot.trading_card_catalog_service.get_card(entry["card_id"])
             if not card:
                 continue
+            if card.series_id != set_id:
+                continue
             if rarity and card.rarity.value != rarity:
                 continue
             qty = entry.get("quantity", 1)
-            lines.append(f"{TC_EMOJI.get(card.rarity, '')} **#{card.number} {card.name}**{' x' + str(qty) if qty > 1 else ''}")
+            display_rarity = card.rarity.value.title() if not rarity else None
+            extra = f" · {display_rarity}" if display_rarity else ""
+            lines.append(f"{TC_EMOJI.get(card.rarity, '')} **#{card.number} {card.name}**{extra}{' x' + str(qty) if qty > 1 else ''}")
+
+        truncated = len(lines) > 20
+        lines = lines[:20]
 
         rarity_summary = " · ".join(f"{TC_EMOJI.get(r, '')} {count}" for r, count in stats["rarity_counts"].items() if count > 0)
-        set_display = ""
-        if stats.get("set_counts"):
-            parts = []
-            for sid, count in stats["set_counts"].items():
-                set_total = self.bot.trading_card_catalog_service.get_series_total(sid)
-                parts.append(f"**{sid.replace('_', ' ').title()}** {count}/{set_total}")
-            set_display = " · ".join(parts)
-
         embed = self.bot.embed_service._create_base_embed(
-            title=f"{target.display_name}'s Collection",
-            description="\n".join(lines[:20]) if lines else "No cards matching filters.",
+            title=f"{target.display_name}'s Collection — {set_display}",
+            description="\n".join(lines) if lines else "No cards matching filters.",
         )
         embed.set_thumbnail(url=target.display_avatar.url)
-        if len(lines) > 20:
-            embed.set_footer(text=f"bruh.bot · {len(lines)} unique cards total")
-        embed.insert_field_at(0, name=f"Overview ({stats['unique_cards']}/{stats['series_total']} · {stats['completion_pct']}%)", value=rarity_summary, inline=False)
-        if set_display:
-            embed.add_field(name="Per Collection", value=set_display, inline=False)
+        footer_parts = [f"{stats['unique_cards']}/{set_total} unique"]
+        if truncated:
+            total_unique = len([e for e in stats["cards"] if self.bot.trading_card_catalog_service.get_card(e["card_id"]) and self.bot.trading_card_catalog_service.get_card(e["card_id"]).series_id == set_id])
+            footer_parts.append(f"showing 20 of {total_unique} cards")
+        embed.set_footer(text=f"bruh.bot · {' · '.join(footer_parts)}")
+        embed.insert_field_at(0, name=f"Overview ({stats['unique_cards']}/{set_total} · {stats['completion_pct']}%)", value=rarity_summary, inline=False)
         embed.add_field(name="Total Cards", value=str(stats["total_cards"]), inline=True)
         embed.add_field(name="Unopened Packs", value=str(sum(p.get("quantity", 1) for p in stats["unopened_packs"])), inline=True)
         await interaction.followup.send(embed=embed)

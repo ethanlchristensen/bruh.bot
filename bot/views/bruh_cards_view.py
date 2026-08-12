@@ -347,9 +347,20 @@ class BruhCardsInventoryView(discord.ui.View):
         if not packs:
             await interaction.response.send_message("No packs available.", ephemeral=True)
             return
-        options = [discord.SelectOption(label=f"{pk.name} — 🪙 {pk.price:,}", value=pk.pack_id, description=pk.description[:50] if pk.description else "") for pk in packs.values()][:25]
-        view = ShopBuyView(self, options)
-        await interaction.response.send_message("Choose a pack to buy:", view=view, ephemeral=True)
+        set_ids = sorted({pk.series_id for pk in packs.values()})
+        options = []
+        for sid in set_ids:
+            count = len([pk for pk in packs.values() if pk.series_id == sid])
+            set_display = sid.replace("_", " ").title()
+            options.append(
+                discord.SelectOption(
+                    label=set_display,
+                    value=sid,
+                    description=f"{count} pack{'s' if count > 1 else ''} available",
+                )
+            )
+        view = ShopSetView(self, options[:25])
+        await interaction.response.send_message("Choose a card set:", view=view, ephemeral=True)
 
     @discord.ui.button(label="Inspect Card", style=discord.ButtonStyle.primary, emoji="🔍", row=3, custom_id="bruhcards_inspect")
     async def inspect_card_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -559,13 +570,65 @@ class CardInspectSelect(discord.ui.View):
         self.stop()
 
 
-class ShopBuyView(discord.ui.View):
+class ShopSetView(discord.ui.View):
     def __init__(self, parent: BruhCardsInventoryView, options: list[discord.SelectOption]):
         super().__init__(timeout=60)
         self.parent = parent
+        select = discord.ui.Select(placeholder="Choose a card set...", options=options)
+        select.callback = self.set_callback
+        self.add_item(select)
+
+    async def set_callback(self, interaction: discord.Interaction):
+        if not self.parent._is_caller(interaction):
+            return
+        series_id = interaction.data["values"][0]
+        packs = self.parent._catalog.get_packs_by_series(series_id)
+        set_display = series_id.replace("_", " ").title()
+        if not packs:
+            await interaction.response.edit_message(content=f"No packs available for {set_display}.", view=None)
+            return
+        options = [
+            discord.SelectOption(
+                label=f"{pk.name} — 🪙 {pk.price:,}",
+                value=pk.pack_id,
+                description=pk.description[:50] if pk.description else "",
+            )
+            for pk in packs.values()
+        ][:25]
+        view = ShopBuyView(self.parent, options[:25], series_id)
+        await interaction.response.edit_message(content=f"Choose a pack from {set_display}:", view=view)
+
+
+class ShopBuyView(discord.ui.View):
+    def __init__(self, parent: BruhCardsInventoryView, options: list[discord.SelectOption], series_id: str):
+        super().__init__(timeout=60)
+        self.parent = parent
+        self.series_id = series_id
         select = discord.ui.Select(placeholder="Choose a pack to buy...", options=options)
         select.callback = self.buy_callback
         self.add_item(select)
+        btn = discord.ui.Button(label="Back to Sets", style=discord.ButtonStyle.secondary, emoji="↩")
+        btn.callback = self.back_callback
+        self.add_item(btn)
+
+    async def back_callback(self, interaction: discord.Interaction):
+        if not self.parent._is_caller(interaction):
+            return
+        packs = self.parent._catalog.get_all_packs()
+        set_ids = sorted({pk.series_id for pk in packs.values()})
+        options = []
+        for sid in set_ids:
+            count = len([pk for pk in packs.values() if pk.series_id == sid])
+            set_display = sid.replace("_", " ").title()
+            options.append(
+                discord.SelectOption(
+                    label=set_display,
+                    value=sid,
+                    description=f"{count} pack{'s' if count > 1 else ''} available",
+                )
+            )
+        view = ShopSetView(self.parent, options[:25])
+        await interaction.response.edit_message(content="Choose a card set:", view=view)
 
     async def buy_callback(self, interaction: discord.Interaction):
         if not self.parent._is_caller(interaction):
@@ -573,8 +636,9 @@ class ShopBuyView(discord.ui.View):
         pack_id = interaction.data["values"][0]
         result = await self.parent.bot.trading_card_service.buy_pack(self.parent.guild_id, self.parent.user_id, pack_id)
         if not result["success"]:
-            await interaction.response.send_message(f"Failed: {result['error']}", ephemeral=True)
+            await interaction.response.edit_message(content=f"Failed: {result['error']}", view=None)
             return
-        await interaction.response.send_message(f"Bought **{result['pack_name']}** for 🪙 {result['price']:,}!", ephemeral=True)
+        tax_note = f"\n*(Tax: 🪙 {result.get('tax_amount', 0):.2f})*" if result.get("tax_amount", 0) > 0 else ""
+        await interaction.response.edit_message(content=f"Bought **{result['pack_name']}** for 🪙 {result['price']:,}!{tax_note}", view=None)
         await self.parent._refresh_data()
         self.stop()

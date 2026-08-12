@@ -156,3 +156,10 @@ Run this in Discord to reload the bot's in-memory catalog and clear render cache
 ```
 /bruh-cards-admin reload
 ```
+
+## Friendly Descriptions Backfill
+Backfill Command:
+poetry run python tools/card_gen.py generate-friendly-descriptions [set_id] --env dev
+Options: --force (overwrite existing), --retry-failed (retry only previous failures), --yes (skip confirmation). Processes only cards with asset_status=ready and missing/failed friendly descriptions.
+Promote Command:
+poetry run python tools/card_gen.py promote-friendly-descriptions [set_id] --env dev --to prod

@@ -259,5 +259,88 @@ class EarnGameStatsTests(unittest.TestCase):
         self.assertEqual(second["earn_game_current_streak"], 0)
 
 
+class EarnGameRewardTests(unittest.IsolatedAsyncioTestCase):
+    async def test_multiplier_uses_new_streak_and_caps(self):
+        config = SimpleNamespace(
+            earnGameStreakMultiplierEnabled=True,
+            earnGameStreakMultiplierCap=10,
+            earnGameStreakMultipliers="3:1.10,5:1.15,10:1.25",
+            earnGameStreakMilestoneBonuses="5:10,10:25,20:75",
+        )
+
+        async def get_config(_guild_id):
+            return config
+
+        economy = SimpleNamespace(_get_economy_config=get_config)
+        economy._get_or_create_profile_raw = self._profile_at_ten
+        service = EarnGamesService.__new__(EarnGamesService)
+        service.economy = economy
+
+        reward = await service.calculate_game_reward(1, 2, 30.0, "wordle", "win_guess_1")
+
+        self.assertEqual(reward["amount"], 37.5)
+        self.assertEqual(reward["multiplier"], 1.25)
+        self.assertEqual(reward["milestone_bonus"], 0.0)
+        self.assertEqual(reward["streak"], 11)
+
+    async def test_milestone_bonus_is_added_once_at_milestone(self):
+        config = SimpleNamespace(
+            earnGameStreakMultiplierEnabled=True,
+            earnGameStreakMultiplierCap=10,
+            earnGameStreakMultipliers="3:1.10,5:1.15,10:1.25",
+            earnGameStreakMilestoneBonuses="5:10,10:25,20:75",
+        )
+
+        async def get_config(_guild_id):
+            return config
+
+        economy = SimpleNamespace(_get_economy_config=get_config)
+
+        async def get_profile(_guild_id, _user_id):
+            return {"earn_game_current_streak": 4}
+
+        economy._get_or_create_profile_raw = get_profile
+        service = EarnGamesService.__new__(EarnGamesService)
+        service.economy = economy
+
+        reward = await service.calculate_game_reward(1, 2, 10.0, "rps", "win")
+
+        self.assertEqual(reward["amount"], 21.5)
+        self.assertEqual(reward["multiplier"], 1.15)
+        self.assertEqual(reward["milestone_bonus"], 10.0)
+        self.assertEqual(reward["streak"], 5)
+
+    async def test_non_win_has_no_multiplier_or_milestone(self):
+        config = SimpleNamespace(
+            earnGameStreakMultiplierEnabled=True,
+            earnGameStreakMultiplierCap=10,
+            earnGameStreakMultipliers="3:1.10,5:1.15,10:1.25",
+            earnGameStreakMilestoneBonuses="5:10,10:25,20:75",
+        )
+
+        async def get_config(_guild_id):
+            return config
+
+        economy = SimpleNamespace(_get_economy_config=get_config)
+
+        async def get_profile(_guild_id, _user_id):
+            return {"earn_game_current_streak": 9}
+
+        economy._get_or_create_profile_raw = get_profile
+        service = EarnGamesService.__new__(EarnGamesService)
+        service.economy = economy
+
+        reward = await service.calculate_game_reward(1, 2, 5.0, "rps", "tie")
+
+        self.assertEqual(reward["amount"], 5.0)
+        self.assertEqual(reward["multiplier"], 1.0)
+        self.assertEqual(reward["milestone_bonus"], 0.0)
+        self.assertEqual(reward["streak"], 0)
+
+    @staticmethod
+    async def _profile_at_ten(_guild_id, _user_id):
+        return {"earn_game_current_streak": 10}
+
+
 if __name__ == "__main__":
     unittest.main()

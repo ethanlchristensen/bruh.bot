@@ -83,11 +83,12 @@ class RpsView(discord.ui.View):
         econ = (await self.cog.bot.config_service.get_config(str(self.guild_id))).economyConfig
         amount = {"win": econ.rpsWinCoin, "tie": econ.rpsTieCoin, "loss": econ.rpsLossCoin}[result]
         await self.cog.bot.earn_games_service.increment_plays(self.guild_id, self.user_id, "rps")
-        balance = await self.cog.bot.earn_games_service.record_game_result(self.guild_id, self.user_id, amount, "rps", result)
+        reward = await self.cog.bot.earn_games_service.record_game_result(self.guild_id, self.user_id, amount, "rps", result)
+        balance = reward.balance_after
 
         user_emoji = next(e for e, c in RPS_CHOICES.items() if c == choice)
         bot_emoji = next(e for e, c in RPS_CHOICES.items() if c == bot_choice)
-        desc = f"{user_emoji} You  vs  Bot {bot_emoji}\n\n**{RPS_RESULT_LABELS[result]}**\n**+\U0001fa99 {amount:.2f}**\nBalance: **\U0001fa99 {balance:.2f}**"
+        desc = f"{user_emoji} You  vs  Bot {bot_emoji}\n\n**{RPS_RESULT_LABELS[result]}**\n**+\U0001fa99 {reward.amount:.2f}**\nBalance: **\U0001fa99 {balance:.2f}**"
         for child in self.children:
             child.disabled = True
         await interaction.response.edit_message(embed=_coins_embed("\u270a Rock-Paper-Scissors", desc), view=self)
@@ -143,16 +144,17 @@ class TriviaView(discord.ui.View):
             result = "timeout" if interaction is None else "incorrect"
 
         await self.cog.bot.earn_games_service.increment_plays(self.guild_id, self.user_id, "trivia")
-        balance = await self.cog.bot.earn_games_service.record_game_result(self.guild_id, self.user_id, amount, "trivia", result)
+        reward = await self.cog.bot.earn_games_service.record_game_result(self.guild_id, self.user_id, amount, "trivia", result)
+        balance = reward.balance_after
 
         answer = self.question["answer"]
         correct_text = self.question["options"][answer]
         if correct:
-            desc = f"**Correct!** The answer was **{correct_text}**.\n**+\U0001fa99 {amount:.2f}**\nBalance: **\U0001fa99 {balance:.2f}**"
+            desc = f"**Correct!** The answer was **{correct_text}**.\n**+\U0001fa99 {reward.amount:.2f}**\nBalance: **\U0001fa99 {balance:.2f}**"
         elif interaction is None:
-            desc = f"\u23f0 **Time's up!** The answer was **{correct_text}**.\n**+\U0001fa99 {amount:.2f}** (participation)\nBalance: **\U0001fa99 {balance:.2f}**"
+            desc = f"\u23f0 **Time's up!** The answer was **{correct_text}**.\n**+\U0001fa99 {reward.amount:.2f}** (participation)\nBalance: **\U0001fa99 {balance:.2f}**"
         else:
-            desc = f"**Wrong!** The answer was **{correct_text}**.\n**+\U0001fa99 {amount:.2f}** (participation)\nBalance: **\U0001fa99 {balance:.2f}**"
+            desc = f"**Wrong!** The answer was **{correct_text}**.\n**+\U0001fa99 {reward.amount:.2f}** (participation)\nBalance: **\U0001fa99 {balance:.2f}**"
 
         for child in self.children:
             child.disabled = True
@@ -249,9 +251,10 @@ class HangmanView(discord.ui.View):
                 child.disabled = True
             econ = (await self.cog.bot.config_service.get_config(str(self.guild_id))).economyConfig
             amount = _random_coin(econ.hangmanWinCoinMin, econ.hangmanWinCoinMax)
-            balance = await self.cog.bot.earn_games_service.record_game_result(self.guild_id, self.user_id, amount, "hangman", "win")
+            reward = await self.cog.bot.earn_games_service.record_game_result(self.guild_id, self.user_id, amount, "hangman", "win")
+            balance = reward.balance_after
             self.cog.hangman_games.pop((self.guild_id, self.user_id), None)
-            embed = _coins_embed("\U0001f389 You Won!", f"The word was **{word.upper()}**!\n**+\U0001fa99 {amount:.2f}**\nBalance: **\U0001fa99 {balance:.2f}**")
+            embed = _coins_embed("\U0001f389 You Won!", f"The word was **{word.upper()}**!\n**+\U0001fa99 {reward.amount:.2f}**\nBalance: **\U0001fa99 {balance:.2f}**")
             with contextlib.suppress(Exception):
                 await interaction.response.edit_message(embed=embed, view=self)
             return
@@ -264,9 +267,10 @@ class HangmanView(discord.ui.View):
                 child.disabled = True
             econ = (await self.cog.bot.config_service.get_config(str(self.guild_id))).economyConfig
             amount = econ.hangmanLossCoin
-            balance = await self.cog.bot.earn_games_service.record_game_result(self.guild_id, self.user_id, amount, "hangman", "loss")
+            reward = await self.cog.bot.earn_games_service.record_game_result(self.guild_id, self.user_id, amount, "hangman", "loss")
+            balance = reward.balance_after
             self.cog.hangman_games.pop((self.guild_id, self.user_id), None)
-            embed = _coins_embed("\U0001f480 Game Over", f"The word was **{word.upper()}**.\n**+\U0001fa99 {amount:.2f}** (participation)\nBalance: **\U0001fa99 {balance:.2f}**")
+            embed = _coins_embed("\U0001f480 Game Over", f"The word was **{word.upper()}**.\n**+\U0001fa99 {reward.amount:.2f}** (participation)\nBalance: **\U0001fa99 {balance:.2f}**")
             with contextlib.suppress(Exception):
                 await interaction.response.edit_message(embed=embed, view=self)
             return
@@ -343,10 +347,11 @@ class WordleView(discord.ui.View):
                 child.disabled = True
             used = len(game["guesses"])
             amount = rewards[used - 1] if used - 1 < len(rewards) - 1 else rewards[-1]
-            balance = await self.cog.bot.earn_games_service.record_game_result(self.guild_id, self.user_id, amount, "wordle", f"win_guess_{used}")
+            reward = await self.cog.bot.earn_games_service.record_game_result(self.guild_id, self.user_id, amount, "wordle", f"win_guess_{used}")
+            balance = reward.balance_after
             self.cog.wordle_games.pop((self.guild_id, self.user_id), None)
             grid = self.cog._wordle_grid(game)
-            embed = _coins_embed("\U0001f389 You Got It!", f"{grid}\n\nSolved in **{used}** guess{'es' if used != 1 else ''}!\n**+\U0001fa99 {amount:.2f}**\nBalance: **\U0001fa99 {balance:.2f}**")
+            embed = _coins_embed("\U0001f389 You Got It!", f"{grid}\n\nSolved in **{used}** guess{'es' if used != 1 else ''}!\n**+\U0001fa99 {reward.amount:.2f}**\nBalance: **\U0001fa99 {balance:.2f}**")
             with contextlib.suppress(Exception):
                 await interaction.response.edit_message(embed=embed, view=self)
             return
@@ -358,10 +363,11 @@ class WordleView(discord.ui.View):
             for child in self.children:
                 child.disabled = True
             amount = rewards[-1]
-            balance = await self.cog.bot.earn_games_service.record_game_result(self.guild_id, self.user_id, amount, "wordle", "fail")
+            reward = await self.cog.bot.earn_games_service.record_game_result(self.guild_id, self.user_id, amount, "wordle", "fail")
+            balance = reward.balance_after
             self.cog.wordle_games.pop((self.guild_id, self.user_id), None)
             grid = self.cog._wordle_grid(game)
-            embed = _coins_embed("\u274c Out of Guesses", f"{grid}\n\nThe word was **{game['word'].upper()}**.\n**+\U0001fa99 {amount:.2f}** (participation)\nBalance: **\U0001fa99 {balance:.2f}**")
+            embed = _coins_embed("\u274c Out of Guesses", f"{grid}\n\nThe word was **{game['word'].upper()}**.\n**+\U0001fa99 {reward.amount:.2f}** (participation)\nBalance: **\U0001fa99 {balance:.2f}**")
             with contextlib.suppress(Exception):
                 await interaction.response.edit_message(embed=embed, view=self)
             return
@@ -589,9 +595,10 @@ class EarnGamesCog(commands.Cog):
                 old_view.stop()
             econ = (await self.bot.config_service.get_config(str(guild_id))).economyConfig
             amount = _random_coin(econ.hangmanWinCoinMin, econ.hangmanWinCoinMax)
-            balance = await self.bot.earn_games_service.record_game_result(guild_id, user_id, amount, "hangman", "win")
+            reward = await self.bot.earn_games_service.record_game_result(guild_id, user_id, amount, "hangman", "win")
+            balance = reward.balance_after
             self.hangman_games.pop(key, None)
-            embed = _coins_embed("\U0001f389 You Won!", f"The word was **{word.upper()}**!\n**+\U0001fa99 {amount:.2f}**\nBalance: **\U0001fa99 {balance:.2f}**")
+            embed = _coins_embed("\U0001f389 You Won!", f"The word was **{word.upper()}**!\n**+\U0001fa99 {reward.amount:.2f}**\nBalance: **\U0001fa99 {balance:.2f}**")
             with contextlib.suppress(Exception):
                 await game["message"].edit(embed=embed, view=None)
             with contextlib.suppress(Exception):
@@ -605,9 +612,10 @@ class EarnGamesCog(commands.Cog):
                 old_view.stop()
             econ = (await self.bot.config_service.get_config(str(guild_id))).economyConfig
             amount = econ.hangmanLossCoin
-            balance = await self.bot.earn_games_service.record_game_result(guild_id, user_id, amount, "hangman", "loss")
+            reward = await self.bot.earn_games_service.record_game_result(guild_id, user_id, amount, "hangman", "loss")
+            balance = reward.balance_after
             self.hangman_games.pop(key, None)
-            embed = _coins_embed("\U0001f480 Game Over", f"The word was **{word.upper()}**.\n**+\U0001fa99 {amount:.2f}** (participation)\nBalance: **\U0001fa99 {balance:.2f}**")
+            embed = _coins_embed("\U0001f480 Game Over", f"The word was **{word.upper()}**.\n**+\U0001fa99 {reward.amount:.2f}** (participation)\nBalance: **\U0001fa99 {balance:.2f}**")
             with contextlib.suppress(Exception):
                 await game["message"].edit(embed=embed, view=None)
             with contextlib.suppress(Exception):
@@ -707,10 +715,11 @@ class EarnGamesCog(commands.Cog):
                 old_view.stop()
             used = len(game["guesses"])
             amount = rewards[used - 1] if used - 1 < len(rewards) - 1 else rewards[-1]
-            balance = await self.bot.earn_games_service.record_game_result(guild_id, user_id, amount, "wordle", f"win_guess_{used}")
+            reward = await self.bot.earn_games_service.record_game_result(guild_id, user_id, amount, "wordle", f"win_guess_{used}")
+            balance = reward.balance_after
             self.wordle_games.pop(key, None)
             grid = self._wordle_grid(game)
-            embed = _coins_embed("\U0001f389 You Got It!", f"{grid}\n\nSolved in **{used}** guess{'es' if used != 1 else ''}!\n**+\U0001fa99 {amount:.2f}**\nBalance: **\U0001fa99 {balance:.2f}**")
+            embed = _coins_embed("\U0001f389 You Got It!", f"{grid}\n\nSolved in **{used}** guess{'es' if used != 1 else ''}!\n**+\U0001fa99 {reward.amount:.2f}**\nBalance: **\U0001fa99 {balance:.2f}**")
             with contextlib.suppress(Exception):
                 await game["message"].edit(embed=embed, view=None)
             with contextlib.suppress(Exception):
@@ -723,10 +732,11 @@ class EarnGamesCog(commands.Cog):
             if old_view:
                 old_view.stop()
             amount = rewards[-1]
-            balance = await self.bot.earn_games_service.record_game_result(guild_id, user_id, amount, "wordle", "fail")
+            reward = await self.bot.earn_games_service.record_game_result(guild_id, user_id, amount, "wordle", "fail")
+            balance = reward.balance_after
             self.wordle_games.pop(key, None)
             grid = self._wordle_grid(game)
-            embed = _coins_embed("\u274c Out of Guesses", f"{grid}\n\nThe word was **{game['word'].upper()}**.\n**+\U0001fa99 {amount:.2f}** (participation)\nBalance: **\U0001fa99 {balance:.2f}**")
+            embed = _coins_embed("\u274c Out of Guesses", f"{grid}\n\nThe word was **{game['word'].upper()}**.\n**+\U0001fa99 {reward.amount:.2f}** (participation)\nBalance: **\U0001fa99 {balance:.2f}**")
             with contextlib.suppress(Exception):
                 await game["message"].edit(embed=embed, view=None)
             with contextlib.suppress(Exception):

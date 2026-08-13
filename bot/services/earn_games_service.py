@@ -1,5 +1,6 @@
 import logging
 import random
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -22,6 +23,17 @@ GAME_WIN_RESULTS = {
     "hangman": {"win"},
     "wordle": {"win"},
 }
+
+
+@dataclass(frozen=True)
+class GameRewardResult:
+    balance_after: float
+    amount: float
+    base_amount: float
+    multiplier: float
+    milestone_bonus: float
+    streak: int
+
 
 DATA_DATASETS = ("hangman_words", "wordle_words", "trivia_questions")
 
@@ -118,6 +130,49 @@ class EarnGamesService:
             return result.startswith("win_guess_")
         return result in GAME_WIN_RESULTS.get(game, set())
 
+    @staticmethod
+    def _parse_streak_values(value: str, value_type: type[float] | type[int]) -> dict[int, float]:
+        parsed: dict[int, float] = {}
+        for item in value.split(","):
+            try:
+                threshold, reward = item.split(":", 1)
+                parsed[int(threshold)] = value_type(reward)
+            except (TypeError, ValueError):
+                continue
+        return parsed
+
+    async def calculate_game_reward(self, guild_id: int, user_id: int, base_amount: float, game: str, result: str) -> dict:
+        """Calculate the final reward using the streak after this result."""
+        profile = await self.economy._get_or_create_profile_raw(guild_id, user_id)
+        current_streak = profile.get("earn_game_current_streak", 0)
+        won = self.is_game_win(game, result)
+        streak = current_streak + 1 if won else 0
+        config = await self.economy._get_economy_config(guild_id)
+        multiplier = 1.0
+        milestone_bonus = 0.0
+
+        if won and config.earnGameStreakMultiplierEnabled:
+            cap = max(1, config.earnGameStreakMultiplierCap)
+            multiplier_values = self._parse_streak_values(config.earnGameStreakMultipliers, float)
+            capped_streak = min(streak, cap)
+            eligible = [threshold for threshold in multiplier_values if threshold <= capped_streak]
+            if eligible:
+                multiplier = multiplier_values[max(eligible)]
+
+        if won:
+            milestone_values = self._parse_streak_values(config.earnGameStreakMilestoneBonuses, float)
+            milestone_bonus = milestone_values.get(streak, 0.0)
+
+        amount = round(base_amount * multiplier + milestone_bonus, 2)
+        return {
+            "amount": amount,
+            "base_amount": round(base_amount, 2),
+            "multiplier": multiplier,
+            "milestone_bonus": milestone_bonus,
+            "streak": streak,
+            "won": won,
+        }
+
     @classmethod
     def summarize_game_results(cls, records: list[dict]) -> dict:
         """Rebuild aggregate stats from chronological earn-game ledger records."""
@@ -167,24 +222,32 @@ class EarnGamesService:
         game: str,
         result: str,
         idempotency_key: str = "",
-    ) -> float:
+    ) -> GameRewardResult:
         """Credit a completed game and atomically update its aggregate statistics."""
         if idempotency_key:
             existing = await self.economy.ledger.find_one({"idempotency_key": idempotency_key})
             if existing:
-                return existing.get("balance_after", 0.0)
+                metadata = existing.get("metadata", {})
+                return GameRewardResult(
+                    balance_after=existing.get("balance_after", 0.0),
+                    amount=existing.get("amount", 0.0),
+                    base_amount=metadata.get("base_amount", existing.get("amount", 0.0)),
+                    multiplier=metadata.get("multiplier", 1.0),
+                    milestone_bonus=metadata.get("milestone_bonus", 0.0),
+                    streak=metadata.get("streak", 0),
+                )
 
-        balance = await self.economy.add_coins(guild_id, user_id, amount)
-        await self.economy._get_or_create_profile_raw(guild_id, user_id)
+        reward = await self.calculate_game_reward(guild_id, user_id, amount, game, result)
+        balance = await self.economy.add_coins(guild_id, user_id, reward["amount"])
         now = datetime.now(UTC)
-        won = self.is_game_win(game, result)
+        won = reward["won"]
         if won:
             pipeline = [
                 {
                     "$set": {
                         "earn_game_wins": {"$add": [{"$ifNull": ["$earn_game_wins", 0]}, 1]},
                         "earn_game_current_streak": {"$add": [{"$ifNull": ["$earn_game_current_streak", 0]}, 1]},
-                        "earn_game_coins_earned": {"$add": [{"$ifNull": ["$earn_game_coins_earned", 0.0]}, amount]},
+                        "earn_game_coins_earned": {"$add": [{"$ifNull": ["$earn_game_coins_earned", 0.0]}, reward["amount"]]},
                         "updated_at": now,
                     }
                 },
@@ -204,7 +267,7 @@ class EarnGamesService:
                 {
                     "$set": {
                         "earn_game_current_streak": 0,
-                        "earn_game_coins_earned": {"$add": [{"$ifNull": ["$earn_game_coins_earned", 0.0]}, amount]},
+                        "earn_game_coins_earned": {"$add": [{"$ifNull": ["$earn_game_coins_earned", 0.0]}, reward["amount"]]},
                         "updated_at": now,
                     }
                 }
@@ -217,15 +280,29 @@ class EarnGamesService:
             guild_id,
             user_id,
             "earn_game_credit",
-            amount,
+            reward["amount"],
             balance,
             reference_type="earn_game",
             reference_id=game,
             idempotency_key=idempotency_key,
-            metadata={"result": result, "won": won},
+            metadata={
+                "result": result,
+                "won": won,
+                "base_amount": reward["base_amount"],
+                "multiplier": reward["multiplier"],
+                "milestone_bonus": reward["milestone_bonus"],
+                "streak": reward["streak"],
+            },
         )
-        return balance
+        return GameRewardResult(
+            balance_after=balance,
+            amount=reward["amount"],
+            base_amount=reward["base_amount"],
+            multiplier=reward["multiplier"],
+            milestone_bonus=reward["milestone_bonus"],
+            streak=reward["streak"],
+        )
 
     async def grant_game_reward(self, guild_id: int, user_id: int, amount: float, game: str, result: str) -> float:
         """Backward-compatible alias for callers outside the earn-games cog."""
-        return await self.record_game_result(guild_id, user_id, amount, game, result)
+        return (await self.record_game_result(guild_id, user_id, amount, game, result)).balance_after

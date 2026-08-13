@@ -173,6 +173,10 @@ class EconomyConfig(BaseModel):
     rpsWinCoin: float = 5.0
     rpsTieCoin: float = 2.0
     rpsLossCoin: float = 1.0
+    earnGameStreakMultiplierEnabled: bool = True
+    earnGameStreakMultiplierCap: int = 10
+    earnGameStreakMultipliers: str = "3:1.10,5:1.15,10:1.25"
+    earnGameStreakMilestoneBonuses: str = "5:10,10:25,20:75,50:250"
 
 
 class ReputationConfig(BaseModel):

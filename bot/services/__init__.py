@@ -12,6 +12,7 @@ from .character_render_service import CharacterRenderService
 from .config_service import BaseConfig, ConfigService, DynamicConfig, EconomyConfig, MemoryConfig, ReputationConfig, get_config_service
 from .cooldown_service import CooldownService
 from .discord_messages_service import DiscordMessagesService
+from .earn_games_service import EarnGamesService
 from .embed_service import ConfirmView, EmbedService, NowPlayingView, QueuePaginationView
 from .memory_extraction_service import MemoryExtractionService
 from .memory_tools import MEMORY_TOOL_SCHEMAS, MemoryToolExecutor
@@ -90,4 +91,5 @@ __all__ = [
     "MongoReputationQueueService",
     "MongoReputationService",
     "ReputationExtractionService",
+    "EarnGamesService",
 ]

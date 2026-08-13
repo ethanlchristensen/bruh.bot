@@ -13,6 +13,7 @@ from bot.services import (
     ConfigService,
     CooldownService,
     DiscordMessagesService,
+    EarnGamesService,
     EmbeddingService,
     EmbedService,
     ImageGenerationService,
@@ -81,6 +82,7 @@ class BruhBot(commands.Bot):
         self.ai_usage_service = MongoAIUsageService(self)
         self.ai_usage_tracking_service = MongoAIUsageTrackingService(self)
         self.economy_service = MongoEconomyService(self)
+        self.earn_games_service = EarnGamesService(self)
         self.inventory_service = MongoInventoryService(self)
         self.character_render_service = CharacterRenderService(self)
         self.card_pack_service = CardPackService(self)

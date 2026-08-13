@@ -368,7 +368,7 @@ class CardSetGenerator:
         prem_price = int(Prompt.ask("  Premium pack price", default="1100"))
         packs = [
             {"pack_id": f"{self.set_id}_standard", "series_id": self.set_id, "name": f"{theme_name} Pack", "price": std_price, "cards_per_pack": 3, "guaranteed_rarity": None, "description": f"Standard pack from {theme_name}.", "released": False},
-            {"pack_id": f"{self.set_id}_premium", "series_id": self.set_id, "name": f"{theme_name} Premium Pack", "price": prem_price, "cards_per_pack": 3, "guaranteed_rarity": "rare", "description": f"Premium pack from {theme_name}. Guaranteed Rare+.", "released": False},
+            {"pack_id": f"{self.set_id}_premium", "series_id": self.set_id, "name": f"{theme_name} Premium Pack", "price": prem_price, "cards_per_pack": 5, "guaranteed_rarity": "rare", "description": f"Premium pack from {theme_name}. Guaranteed Rare+.", "released": False},
         ]
 
         # Save set metadata to Mongo

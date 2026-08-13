@@ -156,6 +156,23 @@ class EconomyConfig(BaseModel):
     tradingCardSellbackRate: float = 1.0
     tradingCardMaxActiveListings: int = 20
     purchaseTaxRate: float = 0.02
+    # ── Play-to-Earn Games ────────────────────────────────────────────
+    miniGamesEnabled: bool = True
+    hangmanMaxPlaysPerDay: int = 3
+    hangmanWinCoinMin: float = 8.0
+    hangmanWinCoinMax: float = 15.0
+    hangmanLossCoin: float = 2.0
+    triviaMaxPlaysPerDay: int = 1
+    triviaCorrectCoinMin: float = 10.0
+    triviaCorrectCoinMax: float = 25.0
+    triviaIncorrectCoin: float = 3.0
+    triviaTimeoutSeconds: int = 15
+    wordleMaxPlaysPerDay: int = 1
+    wordleRewardsByGuessCount: str = "30,20,20,10,10,10,3"  # comma-separated, last = fail
+    rpsMaxPlaysPerDay: int = 5
+    rpsWinCoin: float = 5.0
+    rpsTieCoin: float = 2.0
+    rpsLossCoin: float = 1.0
 
 
 class ReputationConfig(BaseModel):

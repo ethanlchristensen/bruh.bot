@@ -150,6 +150,11 @@ class MongoEconomyService:
                 "dice_plays_today": 0,
                 "slots_plays_today": 0,
                 "gambling_play_date": None,
+                "earn_games_play_date": None,
+                "hangman_plays_today": 0,
+                "trivia_plays_today": 0,
+                "wordle_plays_today": 0,
+                "rps_plays_today": 0,
                 "created_at": now,
                 "updated_at": now,
             }
@@ -172,6 +177,11 @@ class MongoEconomyService:
                 "dice_plays_today": 0,
                 "slots_plays_today": 0,
                 "gambling_play_date": None,
+                "earn_games_play_date": None,
+                "hangman_plays_today": 0,
+                "trivia_plays_today": 0,
+                "wordle_plays_today": 0,
+                "rps_plays_today": 0,
             }
             missing = {k: v for k, v in defaults.items() if k not in doc}
             if missing:

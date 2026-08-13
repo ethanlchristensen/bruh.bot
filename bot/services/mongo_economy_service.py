@@ -28,6 +28,8 @@ class MongoEconomyService:
             await self.collection.create_index("level")
             await self.collection.create_index("xp")
             await self.collection.create_index("bruh_coins")
+            await self.collection.create_index([("guild_id", 1), ("earn_game_wins", -1)])
+            await self.collection.create_index([("guild_id", 1), ("earn_game_coins_earned", -1)])
             self.logger.info("Created indexes on UserProfiles collection")
         except Exception as e:
             self.logger.warning(f"Could not create indexes: {e}")
@@ -155,6 +157,10 @@ class MongoEconomyService:
                 "trivia_plays_today": 0,
                 "wordle_plays_today": 0,
                 "rps_plays_today": 0,
+                "earn_game_wins": 0,
+                "earn_game_current_streak": 0,
+                "earn_game_longest_streak": 0,
+                "earn_game_coins_earned": 0.0,
                 "created_at": now,
                 "updated_at": now,
             }
@@ -182,6 +188,10 @@ class MongoEconomyService:
                 "trivia_plays_today": 0,
                 "wordle_plays_today": 0,
                 "rps_plays_today": 0,
+                "earn_game_wins": 0,
+                "earn_game_current_streak": 0,
+                "earn_game_longest_streak": 0,
+                "earn_game_coins_earned": 0.0,
             }
             missing = {k: v for k, v in defaults.items() if k not in doc}
             if missing:
@@ -400,6 +410,32 @@ class MongoEconomyService:
             rank += 1
         return results
 
+    async def get_game_leaderboard(self, guild_id: int, sort_by: str = "wins", limit: int = 25) -> list[dict]:
+        sort_fields = {
+            "wins": "earn_game_wins",
+            "coins": "earn_game_coins_earned",
+        }
+        field = sort_fields.get(sort_by, "earn_game_wins")
+        cursor = (
+            self.collection.find(
+                {"guild_id": Int64(guild_id), field: {"$gt": 0}},
+                {"user_id": 1, "earn_game_wins": 1, "earn_game_current_streak": 1, "earn_game_longest_streak": 1, "earn_game_coins_earned": 1, "_id": 0},
+            )
+            .sort([(field, -1), ("user_id", 1)])
+            .limit(max(1, min(limit, 25)))
+        )
+        results = []
+        rank = 1
+        async for doc in cursor:
+            doc["rank"] = rank
+            doc["earn_game_wins"] = doc.get("earn_game_wins", 0)
+            doc["earn_game_current_streak"] = doc.get("earn_game_current_streak", 0)
+            doc["earn_game_longest_streak"] = doc.get("earn_game_longest_streak", 0)
+            doc["earn_game_coins_earned"] = doc.get("earn_game_coins_earned", 0.0)
+            results.append(doc)
+            rank += 1
+        return results
+
     async def get_rank(self, guild_id: int, user_id: int) -> int:
         profile = await self._get_or_create_profile_raw(guild_id, user_id)
         count = await self.collection.count_documents(
@@ -529,6 +565,10 @@ class MongoEconomyService:
                     "total_images": 0,
                     "total_reactions_given": 0,
                     "total_bot_mentions": 0,
+                    "earn_game_wins": 0,
+                    "earn_game_current_streak": 0,
+                    "earn_game_longest_streak": 0,
+                    "earn_game_coins_earned": 0.0,
                     "last_xp_grant": None,
                     "last_daily_claim": None,
                     "last_message_time": None,

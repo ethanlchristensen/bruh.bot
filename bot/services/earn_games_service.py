@@ -16,6 +16,13 @@ GAME_FIELD_MAP = {
     "rps": "rps_plays_today",
 }
 
+GAME_WIN_RESULTS = {
+    "rps": {"win"},
+    "trivia": {"correct"},
+    "hangman": {"win"},
+    "wordle": {"win"},
+}
+
 DATA_DATASETS = ("hangman_words", "wordle_words", "trivia_questions")
 
 
@@ -105,8 +112,107 @@ class EarnGamesService:
             {"$inc": {field: 1}, "$set": {"earn_games_play_date": today, "updated_at": now}},
         )
 
-    async def grant_game_reward(self, guild_id: int, user_id: int, amount: float, game: str, result: str) -> float:
+    @staticmethod
+    def is_game_win(game: str, result: str) -> bool:
+        if game == "wordle":
+            return result.startswith("win_guess_")
+        return result in GAME_WIN_RESULTS.get(game, set())
+
+    @classmethod
+    def summarize_game_results(cls, records: list[dict]) -> dict:
+        """Rebuild aggregate stats from chronological earn-game ledger records."""
+        wins = 0
+        current_streak = 0
+        longest_streak = 0
+        coins_earned = 0.0
+        for record in records:
+            game = record.get("reference_id", "")
+            result = record.get("metadata", {}).get("result", "")
+            coins_earned += float(record.get("amount", 0.0))
+            if cls.is_game_win(game, result):
+                wins += 1
+                current_streak += 1
+                longest_streak = max(longest_streak, current_streak)
+            else:
+                current_streak = 0
+        return {
+            "earn_game_wins": wins,
+            "earn_game_current_streak": current_streak,
+            "earn_game_longest_streak": longest_streak,
+            "earn_game_coins_earned": round(coins_earned, 2),
+        }
+
+    async def backfill_game_stats(self) -> int:
+        """Rebuild stats for users with historical earn-game ledger entries."""
+        cursor = self.economy.ledger.find({"kind": "earn_game_credit", "reference_type": "earn_game"}).sort([("guild_id", 1), ("user_id", 1), ("created_at", 1)])
+        grouped: dict[tuple[int, int], list[dict]] = {}
+        async for record in cursor:
+            key = (int(record["guild_id"]), int(record["user_id"]))
+            grouped.setdefault(key, []).append(record)
+
+        for (guild_id, user_id), records in grouped.items():
+            stats = self.summarize_game_results(records)
+            await self.economy._get_or_create_profile_raw(guild_id, user_id)
+            await self.economy.collection.update_one(
+                {"guild_id": Int64(guild_id), "user_id": Int64(user_id)},
+                {"$set": {**stats, "updated_at": datetime.now(UTC)}},
+            )
+        return len(grouped)
+
+    async def record_game_result(
+        self,
+        guild_id: int,
+        user_id: int,
+        amount: float,
+        game: str,
+        result: str,
+        idempotency_key: str = "",
+    ) -> float:
+        """Credit a completed game and atomically update its aggregate statistics."""
+        if idempotency_key:
+            existing = await self.economy.ledger.find_one({"idempotency_key": idempotency_key})
+            if existing:
+                return existing.get("balance_after", 0.0)
+
         balance = await self.economy.add_coins(guild_id, user_id, amount)
+        await self.economy._get_or_create_profile_raw(guild_id, user_id)
+        now = datetime.now(UTC)
+        won = self.is_game_win(game, result)
+        if won:
+            pipeline = [
+                {
+                    "$set": {
+                        "earn_game_wins": {"$add": [{"$ifNull": ["$earn_game_wins", 0]}, 1]},
+                        "earn_game_current_streak": {"$add": [{"$ifNull": ["$earn_game_current_streak", 0]}, 1]},
+                        "earn_game_coins_earned": {"$add": [{"$ifNull": ["$earn_game_coins_earned", 0.0]}, amount]},
+                        "updated_at": now,
+                    }
+                },
+                {
+                    "$set": {
+                        "earn_game_longest_streak": {
+                            "$max": [
+                                {"$ifNull": ["$earn_game_longest_streak", 0]},
+                                "$earn_game_current_streak",
+                            ]
+                        }
+                    }
+                },
+            ]
+        else:
+            pipeline = [
+                {
+                    "$set": {
+                        "earn_game_current_streak": 0,
+                        "earn_game_coins_earned": {"$add": [{"$ifNull": ["$earn_game_coins_earned", 0.0]}, amount]},
+                        "updated_at": now,
+                    }
+                }
+            ]
+        await self.economy.collection.update_one(
+            {"guild_id": Int64(guild_id), "user_id": Int64(user_id)},
+            pipeline,
+        )
         await self.economy.record_transaction(
             guild_id,
             user_id,
@@ -115,6 +221,11 @@ class EarnGamesService:
             balance,
             reference_type="earn_game",
             reference_id=game,
-            metadata={"result": result},
+            idempotency_key=idempotency_key,
+            metadata={"result": result, "won": won},
         )
         return balance
+
+    async def grant_game_reward(self, guild_id: int, user_id: int, amount: float, game: str, result: str) -> float:
+        """Backward-compatible alias for callers outside the earn-games cog."""
+        return await self.record_game_result(guild_id, user_id, amount, game, result)

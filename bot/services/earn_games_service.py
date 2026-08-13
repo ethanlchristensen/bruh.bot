@@ -1,4 +1,5 @@
 import logging
+import random
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -15,12 +16,47 @@ GAME_FIELD_MAP = {
     "rps": "rps_plays_today",
 }
 
+DATA_DATASETS = ("hangman_words", "wordle_words", "trivia_questions")
+
 
 class EarnGamesService:
     def __init__(self, bot: "BruhBot"):
         self.bot = bot
         self.economy = bot.economy_service
+        self.data_col = self.bot.config_service.col(self.bot.config_service.base.mongoEarnGamesDataCollectionName)
         self.logger = logging.getLogger(__name__)
+        self.hangman_words: list[str] = []
+        self.wordle_words: list[str] = []
+        self.trivia_questions: list[dict] = []
+
+    async def initialize(self):
+        await self._ensure_data_indexes()
+        await self.reload_data()
+
+    async def _ensure_data_indexes(self):
+        try:
+            await self.data_col.create_index("dataset", unique=True)
+        except Exception as e:
+            self.logger.warning(f"Could not create earn-games data index: {e}")
+
+    async def reload_data(self):
+        datasets = {name: [] for name in DATA_DATASETS}
+        async for doc in self.data_col.find({"dataset": {"$in": list(DATA_DATASETS)}}):
+            datasets[doc["dataset"]] = doc.get("items", [])
+
+        self.hangman_words = datasets["hangman_words"]
+        self.wordle_words = datasets["wordle_words"]
+        self.trivia_questions = datasets["trivia_questions"]
+        self.logger.info(f"Loaded earn-games data: {len(self.hangman_words)} hangman, {len(self.wordle_words)} wordle, {len(self.trivia_questions)} trivia")
+
+    def get_random_hangman_word(self) -> str | None:
+        return random.choice(self.hangman_words) if self.hangman_words else None
+
+    def get_random_wordle_word(self) -> str | None:
+        return random.choice(self.wordle_words) if self.wordle_words else None
+
+    def get_random_trivia_question(self) -> dict | None:
+        return random.choice(self.trivia_questions) if self.trivia_questions else None
 
     async def get_remaining_plays(self, guild_id: int, user_id: int, game: str) -> int:
         config = await self.economy._get_economy_config(guild_id)

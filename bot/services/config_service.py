@@ -235,6 +235,7 @@ class BaseConfig(BaseModel):
     mongoReputationQueueCollectionName: str = "ReputationQueue"
     mongoReputationCollectionName: str = "UserReputation"
     mongoReputationEventsCollectionName: str = "ReputationEvents"
+    mongoEarnGamesDataCollectionName: str = "EarnGamesData"
     mongoDiscordScrapeBot: DiscordScrapeBotConfig = Field(default_factory=DiscordScrapeBotConfig)
 
 

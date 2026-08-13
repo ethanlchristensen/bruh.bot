@@ -133,6 +133,11 @@ class BruhBot(commands.Bot):
             self.logger.warning(f"Failed to initialize economy_service: {e}")
 
         try:
+            await self.earn_games_service.initialize()
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize earn_games_service: {e}")
+
+        try:
             await self.inventory_service.initialize()
         except Exception as e:
             self.logger.warning(f"Failed to initialize inventory_service: {e}")

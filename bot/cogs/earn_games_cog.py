@@ -1,8 +1,6 @@
-import json
 import random
 import string
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import discord
@@ -15,8 +13,6 @@ from bot.utils.decarators.global_block_check import is_globally_blocked
 if TYPE_CHECKING:
     from bot.bruh_bot import BruhBot
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-
 HANGMAN_MAX_WRONG = 6
 WORDLE_WORD_LENGTH = 5
 WORDLE_MAX_GUESSES = 6
@@ -28,16 +24,6 @@ RPS_CHOICES = {
 }
 RPS_BEATS = {"rock": "scissors", "paper": "rock", "scissors": "paper"}
 RPS_RESULT_LABELS = {"win": "You won!", "tie": "It's a tie!", "loss": "You lost."}
-
-
-def _load_json(filename: str):
-    with open(DATA_DIR / filename, encoding="utf-8") as f:
-        return json.load(f)
-
-
-HANGMAN_WORDS: list[str] = _load_json("hangman_words.json")
-WORDLE_WORDS: list[str] = _load_json("wordle_words.json")
-TRIVIA_QUESTIONS: list[dict] = _load_json("trivia_questions.json")
 
 
 def _coins_embed(title: str, description: str) -> discord.Embed:
@@ -256,7 +242,10 @@ class EarnGamesCog(commands.Cog):
             await interaction.response.send_message(embed=_coins_embed("Daily Limit Reached", "You've already played today's trivia."), ephemeral=True)
             return
         econ = (await self.bot.config_service.get_config(str(guild_id))).economyConfig
-        question = random.choice(TRIVIA_QUESTIONS)
+        question = self.bot.earn_games_service.get_random_trivia_question()
+        if question is None:
+            await interaction.response.send_message(embed=_coins_embed("No Questions Available", "Trivia questions haven't been seeded yet."), ephemeral=True)
+            return
         labels = ["A", "B", "C", "D"]
         options_text = "\n".join(f"**{labels[i]}.** {opt}" for i, opt in enumerate(question["options"]))
         embed = _coins_embed(f"🎯 Trivia — {question['category']}", f"{question['q']}\n\n{options_text}\n\nYou have **{econ.triviaTimeoutSeconds}** seconds!")
@@ -288,7 +277,11 @@ class EarnGamesCog(commands.Cog):
             await interaction.response.send_message(embed=_coins_embed("Daily Limit Reached", "You've reached your daily hangman limit."), ephemeral=True)
             return
 
-        word = random.choice(HANGMAN_WORDS).lower()
+        word = self.bot.earn_games_service.get_random_hangman_word()
+        if word is None:
+            await interaction.response.send_message(embed=_coins_embed("No Words Available", "Hangman words haven't been seeded yet."), ephemeral=True)
+            return
+        word = word.lower()
         self.hangman_games[user_id] = {"word": word, "guessed": set(), "wrong": 0}
         await self.bot.earn_games_service.increment_plays(guild_id, user_id, "hangman")
         await interaction.response.send_message(embed=self._hangman_embed(self.hangman_games[user_id]))
@@ -378,7 +371,11 @@ class EarnGamesCog(commands.Cog):
             await interaction.response.send_message(embed=_coins_embed("Daily Limit Reached", "You've reached your daily wordle limit."), ephemeral=True)
             return
 
-        word = random.choice(WORDLE_WORDS).lower()
+        word = self.bot.earn_games_service.get_random_wordle_word()
+        if word is None:
+            await interaction.response.send_message(embed=_coins_embed("No Words Available", "Wordle words haven't been seeded yet."), ephemeral=True)
+            return
+        word = word.lower()
         self.wordle_games[user_id] = {"word": word, "guesses": []}
         await self.bot.earn_games_service.increment_plays(guild_id, user_id, "wordle")
         await interaction.response.send_message(embed=self._wordle_embed(self.wordle_games[user_id]))

@@ -178,3 +178,8 @@ morning_configs.json
 image_limits.json
 .idea
 youtube_cookies.txt
+
+# Play-to-earn game data — answer key kept out of the repo (seeded via tools/seed_earn_games.py)
+bot/data/hangman_words.json
+bot/data/wordle_words.json
+bot/data/trivia_questions.json

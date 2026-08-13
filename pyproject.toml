@@ -42,7 +42,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.ruff]
 line-length = 320
 target-version = "py311"  # adjust to your Python version
-exclude = ["tools"]
+exclude = ["tools", "docs"]
 
 [tool.ruff.lint]
 select = [

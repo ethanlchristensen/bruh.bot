@@ -1,7 +1,8 @@
 import unittest
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock
 
-from bot.cogs.earn_games_cog import HANGMAN_MAX_WRONG, WORDLE_WORD_LENGTH, EarnGamesCog, _wordle_feedback
+from bot.cogs.earn_games_cog import HANGMAN_MAX_WRONG, WORDLE_WORD_LENGTH, EarnGamesCog, HangmanView, WordleView, _wordle_feedback
 from bot.services.earn_games_service import EarnGamesService
 
 
@@ -90,6 +91,66 @@ class GameStateIsolationTests(unittest.TestCase):
         self.cog.hangman_games[(100, 1)] = {"word": "test", "guessed": set(), "wrong": 0}
 
         self.assertNotIn(1, self.cog.hangman_games)
+
+
+class GameResumeTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        config = SimpleNamespace(economyConfig=SimpleNamespace(miniGamesEnabled=True))
+
+        async def get_config(_guild_id):
+            return config
+
+        self.bot = SimpleNamespace(
+            config_service=SimpleNamespace(get_config=get_config),
+            earn_games_service=SimpleNamespace(increment_plays=AsyncMock()),
+        )
+        self.cog = EarnGamesCog(self.bot)
+
+    @staticmethod
+    def _interaction(guild_id=100, user_id=1, message=None):
+        interaction = SimpleNamespace(
+            guild=SimpleNamespace(id=guild_id),
+            user=SimpleNamespace(id=user_id),
+            response=SimpleNamespace(send_message=AsyncMock()),
+            original_response=AsyncMock(return_value=message or Mock()),
+        )
+        return interaction
+
+    async def test_wordle_start_recreates_view_for_active_game(self):
+        old_view = Mock()
+        game = {"word": "crane", "guesses": ["swift"], "view": old_view, "message": Mock(), "rewarded": False}
+        self.cog.wordle_games[(100, 1)] = game
+        new_message = Mock()
+        interaction = self._interaction(message=new_message)
+
+        await self.cog.wordle_start.callback(self.cog, interaction)
+
+        old_view.stop.assert_called_once_with()
+        interaction.response.send_message.assert_awaited_once()
+        sent_kwargs = interaction.response.send_message.await_args.kwargs
+        self.assertIsInstance(sent_kwargs["view"], WordleView)
+        self.assertIn("SWIFT", sent_kwargs["embed"].description)
+        self.assertIs(game["message"], new_message)
+        self.assertIs(game["view"], sent_kwargs["view"])
+        self.bot.earn_games_service.increment_plays.assert_not_awaited()
+
+    async def test_hangman_start_recreates_view_for_active_game(self):
+        old_view = Mock()
+        game = {"word": "test", "guessed": {"t"}, "wrong": 0, "view": old_view, "message": Mock(), "rewarded": False}
+        self.cog.hangman_games[(100, 1)] = game
+        new_message = Mock()
+        interaction = self._interaction(message=new_message)
+
+        await self.cog.hangman_start.callback(self.cog, interaction)
+
+        old_view.stop.assert_called_once_with()
+        interaction.response.send_message.assert_awaited_once()
+        sent_kwargs = interaction.response.send_message.await_args.kwargs
+        self.assertIsInstance(sent_kwargs["view"], HangmanView)
+        self.assertIn("T", sent_kwargs["embed"].description)
+        self.assertIs(game["message"], new_message)
+        self.assertIs(game["view"], sent_kwargs["view"])
+        self.bot.earn_games_service.increment_plays.assert_not_awaited()
 
 
 class RewardGuardTests(unittest.TestCase):

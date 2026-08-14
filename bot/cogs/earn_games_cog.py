@@ -524,7 +524,13 @@ class EarnGamesCog(commands.Cog):
 
         game = self.hangman_games.get(key)
         if game:
-            await interaction.response.send_message(embed=self._hangman_embed(game), ephemeral=True)
+            old_view = game.get("view")
+            if old_view:
+                old_view.stop()
+            view = HangmanView(self, guild_id, user_id)
+            await interaction.response.send_message(embed=self._hangman_embed(game), view=view, ephemeral=True)
+            game["message"] = await interaction.original_response()
+            game["view"] = view
             return
 
         remaining = await self.bot.earn_games_service.get_remaining_plays(guild_id, user_id, "hangman")
@@ -660,7 +666,13 @@ class EarnGamesCog(commands.Cog):
 
         game = self.wordle_games.get(key)
         if game:
-            await interaction.response.send_message(embed=self._wordle_embed(game), ephemeral=True)
+            old_view = game.get("view")
+            if old_view:
+                old_view.stop()
+            view = WordleView(self, guild_id, user_id)
+            await interaction.response.send_message(embed=self._wordle_embed(game), view=view, ephemeral=True)
+            game["message"] = await interaction.original_response()
+            game["view"] = view
             return
 
         remaining = await self.bot.earn_games_service.get_remaining_plays(guild_id, user_id, "wordle")

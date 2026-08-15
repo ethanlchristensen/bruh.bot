@@ -174,7 +174,9 @@ class TradingCardRenderService:
         buffer = BytesIO()
         canvas.save(buffer, format="PNG")
         buffer.seek(0)
-        self._rendered_cache[cache_key] = buffer.getvalue()
+        # Do not cache fallback renders; an asset may be uploaded after the first request.
+        if art is not None:
+            self._rendered_cache[cache_key] = buffer.getvalue()
         return BytesIO(buffer.getvalue())
 
     def invalidate_cache(self):

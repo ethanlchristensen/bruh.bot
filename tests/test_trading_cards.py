@@ -21,4 +21,4 @@ class TradingCardPresentationTests(unittest.TestCase):
         )
 
     def test_card_render_version_is_bumped_for_overlay_changes(self):
-        self.assertEqual(CARD_RENDER_VERSION, "5")
+        self.assertEqual(CARD_RENDER_VERSION, "6")

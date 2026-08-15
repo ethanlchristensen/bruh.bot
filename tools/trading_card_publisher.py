@@ -12,12 +12,15 @@ import yaml
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
 
 logger = logging.getLogger("tcard_publisher")
+VALID_ENVIRONMENTS = ("dev", "prod")
 
 SUPPORTED_IMAGE_EXTS = {".png", ".jpg", ".jpeg"}
 
 
 class TradingCardPublisher:
     def __init__(self, config_path: str = "config/base_config.yaml", env: str = "dev"):
+        if env not in VALID_ENVIRONMENTS:
+            raise ValueError(f"Environment must be one of: {', '.join(VALID_ENVIRONMENTS)}")
         self.env = env
         self.config_path = Path(config_path)
         self.client = None
@@ -54,18 +57,73 @@ class TradingCardPublisher:
 
     async def _ensure_indexes(self):
         try:
-            await self.sets_col.create_index("set_id", unique=True, sparse=True)
-            await self.catalog_col.create_index("card_id", unique=True, sparse=True)
+            await self._ensure_unique_index(self.sets_col, "set_id")
+            await self._ensure_unique_index(self.catalog_col, "card_id")
             await self.catalog_col.create_index("set_id")
             await self.catalog_col.create_index("asset_status")
-            await self.packs_col.create_index("pack_id", unique=True, sparse=True)
+            await self._ensure_unique_index(self.packs_col, "pack_id")
             await self.db[f"TradingCardAssets_{self.env}.files"].create_index("filename")
         except Exception as e:
             logger.warning(f"Index creation warning: {e}")
 
+    @staticmethod
+    async def _ensure_unique_index(collection, field: str):
+        try:
+            await collection.create_index(field, unique=True)
+        except Exception as error:
+            if getattr(error, "code", None) != 86:
+                raise
+            await collection.drop_index(f"{field}_1")
+            await collection.create_index(field, unique=True)
+
     async def close(self):
         if self.client:
             self.client.close()
+
+    async def health_check(self) -> dict:
+        await self.db.command("ping")
+        collection_names = set(await self.db.list_collection_names())
+        expected = {
+            "sets": self.sets_col.name,
+            "catalog": self.catalog_col.name,
+            "packs": self.packs_col.name,
+            "gridfs_files": f"TradingCardAssets_{self.env}.files",
+            "gridfs_chunks": f"TradingCardAssets_{self.env}.chunks",
+        }
+        counts = {
+            "sets": await self.sets_col.count_documents({}),
+            "cards": await self.catalog_col.count_documents({}),
+            "packs": await self.packs_col.count_documents({}),
+            "gridfs_files": await self.db[expected["gridfs_files"]].count_documents({}) if expected["gridfs_files"] in collection_names else 0,
+            "gridfs_chunks": await self.db[expected["gridfs_chunks"]].count_documents({}) if expected["gridfs_chunks"] in collection_names else 0,
+        }
+        set_health = []
+        files_collection = self.db[expected["gridfs_files"]]
+        set_cursor = self.sets_col.find({}, {"set_id": 1, "_id": 0}).sort("set_id", 1)
+        async for set_doc in set_cursor:
+            set_id = set_doc["set_id"]
+            cards = await self.catalog_col.find({"set_id": set_id}, {"card_id": 1, "_id": 0}).to_list(length=10000)
+            card_ids = {card["card_id"] for card in cards}
+            existing_files = set()
+            if card_ids and expected["gridfs_files"] in collection_names:
+                file_cursor = files_collection.find({"filename": {"$in": list(card_ids)}}, {"filename": 1, "_id": 0})
+                existing_files = {file_doc["filename"] async for file_doc in file_cursor}
+            missing = sorted(card_ids - existing_files)
+            set_health.append(
+                {
+                    "set_id": set_id,
+                    "cards": len(card_ids),
+                    "card_files": len(card_ids & existing_files),
+                    "missing_card_files": missing,
+                }
+            )
+        return {
+            "environment": self.env,
+            "database": self.db_name,
+            "collections": {key: name in collection_names for key, name in expected.items()},
+            "counts": counts,
+            "sets": set_health,
+        }
 
     # ── Set operations ──
     async def upsert_set(self, set_id: str, data: dict):
@@ -97,6 +155,31 @@ class TradingCardPublisher:
     async def archive_set(self, set_id: str):
         await self.sets_col.update_one({"set_id": set_id}, {"$set": {"released": False, "updated_at": datetime.now(UTC)}})
         await self.packs_col.update_many({"set_id": set_id}, {"$set": {"released": False}})
+
+    async def delete_set(self, set_id: str) -> dict[str, int]:
+        """Permanently remove a set and its catalog, pack, and GridFS records."""
+        cards = await self.catalog_col.find({"set_id": set_id}, {"card_id": 1, "_id": 0}).to_list(length=10000)
+        asset_names = [f"{set_id}_base_template", *(card["card_id"] for card in cards)]
+
+        deleted_assets = 0
+        for asset_name in asset_names:
+            deleted_assets += await self._delete_assets_by_name(asset_name)
+
+        set_result = await self.sets_col.delete_many({"set_id": set_id})
+        card_result = await self.catalog_col.delete_many({"set_id": set_id})
+        pack_result = await self.packs_col.delete_many({"set_id": set_id})
+        return {
+            "sets": set_result.deleted_count,
+            "cards": card_result.deleted_count,
+            "packs": pack_result.deleted_count,
+            "assets": deleted_assets,
+        }
+
+    async def _delete_assets_by_name(self, filename: str) -> int:
+        files = await self.gridfs.find({"filename": filename}).to_list(length=10000)
+        for grid_file in files:
+            await self.gridfs.delete(grid_file["_id"])
+        return len(files)
 
     # ── Card catalog operations ──
     async def upsert_card(self, card: dict):
@@ -178,8 +261,7 @@ class TradingCardPublisher:
         except Exception:
             return None
 
-    async def upload_asset(self, card_id: str, data: bytes, content_type: str = "image/png",
-                           metadata: dict | None = None, replace: bool = False, checksum: str | None = None) -> str:
+    async def upload_asset(self, card_id: str, data: bytes, content_type: str = "image/png", metadata: dict | None = None, replace: bool = False, checksum: str | None = None) -> str:
         if not replace:
             existing = await self.get_asset_checksum(card_id)
             new_hash = checksum or self.compute_sha256(data)
@@ -191,7 +273,7 @@ class TradingCardPublisher:
         if replace:
             try:
                 await self.gridfs.open_download_stream_by_name(card_id)
-                await self.gridfs.delete_many({"filename": card_id})
+                await self._delete_assets_by_name(card_id)
             except Exception:
                 pass
 

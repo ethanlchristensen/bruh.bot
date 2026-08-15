@@ -39,7 +39,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from bot.services.ai.gateway.gateway import get_mesh_gateway
 from bot.services.ai.gateway.schemas.request import Message, MessagePart, NormalizedRequest
 from bot.services.ai.gateway.utils import parse_data_url
-from tools.trading_card_publisher import TradingCardPublisher
+from tools.trading_card_publisher import VALID_ENVIRONMENTS, TradingCardPublisher
 
 console = Console()
 logger = logging.getLogger("card_gen")
@@ -63,9 +63,11 @@ async def resolve_api_key(env: str) -> str:
         console.print("[red]No API key found. Set OPENROUTER_API_KEY env var.[/red]")
         sys.exit(1)
     import yaml
+
     with open(config_path) as f:
         cfg = yaml.safe_load(f)
     from motor.motor_asyncio import AsyncIOMotorClient
+
     client = AsyncIOMotorClient(cfg["mongoUri"])
     doc = await client[cfg["mongoDbName"]].config.find_one()
     if doc:
@@ -76,6 +78,7 @@ async def resolve_api_key(env: str) -> str:
                 if k.startswith("gAAAA"):
                     try:
                         from cryptography.fernet import Fernet
+
                         k = Fernet(cfg.get("encryptionKey", "").encode()).decrypt(k.encode()).decode()
                     except Exception:
                         pass
@@ -95,9 +98,11 @@ async def generate_image(prompt: str, api_key: str, reference_image: Image.Image
         parts.insert(0, MessagePart(type="image", url=f"data:image/png;base64,{b64}"))
 
     request = NormalizedRequest(
-        provider="openrouter", model=CARD_IMAGE_MODEL,
+        provider="openrouter",
+        model=CARD_IMAGE_MODEL,
         messages=[Message(role="user", parts=parts)],
-        stream=False, modalities=["image", "text"],
+        stream=False,
+        modalities=["image", "text"],
         image_config={"aspect_ratio": CARD_ASPECT_RATIO},
     )
     response = await get_mesh_gateway().complete(request, credentials={"api_key": api_key})
@@ -112,6 +117,7 @@ async def generate_image(prompt: str, api_key: str, reference_image: Image.Image
                     return Image.open(BytesIO(base64.b64decode(b64_data))), fmt
             else:
                 import aiohttp
+
                 async with aiohttp.ClientSession() as session:
                     async with session.get(data) as resp:
                         ct = resp.headers.get("Content-Type", "")
@@ -145,13 +151,16 @@ Start BASIC (1-14), COMMON (15-26), RARE (27-35), EPIC (36-41), LEGENDARY (42-45
 Platinum cards should be the ultimate chase cards. Each description must be unique."""
 
     request = NormalizedRequest(
-        provider="openrouter", model=CARD_TEXT_MODEL,
-        messages=[Message(role="user", parts=[MessagePart(type="text", text=prompt)])], stream=False,
+        provider="openrouter",
+        model=CARD_TEXT_MODEL,
+        messages=[Message(role="user", parts=[MessagePart(type="text", text=prompt)])],
+        stream=False,
     )
     response = await get_mesh_gateway().complete(request, credentials={"api_key": api_key})
     text = "".join(p.content for p in response.parts if p.type == "text")
 
     import re
+
     match = re.search(r"\[.*\]", text, re.DOTALL)
     if not match:
         return None
@@ -162,12 +171,14 @@ Platinum cards should be the ultimate chase cards. Each description must be uniq
     cards = []
     for item in data:
         if isinstance(item, dict) and 1 <= item.get("number", 0) <= 50:
-            cards.append({
-                "number": item["number"],
-                "name": str(item.get("name", "")),
-                "rarity": str(item.get("rarity", "common")).lower(),
-                "description": str(item.get("description", "")),
-            })
+            cards.append(
+                {
+                    "number": item["number"],
+                    "name": str(item.get("name", "")),
+                    "rarity": str(item.get("rarity", "common")).lower(),
+                    "description": str(item.get("description", "")),
+                }
+            )
     return cards if len(cards) >= 10 else None
 
 
@@ -176,24 +187,27 @@ async def generate_rarity_themes(theme_name: str, theme_desc: str, api_key: str)
 
 Define what each rarity tier represents in this specific theme. Each tier should feel distinct and logically escalate in power/importance:
 
-- Basic ({RARITY_COUNTS['basic']} cards): Common, everyday elements of this theme.
-- Common ({RARITY_COUNTS['common']} cards): Familiar but notable elements.
-- Rare ({RARITY_COUNTS['rare']} cards): Significant, respected elements.
-- Epic ({RARITY_COUNTS['epic']} cards): Heroic, powerful elements.
-- Legendary ({RARITY_COUNTS['legendary']} cards): Mythical, near-pinnacle elements.
-- Diamond ({RARITY_COUNTS['diamond']} cards): Transcendent, reality-bending elements.
-- Platinum ({RARITY_COUNTS['platinum']} cards): The absolute pinnacle — embodiment of the theme itself.
+- Basic ({RARITY_COUNTS["basic"]} cards): Common, everyday elements of this theme.
+- Common ({RARITY_COUNTS["common"]} cards): Familiar but notable elements.
+- Rare ({RARITY_COUNTS["rare"]} cards): Significant, respected elements.
+- Epic ({RARITY_COUNTS["epic"]} cards): Heroic, powerful elements.
+- Legendary ({RARITY_COUNTS["legendary"]} cards): Mythical, near-pinnacle elements.
+- Diamond ({RARITY_COUNTS["diamond"]} cards): Transcendent, reality-bending elements.
+- Platinum ({RARITY_COUNTS["platinum"]} cards): The absolute pinnacle — embodiment of the theme itself.
 
 Return ONLY valid JSON: {{"basic": "description", "common": "...", "rare": "...", "epic": "...", "legendary": "...", "diamond": "...", "platinum": "..."}}"""
 
     request = NormalizedRequest(
-        provider="openrouter", model=CARD_TEXT_MODEL,
-        messages=[Message(role="user", parts=[MessagePart(type="text", text=prompt)])], stream=False,
+        provider="openrouter",
+        model=CARD_TEXT_MODEL,
+        messages=[Message(role="user", parts=[MessagePart(type="text", text=prompt)])],
+        stream=False,
     )
     response = await get_mesh_gateway().complete(request, credentials={"api_key": api_key})
     text = "".join(p.content for p in response.parts if p.type == "text")
 
     import re
+
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if not match:
         return None
@@ -215,18 +229,24 @@ async def generate_friendly_description(image: Image.Image, card_name: str, rari
 
     prompt = (
         f"Based on the card art above, write 1-2 short, evocative sentences describing this trading card "
-        f"for players. The card is named \"{card_name}\" and is {rarity} rarity. "
+        f'for players. The card is named "{card_name}" and is {rarity} rarity. '
         f"Describe what is depicted — the character, creature, object, or scene — in a way that feels "
-        f"exciting and collectible. Do NOT say \"This card shows\" or \"The card features\" — just describe "
+        f'exciting and collectible. Do NOT say "This card shows" or "The card features" — just describe '
         f"the subject directly. Keep it concise. Return ONLY the description text, no title or prefix."
     )
 
     request = NormalizedRequest(
-        provider="openrouter", model=CARD_FRIENDLY_DESCRIPTION_MODEL,
-        messages=[Message(role="user", parts=[
-            MessagePart(type="image", url=f"data:image/png;base64,{b64}"),
-            MessagePart(type="text", text=prompt),
-        ])],
+        provider="openrouter",
+        model=CARD_FRIENDLY_DESCRIPTION_MODEL,
+        messages=[
+            Message(
+                role="user",
+                parts=[
+                    MessagePart(type="image", url=f"data:image/png;base64,{b64}"),
+                    MessagePart(type="text", text=prompt),
+                ],
+            )
+        ],
         stream=False,
     )
     response = await get_mesh_gateway().complete(request, credentials={"api_key": api_key})
@@ -238,15 +258,48 @@ async def generate_friendly_description(image: Image.Image, card_name: str, rari
 # ── Card Set Generator ──
 class CardSetGenerator:
     def __init__(self, env: str = "dev"):
+        if env not in VALID_ENVIRONMENTS:
+            raise ValueError(f"Environment must be one of: {', '.join(VALID_ENVIRONMENTS)}")
         self.env = env
         self.api_key = ""
         self.pub = TradingCardPublisher(env=env)
         self.set_id = ""
         self.base_image = None
 
-    async def connect(self):
-        self.api_key = await resolve_api_key(self.env)
+    async def connect(self, resolve_credentials: bool = True):
+        if resolve_credentials:
+            self.api_key = await resolve_api_key(self.env)
         await self.pub.connect()
+
+    async def health(self):
+        result = await self.pub.health_check()
+        console.print(f"[bold]Environment:[/bold] {result['environment']}")
+        console.print(f"[bold]Database:[/bold] {result['database']}")
+        console.print("\n[bold]Collections:[/bold]")
+        for name, present in result["collections"].items():
+            console.print(f"  {'[green]OK[/green]' if present else '[red]MISSING[/red]'} {name}")
+        counts = result["counts"]
+        console.print("\n[bold]Counts:[/bold]")
+        console.print(f"  Sets: {counts['sets']}")
+        console.print(f"  Cards: {counts['cards']}")
+        console.print(f"  Packs: {counts['packs']}")
+        console.print(f"  GridFS files: {counts['gridfs_files']}")
+        console.print(f"  GridFS chunks: {counts['gridfs_chunks']}")
+        console.print("\n[bold]Card artwork by set:[/bold]")
+        missing_total = 0
+        for set_status in result["sets"]:
+            missing = set_status["missing_card_files"]
+            missing_total += len(missing)
+            if missing:
+                preview = ", ".join(missing[:5])
+                suffix = "..." if len(missing) > 5 else ""
+                console.print(f"  [red]MISSING[/red] {set_status['set_id']}: {len(missing)}/{set_status['cards']} card files ({preview}{suffix})")
+            else:
+                console.print(f"  [green]OK[/green] {set_status['set_id']}: {set_status['card_files']}/{set_status['cards']} card files")
+        if missing_total:
+            console.print(f"\n[red]Missing card artwork files: {missing_total}[/red]")
+        else:
+            console.print("\n[green]Every catalog card has a GridFS artwork file.[/green]")
 
     # ── Wizard ──
     async def wizard(self):
@@ -307,16 +360,18 @@ class CardSetGenerator:
         cards = []
         for c in ai_cards:
             safe = c["name"].lower().replace(" ", "_").replace("'", "")
-            cards.append({
-                "card_id": f"{self.set_id}_{c['number']:03d}",
-                "series_id": self.set_id,
-                "number": c["number"],
-                "name": c["name"],
-                "rarity": c["rarity"],
-                "description": c["description"],
-                "art_path": f"{self.set_id}/{c['rarity']}_{safe}.png",
-                "tradable": True,
-            })
+            cards.append(
+                {
+                    "card_id": f"{self.set_id}_{c['number']:03d}",
+                    "series_id": self.set_id,
+                    "number": c["number"],
+                    "name": c["name"],
+                    "rarity": c["rarity"],
+                    "description": c["description"],
+                    "art_path": f"{self.set_id}/{c['rarity']}_{safe}.png",
+                    "tradable": True,
+                }
+            )
 
         # Generate base template
         base_prompt = self._build_base_prompt(theme_name, theme_desc)
@@ -364,20 +419,59 @@ class CardSetGenerator:
 
         # Pack definitions
         console.print("\n[bold]Pack settings:[/bold]")
-        std_price = int(Prompt.ask("  Standard pack price", default="350"))
-        prem_price = int(Prompt.ask("  Premium pack price", default="1100"))
-        packs = [
-            {"pack_id": f"{self.set_id}_standard", "series_id": self.set_id, "name": f"{theme_name} Pack", "price": std_price, "cards_per_pack": 3, "guaranteed_rarity": None, "description": f"Standard pack from {theme_name}.", "released": False},
-            {"pack_id": f"{self.set_id}_premium", "series_id": self.set_id, "name": f"{theme_name} Premium Pack", "price": prem_price, "cards_per_pack": 5, "guaranteed_rarity": "rare", "description": f"Premium pack from {theme_name}. Guaranteed Rare+.", "released": False},
-        ]
+
+        def ask_int(label: str, default: int, minimum: int, maximum: int) -> int:
+            while True:
+                try:
+                    value = int(Prompt.ask(label, default=str(default)))
+                except ValueError:
+                    console.print(f"[red]Enter a whole number between {minimum} and {maximum}.[/red]")
+                    continue
+                if minimum <= value <= maximum:
+                    return value
+                console.print(f"[red]Enter a number between {minimum} and {maximum}.[/red]")
+
+        pack_count = ask_int("  Number of packs", 2, 1, 10)
+        packs = []
+        rarity_choices = ["none", *RARITY_COUNTS]
+        for index in range(pack_count):
+            default_name = f"{theme_name} Pack" if index == 0 else f"{theme_name} Premium Pack" if index == 1 else f"{theme_name} Pack {index + 1}"
+            default_price = 350 if index == 0 else 1100 if index == 1 else 500
+            default_cards = 3 if index == 0 else 5
+            default_guarantee = "none" if index == 0 else "rare" if index == 1 else "none"
+
+            console.print(f"\n[bold cyan]Pack {index + 1}/{pack_count}[/bold cyan]")
+            pack_name = Prompt.ask("  Name", default=default_name)
+            price = ask_int("  Price", default_price, 0, 1_000_000)
+            cards_per_pack = ask_int("  Cards per pack", default_cards, 1, 50)
+            guaranteed = Prompt.ask("  Guaranteed rarity", choices=rarity_choices, default=default_guarantee)
+            description = Prompt.ask("  Description", default=f"A pack from {theme_name}.")
+            packs.append(
+                {
+                    "pack_id": f"{self.set_id}_pack_{index + 1}",
+                    "series_id": self.set_id,
+                    "name": pack_name,
+                    "price": price,
+                    "cards_per_pack": cards_per_pack,
+                    "guaranteed_rarity": None if guaranteed == "none" else guaranteed,
+                    "description": description,
+                    "released": False,
+                }
+            )
 
         # Save set metadata to Mongo
-        await self.pub.upsert_set(self.set_id, {
-            "display_name": theme_name, "description": theme_desc,
-            "base_prompt": base_prompt, "rarity_themes": rarity_themes,
-            "status": "generating", "generation_model": CARD_IMAGE_MODEL,
-            "version": 1,
-        })
+        await self.pub.upsert_set(
+            self.set_id,
+            {
+                "display_name": theme_name,
+                "description": theme_desc,
+                "base_prompt": base_prompt,
+                "rarity_themes": rarity_themes,
+                "status": "generating",
+                "generation_model": CARD_IMAGE_MODEL,
+                "version": 1,
+            },
+        )
         for card in cards:
             card["asset_status"] = "pending"
             await self.pub.upsert_card(card)
@@ -393,11 +487,17 @@ class CardSetGenerator:
         await self._generate_cards_direct(cards)
 
         # Mark complete
-        await self.pub.upsert_set(self.set_id, {
-            "display_name": theme_name, "description": theme_desc,
-            "base_prompt": base_prompt, "rarity_themes": rarity_themes,
-            "status": "ready", "generation_model": CARD_IMAGE_MODEL,
-        })
+        await self.pub.upsert_set(
+            self.set_id,
+            {
+                "display_name": theme_name,
+                "description": theme_desc,
+                "base_prompt": base_prompt,
+                "rarity_themes": rarity_themes,
+                "status": "ready",
+                "generation_model": CARD_IMAGE_MODEL,
+            },
+        )
         console.print(f"\n[bold green]Done! Publish with: poetry run python tools/card_gen.py publish {self.set_id} --env {self.env}[/bold green]")
 
     async def _generate_cards_direct(self, cards: list[dict]):
@@ -444,30 +544,36 @@ class CardSetGenerator:
                             now = datetime.now(UTC)
                             await self.pub.catalog_col.update_one(
                                 {"card_id": card["card_id"]},
-                                {"$set": {
-                                    "friendly_description": friendly,
-                                    "friendly_description_status": "ready",
-                                    "friendly_description_error": None,
-                                    "friendly_description_updated_at": now,
-                                }},
+                                {
+                                    "$set": {
+                                        "friendly_description": friendly,
+                                        "friendly_description_status": "ready",
+                                        "friendly_description_error": None,
+                                        "friendly_description_updated_at": now,
+                                    }
+                                },
                             )
                             console.print(f"    [green]Description: {friendly[:60]}...[/green]")
                         else:
                             await self.pub.catalog_col.update_one(
                                 {"card_id": card["card_id"]},
-                                {"$set": {
-                                    "friendly_description_status": "failed",
-                                    "friendly_description_error": "No description returned",
-                                }},
+                                {
+                                    "$set": {
+                                        "friendly_description_status": "failed",
+                                        "friendly_description_error": "No description returned",
+                                    }
+                                },
                             )
                             console.print("    [yellow]Friendly description generation returned empty[/yellow]")
                     except Exception as e:
                         await self.pub.catalog_col.update_one(
                             {"card_id": card["card_id"]},
-                            {"$set": {
-                                "friendly_description_status": "failed",
-                                "friendly_description_error": str(e)[:200],
-                            }},
+                            {
+                                "$set": {
+                                    "friendly_description_status": "failed",
+                                    "friendly_description_error": str(e)[:200],
+                                }
+                            },
                         )
                         console.print(f"    [yellow]Friendly description failed: {e}[/yellow]")
                 else:
@@ -561,12 +667,19 @@ class CardSetGenerator:
                 return
 
             # Upsert set metadata
-            await dst.upsert_set(set_id, {
-                "display_name": sd["display_name"], "description": sd.get("description", ""),
-                "base_prompt": sd.get("base_prompt", ""), "rarity_themes": sd.get("rarity_themes", {}),
-                "status": sd.get("status", "ready"), "released": sd.get("released", False),
-                "version": sd.get("version", 1), "generation_model": sd.get("generation_model", ""),
-            })
+            await dst.upsert_set(
+                set_id,
+                {
+                    "display_name": sd["display_name"],
+                    "description": sd.get("description", ""),
+                    "base_prompt": sd.get("base_prompt", ""),
+                    "rarity_themes": sd.get("rarity_themes", {}),
+                    "status": sd.get("status", "ready"),
+                    "released": sd.get("released", False),
+                    "version": sd.get("version", 1),
+                    "generation_model": sd.get("generation_model", ""),
+                },
+            )
 
             # Copy base template
             base = await src.get_asset_bytes(f"{set_id}_base_template")
@@ -600,11 +713,53 @@ class CardSetGenerator:
             console.print(f"  Run /bruh-cards-admin reload in Discord ({target_env} bot).")
         finally:
             await dst.close()
+
+    async def promote_all(self, target_env: str):
+        if self.env == target_env:
+            console.print("[red]Source and target environments must be different.[/red]")
+            return
+
+        sets = await self.pub.sets_col.find({}, {"set_id": 1, "_id": 0}).sort("set_id", 1).to_list(length=10000)
+        set_ids = [entry["set_id"] for entry in sets]
+        if not set_ids:
+            console.print(f"[yellow]No sets found in {self.env}.[/yellow]")
+            return
+
+        console.print(f"Found {len(set_ids)} set(s) in {self.env}: {', '.join(set_ids)}")
+        if not Confirm.ask(f"Promote all sets from {self.env} to {target_env}?", default=False):
+            console.print("[yellow]Promotion cancelled.[/yellow]")
+            return
+
+        failed = []
+        for set_id in set_ids:
+            try:
+                await self.promote(set_id, target_env)
+            except Exception as error:
+                failed.append((set_id, str(error)))
+                console.print(f"[red]Failed to promote {set_id}: {error}[/red]")
+
+        if failed:
+            console.print(f"[yellow]Completed with {len(failed)} failure(s).[/yellow]")
+        else:
+            console.print(f"[green]Promoted all {len(set_ids)} set(s) to {target_env}.[/green]")
+
     async def archive(self, set_id: str):
         if not Confirm.ask(f"Archive set '{set_id}'? This hides it from players but preserves data.", default=False):
             return
         await self.pub.archive_set(set_id)
         console.print(f"[yellow]Set '{set_id}' archived.[/yellow]")
+
+    async def delete(self, set_id: str):
+        existing = await self.pub.get_set(set_id)
+        if not existing:
+            console.print(f"[red]Set '{set_id}' not found in {self.env}.[/red]")
+            return
+        warning = f"Permanently delete '{set_id}' from {self.env}, including all cards, packs, and artwork?"
+        if not Confirm.ask(warning, default=False):
+            console.print("[yellow]Deletion cancelled.[/yellow]")
+            return
+        counts = await self.pub.delete_set(set_id)
+        console.print(f"[red]Deleted '{set_id}' from {self.env}: {counts['sets']} set, {counts['cards']} cards, {counts['packs']} packs, {counts['assets']} assets.[/red]")
 
     # ── Export ──
     async def export_set(self, set_id: str, output_dir: str):
@@ -623,25 +778,41 @@ class CardSetGenerator:
         exp_cards = []
         for c in cards:
             safe = c["name"].lower().replace(" ", "_").replace(chr(39), "")
-            exp_cards.append({
-                "card_id": c["card_id"], "series_id": c["set_id"], "number": c["number"],
-                "name": c["name"], "rarity": c["rarity"], "description": c.get("description", ""),
-                "art_path": f"{set_id}/{c.get('rarity', 'basic')}_{safe}.png",
-                "tradable": c.get("tradable", True), "released": True,
-            })
+            exp_cards.append(
+                {
+                    "card_id": c["card_id"],
+                    "series_id": c["set_id"],
+                    "number": c["number"],
+                    "name": c["name"],
+                    "rarity": c["rarity"],
+                    "description": c.get("description", ""),
+                    "art_path": f"{set_id}/{c.get('rarity', 'basic')}_{safe}.png",
+                    "tradable": c.get("tradable", True),
+                    "released": True,
+                }
+            )
         exp_packs = []
         for p in packs:
-            exp_packs.append({
-                "pack_id": p["pack_id"], "series_id": p["set_id"], "name": p["name"],
-                "price": p["price"], "cards_per_pack": p["cards_per_pack"],
-                "guaranteed_rarity": p.get("guaranteed_rarity"),
-                "description": p.get("description", ""), "released": True,
-            })
+            exp_packs.append(
+                {
+                    "pack_id": p["pack_id"],
+                    "series_id": p["set_id"],
+                    "name": p["name"],
+                    "price": p["price"],
+                    "cards_per_pack": p["cards_per_pack"],
+                    "guaranteed_rarity": p.get("guaranteed_rarity"),
+                    "description": p.get("description", ""),
+                    "released": True,
+                }
+            )
 
         data = {
-            "set_id": sd["set_id"], "display_name": sd["display_name"],
-            "description": sd.get("description", ""), "base_prompt": sd.get("base_prompt", ""),
-            "rarity_themes": sd.get("rarity_themes", {}), "version": sd.get("version", 1),
+            "set_id": sd["set_id"],
+            "display_name": sd["display_name"],
+            "description": sd.get("description", ""),
+            "base_prompt": sd.get("base_prompt", ""),
+            "rarity_themes": sd.get("rarity_themes", {}),
+            "version": sd.get("version", 1),
             "cards": exp_cards,
             "packs": exp_packs,
         }
@@ -701,11 +872,10 @@ class CardSetGenerator:
         console.print(f"\n[bold]{sd['display_name']}[/bold] — [cyan]{card_name}[/cyan] ({rarity})")
         console.print(f"  Description: {description}")
 
-        prompt = prompt_override if prompt_override else (
-            f"Use the provided base template card to create a trading card. "
-            f"Depict the following concept as a character or scene illustration: {description} "
-            f"CRITICAL: Do NOT put any text, words, letters, titles, names, placeholders, "
-            f"or description text on the card. The card must have zero text — only artwork."
+        prompt = (
+            prompt_override
+            if prompt_override
+            else (f"Use the provided base template card to create a trading card. Depict the following concept as a character or scene illustration: {description} CRITICAL: Do NOT put any text, words, letters, titles, names, placeholders, or description text on the card. The card must have zero text — only artwork.")
         )
         if prompt_override:
             console.print(f"  [yellow]Prompt override: {prompt}[/yellow]")
@@ -763,14 +933,16 @@ class CardSetGenerator:
 
         await self.pub.catalog_col.update_one(
             {"card_id": card_id},
-            {"$set": {
-                "asset_status": "ready",
-                "asset_sha256": sha,
-                "asset_content_type": "image/png",
-                "asset_filename": f"{rarity}_{card_name.lower().replace(' ', '_').replace(chr(39), '')}.png",
-                "asset_error": None,
-                "asset_updated_at": datetime.now(UTC),
-            }},
+            {
+                "$set": {
+                    "asset_status": "ready",
+                    "asset_sha256": sha,
+                    "asset_content_type": "image/png",
+                    "asset_filename": f"{rarity}_{card_name.lower().replace(' ', '_').replace(chr(39), '')}.png",
+                    "asset_error": None,
+                    "asset_updated_at": datetime.now(UTC),
+                }
+            },
         )
 
         tf.close()
@@ -786,30 +958,36 @@ class CardSetGenerator:
                 now = datetime.now(UTC)
                 await self.pub.catalog_col.update_one(
                     {"card_id": card_id},
-                    {"$set": {
-                        "friendly_description": friendly,
-                        "friendly_description_status": "ready",
-                        "friendly_description_error": None,
-                        "friendly_description_updated_at": now,
-                    }},
+                    {
+                        "$set": {
+                            "friendly_description": friendly,
+                            "friendly_description_status": "ready",
+                            "friendly_description_error": None,
+                            "friendly_description_updated_at": now,
+                        }
+                    },
                 )
                 console.print(f"[green]Friendly description: {friendly}[/green]")
             else:
                 await self.pub.catalog_col.update_one(
                     {"card_id": card_id},
-                    {"$set": {
-                        "friendly_description_status": "failed",
-                        "friendly_description_error": "No description returned",
-                    }},
+                    {
+                        "$set": {
+                            "friendly_description_status": "failed",
+                            "friendly_description_error": "No description returned",
+                        }
+                    },
                 )
                 console.print("[yellow]Friendly description generation returned empty[/yellow]")
         except Exception as e:
             await self.pub.catalog_col.update_one(
                 {"card_id": card_id},
-                {"$set": {
-                    "friendly_description_status": "failed",
-                    "friendly_description_error": str(e)[:200],
-                }},
+                {
+                    "$set": {
+                        "friendly_description_status": "failed",
+                        "friendly_description_error": str(e)[:200],
+                    }
+                },
             )
             console.print(f"[yellow]Friendly description failed: {e}[/yellow]")
 
@@ -945,7 +1123,7 @@ class CardSetGenerator:
                 name = f.stem
                 if name.startswith(prefix):
                     try:
-                        suffix = name[len(prefix):].lstrip("_")
+                        suffix = name[len(prefix) :].lstrip("_")
                         num = int(suffix)
                         image_files[num] = f
                     except ValueError:
@@ -980,21 +1158,15 @@ class CardSetGenerator:
             console.print("  [dim]No manifest provided, generating placeholder metadata from filenames[/dim]")
             for num in sorted(image_files.keys()):
                 card_id = f"{set_id}_{num:03d}"
-                rarity = (
-                    "platinum" if num == 50 else
-                    "diamond" if num >= 47 else
-                    "legendary" if num >= 43 else
-                    "epic" if num >= 37 else
-                    "rare" if num >= 27 else
-                    "common" if num >= 15 else
-                    "basic"
+                rarity = "platinum" if num == 50 else "diamond" if num >= 47 else "legendary" if num >= 43 else "epic" if num >= 37 else "rare" if num >= 27 else "common" if num >= 15 else "basic"
+                cards.append(
+                    {
+                        "number": num,
+                        "name": f"{display_name} #{num}",
+                        "rarity": rarity,
+                        "description": f"Card #{num} from {display_name}.",
+                    }
                 )
-                cards.append({
-                    "number": num,
-                    "name": f"{display_name} #{num}",
-                    "rarity": rarity,
-                    "description": f"Card #{num} from {display_name}.",
-                })
         else:
             # Validate manifest cards have numbers
             for i, c in enumerate(cards):
@@ -1025,19 +1197,21 @@ class CardSetGenerator:
                 sha = TradingCardPublisher.compute_sha256(data)
                 await self.pub.upload_asset(card_id, data, checksum=sha, replace=True)
 
-                await self.pub.upsert_card({
-                    "card_id": card_id,
-                    "set_id": set_id,
-                    "number": num,
-                    "name": name,
-                    "rarity": rarity,
-                    "description": description,
-                    "tradable": True,
-                    "asset_status": "ready",
-                    "asset_sha256": sha,
-                    "asset_content_type": "image/png",
-                    "asset_filename": img_path.name,
-                })
+                await self.pub.upsert_card(
+                    {
+                        "card_id": card_id,
+                        "set_id": set_id,
+                        "number": num,
+                        "name": name,
+                        "rarity": rarity,
+                        "description": description,
+                        "tradable": True,
+                        "asset_status": "ready",
+                        "asset_sha256": sha,
+                        "asset_content_type": "image/png",
+                        "asset_filename": img_path.name,
+                    }
+                )
 
                 uploaded += 1
                 console.print(f"  [{uploaded}/{total}] [green]{card_id}[/green] — {name} ({rarity})")
@@ -1045,12 +1219,15 @@ class CardSetGenerator:
                 console.print(f"  [{uploaded + 1}/{total}] [red]{card_id} failed: {e}[/red]")
 
         # Save set metadata
-        await self.pub.upsert_set(set_id, {
-            "display_name": display_name,
-            "description": f"Uploaded from {folder_path.name}",
-            "status": "ready",
-            "version": 1,
-        })
+        await self.pub.upsert_set(
+            set_id,
+            {
+                "display_name": display_name,
+                "description": f"Uploaded from {folder_path.name}",
+                "status": "ready",
+                "version": 1,
+            },
+        )
 
         # Ask for pack definitions
         if Confirm.ask("\nCreate pack definitions?", default=True):
@@ -1118,36 +1295,45 @@ class CardSetGenerator:
                     image = image.convert("RGBA")
 
                 friendly = await generate_friendly_description(
-                    image, card.get("name", ""), card.get("rarity", "common"), self.api_key,
+                    image,
+                    card.get("name", ""),
+                    card.get("rarity", "common"),
+                    self.api_key,
                 )
                 if friendly:
                     now = datetime.now(UTC)
                     await self.pub.catalog_col.update_one(
                         {"card_id": card["card_id"]},
-                        {"$set": {
-                            "friendly_description": friendly,
-                            "friendly_description_status": "ready",
-                            "friendly_description_error": None,
-                            "friendly_description_updated_at": now,
-                        }},
+                        {
+                            "$set": {
+                                "friendly_description": friendly,
+                                "friendly_description_status": "ready",
+                                "friendly_description_error": None,
+                                "friendly_description_updated_at": now,
+                            }
+                        },
                     )
                     console.print(f"    [green]{friendly[:80]}...[/green]")
                 else:
                     await self.pub.catalog_col.update_one(
                         {"card_id": card["card_id"]},
-                        {"$set": {
-                            "friendly_description_status": "failed",
-                            "friendly_description_error": "No description returned",
-                        }},
+                        {
+                            "$set": {
+                                "friendly_description_status": "failed",
+                                "friendly_description_error": "No description returned",
+                            }
+                        },
                     )
                     console.print("    [yellow]No description returned[/yellow]")
             except Exception as e:
                 await self.pub.catalog_col.update_one(
                     {"card_id": card["card_id"]},
-                    {"$set": {
-                        "friendly_description_status": "failed",
-                        "friendly_description_error": str(e)[:200],
-                    }},
+                    {
+                        "$set": {
+                            "friendly_description_status": "failed",
+                            "friendly_description_error": str(e)[:200],
+                        }
+                    },
                 )
                 console.print(f"    [red]{e}[/red]")
 
@@ -1187,13 +1373,15 @@ class CardSetGenerator:
 
                 await dst.catalog_col.update_one(
                     {"card_id": src_card["card_id"]},
-                    {"$set": {
-                        "friendly_description": src_card["friendly_description"],
-                        "friendly_description_status": src_card["friendly_description_status"],
-                        "friendly_description_error": src_card.get("friendly_description_error"),
-                        "friendly_description_updated_at": src_card.get("friendly_description_updated_at"),
-                        "description": src_card.get("description", dst_card.get("description", "")),
-                    }},
+                    {
+                        "$set": {
+                            "friendly_description": src_card["friendly_description"],
+                            "friendly_description_status": src_card["friendly_description_status"],
+                            "friendly_description_error": src_card.get("friendly_description_error"),
+                            "friendly_description_updated_at": src_card.get("friendly_description_updated_at"),
+                            "description": src_card.get("description", dst_card.get("description", "")),
+                        }
+                    },
                 )
                 console.print(f"  [{i + 1}/{len(cards)}] [green]{src_card['card_id']}[/green]")
                 matched += 1
@@ -1231,12 +1419,13 @@ class CardSetGenerator:
 
 async def main():
     parser = argparse.ArgumentParser(description="bruh.bot Card Set Generator — direct to Mongo")
-    parser.add_argument("--env", default="dev", help="Environment (default: dev)")
+    parser.add_argument("--env", choices=VALID_ENVIRONMENTS, default="dev", help="Environment (default: dev)")
 
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("wizard", help="Interactive card set creation wizard")
     sub.add_parser("list", help="List all sets in Mongo")
+    sub.add_parser("health", help="Check MongoDB and trading-card storage health")
 
     rs = sub.add_parser("resume", help="Resume an interrupted card generation")
     rs.add_argument("set_id")
@@ -1251,9 +1440,15 @@ async def main():
     ar = sub.add_parser("archive", help="Hide a set from players")
     ar.add_argument("set_id")
 
+    dl = sub.add_parser("delete", help="Permanently delete a set from the selected environment")
+    dl.add_argument("set_id")
+
     pm = sub.add_parser("promote", help="Promote a set to a higher environment")
     pm.add_argument("set_id")
-    pm.add_argument("--to", default="prod", help="Target environment (default: prod)")
+    pm.add_argument("--to", choices=VALID_ENVIRONMENTS, default="prod", help="Target environment (default: prod)")
+
+    pma = sub.add_parser("promote-all", help="Promote every set to a higher environment")
+    pma.add_argument("--to", choices=VALID_ENVIRONMENTS, default="prod", help="Target environment (default: prod)")
 
     ex = sub.add_parser("export", help="Export a set to local files")
     ex.add_argument("set_id")
@@ -1294,18 +1489,23 @@ async def main():
         if a == "--env" and i + 1 < len(unknown):
             args.env = unknown[i + 1]
 
+    if args.env not in VALID_ENVIRONMENTS:
+        parser.error(f"argument --env: invalid choice: {args.env!r} (choose from {', '.join(VALID_ENVIRONMENTS)})")
+
     if not args.command:
         parser.print_help()
         return
 
     gen = CardSetGenerator(env=args.env)
     try:
-        await gen.connect()
+        await gen.connect(resolve_credentials=args.command != "health")
 
         if args.command == "wizard":
             await gen.wizard()
         elif args.command == "list":
             await gen.list_sets()
+        elif args.command == "health":
+            await gen.health()
         elif args.command == "resume":
             await gen.resume(args.set_id, retry_failed=args.retry_failed)
         elif args.command == "status":
@@ -1314,8 +1514,12 @@ async def main():
             await gen.publish(args.set_id)
         elif args.command == "archive":
             await gen.archive(args.set_id)
+        elif args.command == "delete":
+            await gen.delete(args.set_id)
         elif args.command == "promote":
             await gen.promote(args.set_id, args.to)
+        elif args.command == "promote-all":
+            await gen.promote_all(args.to)
         elif args.command == "export":
             await gen.export_set(args.set_id, args.output)
         elif args.command == "regenerate-card":
@@ -1326,11 +1530,16 @@ async def main():
             await gen.upload_set(args.set_id, args.folder, display_name=args.name, prefix=args.prefix, manifest=args.manifest)
         elif args.command == "generate-friendly-descriptions":
             await gen.backfill_friendly_descriptions(
-                set_id=args.set_id, force=args.force, retry_failed=args.retry_failed, yes=args.yes,
+                set_id=args.set_id,
+                force=args.force,
+                retry_failed=args.retry_failed,
+                yes=args.yes,
             )
         elif args.command == "promote-friendly-descriptions":
             await gen.promote_friendly_descriptions(
-                set_id=args.set_id, target_env=args.to, yes=args.yes,
+                set_id=args.set_id,
+                target_env=args.to,
+                yes=args.yes,
             )
     finally:
         await gen.pub.close()

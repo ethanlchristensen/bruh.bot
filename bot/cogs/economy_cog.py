@@ -231,12 +231,13 @@ class EconomyCog(commands.Cog):
     def _format_xp_progress(self, xp: int, level: int) -> str:
         from bot.services.mongo_economy_service import MongoEconomyService
 
-        xp_for_current = MongoEconomyService._xp_for_next_level(level - 1) if level > 0 else 0
-        xp_for_next = MongoEconomyService._xp_for_next_level(level)
+        # XP is stored cumulatively, while _xp_for_next_level returns the cost of one level.
+        xp_for_current = sum(MongoEconomyService._xp_for_next_level(current_level) for current_level in range(level))
+        xp_for_next = xp_for_current + MongoEconomyService._xp_for_next_level(level)
         xp_in_level = xp - xp_for_current
         xp_needed = xp_for_next - xp_for_current
         bar_length = 10
-        filled = int((xp_in_level / xp_needed) * bar_length) if xp_needed > 0 else bar_length
+        filled = min(max(int((xp_in_level / xp_needed) * bar_length), 0), bar_length) if xp_needed > 0 else bar_length
         empty = bar_length - filled
         bar = "█" * filled + "░" * empty
         return f"`{bar}` {xp_in_level}/{xp_needed} XP"

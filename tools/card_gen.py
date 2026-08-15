@@ -283,21 +283,29 @@ class CardSetGenerator:
         console.print(f"  Sets: {counts['sets']}")
         console.print(f"  Cards: {counts['cards']}")
         console.print(f"  Packs: {counts['packs']}")
+        console.print(f"  Catalog revision: {counts['revision']}")
         console.print(f"  GridFS files: {counts['gridfs_files']}")
         console.print(f"  GridFS chunks: {counts['gridfs_chunks']}")
         console.print("\n[bold]Card artwork by set:[/bold]")
         missing_total = 0
+        unreadable_total = 0
         for set_status in result["sets"]:
             missing = set_status["missing_card_files"]
+            unreadable = set_status["unreadable_card_files"]
             missing_total += len(missing)
-            if missing:
+            unreadable_total += len(unreadable)
+            if missing or unreadable:
                 preview = ", ".join(missing[:5])
-                suffix = "..." if len(missing) > 5 else ""
-                console.print(f"  [red]MISSING[/red] {set_status['set_id']}: {len(missing)}/{set_status['cards']} card files ({preview}{suffix})")
+                if unreadable:
+                    preview = ", ".join([*missing[:5], *unreadable[:5]])
+                issue_count = len(missing) + len(unreadable)
+                suffix = "..." if issue_count > 10 else ""
+                console.print(f"  [red]ISSUES[/red] {set_status['set_id']}: {issue_count}/{set_status['cards']} card files ({preview}{suffix})")
             else:
                 console.print(f"  [green]OK[/green] {set_status['set_id']}: {set_status['card_files']}/{set_status['cards']} card files")
-        if missing_total:
+        if missing_total or unreadable_total:
             console.print(f"\n[red]Missing card artwork files: {missing_total}[/red]")
+            console.print(f"[red]Unreadable card artwork files: {unreadable_total}[/red]")
         else:
             console.print("\n[green]Every catalog card has a GridFS artwork file.[/green]")
 
@@ -485,6 +493,7 @@ class CardSetGenerator:
             return
 
         await self._generate_cards_direct(cards)
+        await self.pub.bump_revision(f"created set {self.set_id}")
 
         # Mark complete
         await self.pub.upsert_set(
@@ -650,6 +659,7 @@ class CardSetGenerator:
         await self.pub.publish_set(set_id)
         await self.pub.packs_col.update_many({"set_id": set_id}, {"$set": {"released": True}})
         await self.pub.catalog_col.update_many({"set_id": set_id}, {"$set": {"released": True}})
+        await self.pub.bump_revision(f"published set {set_id}")
         console.print(f"[green]Set '{s['display_name']}' published! Run /bruh-cards-admin reload in Discord.[/green]")
 
     # ── Promote ──
@@ -708,6 +718,7 @@ class CardSetGenerator:
 
             await dst.catalog_col.update_many({"set_id": set_id}, {"$set": {"released": True}})
             await dst.packs_col.update_many({"set_id": set_id}, {"$set": {"released": True}})
+            await dst.bump_revision(f"promoted set {set_id} from {self.env}")
 
             console.print(f"[green]Promoted {ready}/{len(cards)} cards + {len(packs)} packs to {target_env}.[/green]")
             console.print(f"  Run /bruh-cards-admin reload in Discord ({target_env} bot).")
@@ -747,6 +758,7 @@ class CardSetGenerator:
         if not Confirm.ask(f"Archive set '{set_id}'? This hides it from players but preserves data.", default=False):
             return
         await self.pub.archive_set(set_id)
+        await self.pub.bump_revision(f"archived set {set_id}")
         console.print(f"[yellow]Set '{set_id}' archived.[/yellow]")
 
     async def delete(self, set_id: str):
@@ -1085,6 +1097,7 @@ class CardSetGenerator:
         cards = await self.pub.get_cards_by_status(set_id, "pending")
         console.print(f"\nGenerating {len(cards)} cards...")
         await self._generate_cards_direct(cards)
+        await self.pub.bump_revision(f"regenerated set {set_id}")
         console.print(f"\n[green]Done. Check status: poetry run python tools/card_gen.py status {set_id} --env {self.env}[/green]")
 
     # ── Upload pre-generated set ──
@@ -1238,10 +1251,11 @@ class CardSetGenerator:
                 {"pack_id": f"{set_id}_standard", "series_id": None, "set_id": set_id, "name": f"{display_name} Pack", "price": std_price, "cards_per_pack": 3, "guaranteed_rarity": None, "description": f"Standard pack from {display_name}.", "released": False},
                 {"pack_id": f"{set_id}_premium", "series_id": None, "set_id": set_id, "name": f"{display_name} Premium Pack", "price": prem_price, "cards_per_pack": 3, "guaranteed_rarity": "rare", "description": f"Premium pack from {display_name}. Guaranteed Rare+.", "released": False},
             ]
-            for pk in packs:
-                await self.pub.upsert_pack(pk)
+        for pk in packs:
+            await self.pub.upsert_pack(pk)
             console.print(f"[green]{len(packs)} pack definitions created.[/green]")
 
+        await self.pub.bump_revision(f"uploaded set {set_id}")
         console.print(f"\n[bold green]Done! {uploaded}/{total} cards uploaded to {self.env}.[/bold green]")
         console.print(f"  Set ID: {set_id}")
         console.print(f"  Publish: poetry run python tools/card_gen.py publish {set_id} --env {self.env}")

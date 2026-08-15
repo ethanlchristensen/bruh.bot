@@ -2062,6 +2062,17 @@ class EconomyCog(commands.Cog):
     async def bruh_cards_admin_reload(self, interaction: discord.Interaction):
         await self.bot.trading_card_catalog_service.reload_catalog()
         self.bot.trading_card_render_service.invalidate_cache()
+        env = self.bot.config_service.environment or "dev"
+        state_col = self.bot.config_service.db[f"TradingCardCatalogState_{env}"]
+        await state_col.update_one(
+            {"_id": "catalog"},
+            {
+                "$inc": {"revision": 1},
+                "$set": {"updated_at": datetime.now(UTC), "reason": "discord admin catalog reload"},
+                "$setOnInsert": {"created_at": datetime.now(UTC)},
+            },
+            upsert=True,
+        )
         c = self.bot.trading_card_catalog_service
         sets = c.get_series_list()
         lines = []

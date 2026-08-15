@@ -961,18 +961,39 @@ if __name__ == "__main__":
 
 RARITY_DISPLAY_ORDER = ["basic", "common", "rare", "epic", "legendary", "diamond", "platinum"]
 
+
+def _card_cache_version(revision: int) -> str:
+    return f"{revision}-{CARD_RENDER_VERSION}"
+
+
 _trading_services = None
+_trading_catalog_revision: int | None = None
+
+
+async def _get_trading_catalog_revision() -> int:
+    env_name = config_service.environment or "dev"
+    state = await config_service.db[f"TradingCardCatalogState_{env_name}"].find_one({"_id": "catalog"}, {"revision": 1})
+    return int(state.get("revision", 0)) if state else 0
 
 
 async def _get_trading_services():
-    global _trading_services
-    if _trading_services is not None:
-        return _trading_services
+    global _trading_catalog_revision, _trading_services
+
+    revision = await _get_trading_catalog_revision()
+    if _trading_services is not None and revision == _trading_catalog_revision:
+        return (*_trading_services, revision)
 
     from motor.motor_asyncio import AsyncIOMotorGridFSBucket
 
     from bot.services.mongo_trading_card_catalog_service import MongoTradingCardCatalogService
     from bot.services.trading_card_render_service import TradingCardRenderService
+
+    if _trading_services is not None:
+        old_catalog, old_render = _trading_services
+        await old_catalog.reload_catalog()
+        old_render.invalidate_cache()
+        _trading_catalog_revision = revision
+        return old_catalog, old_render, revision
 
     catalog = MongoTradingCardCatalogService.__new__(MongoTradingCardCatalogService)
     render = TradingCardRenderService.__new__(TradingCardRenderService)
@@ -1007,7 +1028,20 @@ async def _get_trading_services():
     await catalog.reload_catalog()
 
     _trading_services = (catalog, render)
-    return _trading_services
+    _trading_catalog_revision = revision
+    return catalog, render, revision
+
+
+async def _bump_trading_catalog_revision(reason: str) -> int:
+    env_name = config_service.environment or "dev"
+    state_col = config_service.db[f"TradingCardCatalogState_{env_name}"]
+    now = datetime.now(UTC)
+    await state_col.update_one(
+        {"_id": "catalog"},
+        {"$inc": {"revision": 1}, "$set": {"updated_at": now, "reason": reason}, "$setOnInsert": {"created_at": now}},
+        upsert=True,
+    )
+    return await _get_trading_catalog_revision()
 
 
 @app.get("/trading-cards/sets")
@@ -1016,7 +1050,7 @@ async def get_trading_card_sets(guild_id: str = Depends(get_guild_id), authorize
         if config_service.db is None:
             raise HTTPException(status_code=503, detail="Database not initialized")
 
-        catalog, _render = await _get_trading_services()
+        catalog, _render, revision = await _get_trading_services()
 
         all_packs = catalog.get_all_packs()
         series_pack_counts: dict[str, int] = {}
@@ -1035,7 +1069,7 @@ async def get_trading_card_sets(guild_id: str = Depends(get_guild_id), authorize
                 }
             )
 
-        return {"success": True, "sets": result, "render_version": CARD_RENDER_VERSION}
+        return {"success": True, "sets": result, "render_version": _card_cache_version(revision)}
     except Exception as e:
         logger.error(f"Error getting trading card sets: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -1047,7 +1081,7 @@ async def get_trading_card_set(series_id: str, guild_id: str = Depends(get_guild
         if config_service.db is None:
             raise HTTPException(status_code=503, detail="Database not initialized")
 
-        catalog, _render = await _get_trading_services()
+        catalog, _render, revision = await _get_trading_services()
 
         packs_in_series = catalog.get_packs_by_series(series_id)
         if not packs_in_series:
@@ -1080,7 +1114,7 @@ async def get_trading_card_set(series_id: str, guild_id: str = Depends(get_guild
             "display_name": display_name,
             "packs": pack_list,
             "eligible_cards": eligible_cards,
-            "render_version": CARD_RENDER_VERSION,
+            "render_version": _card_cache_version(revision),
         }
     except HTTPException:
         raise
@@ -1095,7 +1129,7 @@ async def get_trading_card_packs(guild_id: str = Depends(get_guild_id), authoriz
         if config_service.db is None:
             raise HTTPException(status_code=503, detail="Database not initialized")
 
-        catalog, _render = await _get_trading_services()
+        catalog, _render, revision = await _get_trading_services()
 
         all_packs = catalog.get_all_packs()
         result = []
@@ -1114,7 +1148,7 @@ async def get_trading_card_packs(guild_id: str = Depends(get_guild_id), authoriz
                 }
             )
 
-        return {"success": True, "packs": result, "render_version": CARD_RENDER_VERSION}
+        return {"success": True, "packs": result, "render_version": _card_cache_version(revision)}
     except Exception as e:
         logger.error(f"Error getting trading card packs: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -1126,7 +1160,7 @@ async def get_trading_card_image(card_id: str):
         if config_service.db is None:
             await _ensure_config_initialized()
 
-        _catalog, render = await _get_trading_services()
+        _catalog, render, revision = await _get_trading_services()
 
         image_bytes = await render.render_card(card_id)
         if not image_bytes:
@@ -1135,7 +1169,7 @@ async def get_trading_card_image(card_id: str):
         return Response(
             content=image_bytes.getvalue(),
             media_type="image/png",
-            headers={"Cache-Control": "public, max-age=31536000, immutable"},
+            headers={"Cache-Control": "public, max-age=31536000, immutable", "X-Trading-Card-Revision": str(revision)},
         )
     except HTTPException:
         raise
@@ -1170,7 +1204,7 @@ async def create_trading_card_pack(data: CreatePackRequest, guild_id: str = Depe
         if config_service.db is None:
             raise HTTPException(status_code=503, detail="Database not initialized")
 
-        catalog, _render = await _get_trading_services()
+        catalog, _render, _revision = await _get_trading_services()
         existing = catalog.get_pack(data.pack_id)
         if existing:
             raise HTTPException(status_code=409, detail=f"Pack '{data.pack_id}' already exists")
@@ -1187,6 +1221,7 @@ async def create_trading_card_pack(data: CreatePackRequest, guild_id: str = Depe
         }
         await catalog.packs_col.insert_one(doc)
         await catalog.reload_catalog()
+        await _bump_trading_catalog_revision(f"created pack {data.pack_id}")
 
         logger.info(f"Created pack '{data.pack_id}' in series '{data.series_id}'")
         return {"success": True, "message": f"Pack '{data.pack_id}' created"}
@@ -1203,7 +1238,7 @@ async def update_trading_card_pack(pack_id: str, data: UpdatePackRequest, guild_
         if config_service.db is None:
             raise HTTPException(status_code=503, detail="Database not initialized")
 
-        catalog, _render = await _get_trading_services()
+        catalog, _render, _revision = await _get_trading_services()
         existing = catalog.get_pack(pack_id)
         if not existing:
             raise HTTPException(status_code=404, detail=f"Pack '{pack_id}' not found")
@@ -1222,6 +1257,7 @@ async def update_trading_card_pack(pack_id: str, data: UpdatePackRequest, guild_
 
         await catalog.packs_col.update_one({"pack_id": pack_id}, {"$set": updates})
         await catalog.reload_catalog()
+        await _bump_trading_catalog_revision(f"updated pack {pack_id}")
 
         logger.info(f"Updated pack '{pack_id}': {updates}")
         return {"success": True, "message": f"Pack '{pack_id}' updated", "updates": updates}

@@ -6,10 +6,12 @@ Used by both card_gen.py (direct-to-Mongo) and migrate_trading_card_sets.py (loc
 import hashlib
 import logging
 from datetime import UTC, datetime
+from io import BytesIO
 from pathlib import Path
 
 import yaml
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
+from PIL import Image
 
 logger = logging.getLogger("tcard_publisher")
 VALID_ENVIRONMENTS = ("dev", "prod")
@@ -29,6 +31,7 @@ class TradingCardPublisher:
         self.catalog_col = None
         self.packs_col = None
         self.gridfs = None
+        self.state_col = None
         self.db_name = ""
 
     async def connect(self):
@@ -50,6 +53,7 @@ class TradingCardPublisher:
         self.sets_col = self.db[f"TradingCardSets_{self.env}"]
         self.catalog_col = self.db[f"TradingCardCatalog_{self.env}"]
         self.packs_col = self.db[f"TradingCardPacks_{self.env}"]
+        self.state_col = self.db[f"TradingCardCatalogState_{self.env}"]
         bucket_name = f"TradingCardAssets_{self.env}"
         self.gridfs = AsyncIOMotorGridFSBucket(self.db, bucket_name=bucket_name)
 
@@ -87,6 +91,7 @@ class TradingCardPublisher:
             "sets": self.sets_col.name,
             "catalog": self.catalog_col.name,
             "packs": self.packs_col.name,
+            "state": self.state_col.name,
             "gridfs_files": f"TradingCardAssets_{self.env}.files",
             "gridfs_chunks": f"TradingCardAssets_{self.env}.chunks",
         }
@@ -94,6 +99,7 @@ class TradingCardPublisher:
             "sets": await self.sets_col.count_documents({}),
             "cards": await self.catalog_col.count_documents({}),
             "packs": await self.packs_col.count_documents({}),
+            "revision": await self.get_revision(),
             "gridfs_files": await self.db[expected["gridfs_files"]].count_documents({}) if expected["gridfs_files"] in collection_names else 0,
             "gridfs_chunks": await self.db[expected["gridfs_chunks"]].count_documents({}) if expected["gridfs_chunks"] in collection_names else 0,
         }
@@ -109,12 +115,21 @@ class TradingCardPublisher:
                 file_cursor = files_collection.find({"filename": {"$in": list(card_ids)}}, {"filename": 1, "_id": 0})
                 existing_files = {file_doc["filename"] async for file_doc in file_cursor}
             missing = sorted(card_ids - existing_files)
+            unreadable = []
+            for card_id in sorted(existing_files):
+                try:
+                    grid_file = await self.gridfs.open_download_stream_by_name(card_id)
+                    image = Image.open(BytesIO(await grid_file.read()))
+                    image.verify()
+                except Exception:
+                    unreadable.append(card_id)
             set_health.append(
                 {
                     "set_id": set_id,
                     "cards": len(card_ids),
                     "card_files": len(card_ids & existing_files),
                     "missing_card_files": missing,
+                    "unreadable_card_files": unreadable,
                 }
             )
         return {
@@ -124,6 +139,19 @@ class TradingCardPublisher:
             "counts": counts,
             "sets": set_health,
         }
+
+    async def get_revision(self) -> int:
+        state = await self.state_col.find_one({"_id": "catalog"}, {"revision": 1})
+        return int(state.get("revision", 0)) if state else 0
+
+    async def bump_revision(self, reason: str = "catalog update") -> int:
+        now = datetime.now(UTC)
+        await self.state_col.update_one(
+            {"_id": "catalog"},
+            {"$inc": {"revision": 1}, "$set": {"updated_at": now, "reason": reason}, "$setOnInsert": {"created_at": now}},
+            upsert=True,
+        )
+        return await self.get_revision()
 
     # ── Set operations ──
     async def upsert_set(self, set_id: str, data: dict):
@@ -168,6 +196,7 @@ class TradingCardPublisher:
         set_result = await self.sets_col.delete_many({"set_id": set_id})
         card_result = await self.catalog_col.delete_many({"set_id": set_id})
         pack_result = await self.packs_col.delete_many({"set_id": set_id})
+        await self.bump_revision(f"deleted set {set_id}")
         return {
             "sets": set_result.deleted_count,
             "cards": card_result.deleted_count,

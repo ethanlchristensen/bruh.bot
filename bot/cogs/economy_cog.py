@@ -1076,23 +1076,19 @@ class EconomyCog(commands.Cog):
         if not any([give_item_list, give_card_list, give_coins > 0, want_item_list, want_card_list, want_coins > 0]):
             return await interaction.followup.send(embed=_coins_embed("Empty Trade", "You must specify at least one item, card, or coin amount."), ephemeral=True)
 
-        init_inventory = await self.bot.inventory_service.get_inventory(interaction.guild.id, interaction.user.id)
-        for item_id in give_item_list:
-            owned = next((i for i in init_inventory["items"] if i["item_id"] == item_id), None)
-            if not owned:
-                return await interaction.followup.send(embed=_coins_embed("Invalid Trade", f"You don't own **{item_id}** to give."), ephemeral=True)
-            cosmetic = get_cosmetic(item_id)
-            if cosmetic and init_inventory["equipped"].get(cosmetic.slot.value) == item_id:
-                return await interaction.followup.send(embed=_coins_embed("Invalid Trade", f"Unequip **{cosmetic.name}** before trading it."), ephemeral=True)
-        for card_id in give_card_list:
-            owned = next((c for c in init_inventory.get("cards", []) if c["card_id"] == card_id), None)
-            if not owned:
-                return await interaction.followup.send(embed=_coins_embed("Invalid Trade", f"You don't own **{card_id}** card."), ephemeral=True)
-
-        if give_coins > 0:
-            profile = await self.bot.economy_service.get_profile(interaction.guild.id, interaction.user.id)
-            if profile["bruh_coins"] < give_coins:
-                return await interaction.followup.send(embed=_coins_embed("Invalid Trade", f"You only have 🪙 {profile['bruh_coins']:.2f}."), ephemeral=True)
+        validation_error = await self._validate_cosmetic_trade(
+            interaction.guild.id,
+            interaction.user.id,
+            user.id,
+            give_item_list,
+            want_item_list,
+            give_card_list,
+            want_card_list,
+            give_coins,
+            want_coins,
+        )
+        if validation_error:
+            return await interaction.followup.send(embed=_coins_embed("Invalid Trade", validation_error), ephemeral=True)
 
         trade_id = uuid.uuid4().hex[:12]
 
@@ -1125,8 +1121,23 @@ class EconomyCog(commands.Cog):
         await view.wait()
 
         if view.accepted:
+            validation_error = await self._validate_cosmetic_trade(
+                interaction.guild.id,
+                interaction.user.id,
+                user.id,
+                give_item_list,
+                want_item_list,
+                give_card_list,
+                want_card_list,
+                give_coins,
+                want_coins,
+            )
+            if validation_error:
+                return await interaction.followup.send(embed=_coins_embed("Trade Failed", f"The trade changed before acceptance: {validation_error}"))
             if give_coins > 0:
-                await self.bot.economy_service.deduct_coins(interaction.guild.id, interaction.user.id, give_coins)
+                success, _ = await self.bot.economy_service.deduct_coins(interaction.guild.id, interaction.user.id, give_coins)
+                if not success:
+                    return await interaction.followup.send(embed=_coins_embed("Trade Failed", "The initiator no longer has enough bruh.coins."))
                 await self.bot.economy_service.record_transaction(interaction.guild.id, interaction.user.id, "trade_debit", -give_coins, 0.0, reference_type="trade", reference_id=trade_id)
             if want_coins > 0:
                 success, _ = await self.bot.economy_service.deduct_coins(interaction.guild.id, user.id, want_coins)
@@ -1686,6 +1697,73 @@ class EconomyCog(commands.Cog):
     # ═══════════════════════════════════════════════════════════════
     card_trade_group = app_commands.Group(name="bruh-card-trade", description="Trade bruh.cards!")
 
+    @staticmethod
+    def _trade_quantities(values: list[str]) -> dict[str, int]:
+        quantities: dict[str, int] = {}
+        for value in values:
+            quantities[value] = quantities.get(value, 0) + 1
+        return quantities
+
+    async def _validate_cosmetic_trade(
+        self,
+        guild_id: int,
+        initiator_id: int,
+        recipient_id: int,
+        give_items: list[str],
+        want_items: list[str],
+        give_cards: list[str],
+        want_cards: list[str],
+        give_coins: int,
+        want_coins: int,
+    ) -> str | None:
+        for user_id, item_ids, card_ids, coin_amount in (
+            (initiator_id, give_items, give_cards, give_coins),
+            (recipient_id, want_items, want_cards, want_coins),
+        ):
+            inventory = await self.bot.inventory_service.get_inventory(guild_id, user_id)
+            item_quantities = {item["item_id"]: item.get("quantity", 1) for item in inventory["items"]}
+            equipped = inventory.get("equipped", {})
+            for item_id, quantity in self._trade_quantities(item_ids).items():
+                if item_quantities.get(item_id, 0) < quantity:
+                    return f"<@{user_id}> no longer has enough **{item_id}**."
+                cosmetic = get_cosmetic(item_id)
+                if cosmetic and equipped.get(cosmetic.slot.value) == item_id:
+                    return f"**{cosmetic.name}** must be unequipped before it can be traded."
+
+            card_quantities = {card["card_id"]: card.get("quantity", 1) for card in inventory.get("cosmetic_cards", inventory.get("cards", []))}
+            for card_id, quantity in self._trade_quantities(card_ids).items():
+                if card_quantities.get(card_id, 0) < quantity:
+                    return f"<@{user_id}> no longer has enough **{card_id}** cards."
+
+            profile = await self.bot.economy_service.get_profile(guild_id, user_id)
+            if profile["bruh_coins"] < coin_amount:
+                return f"<@{user_id}> no longer has enough bruh.coins."
+        return None
+
+    async def _validate_card_trade(
+        self,
+        guild_id: int,
+        initiator_id: int,
+        recipient_id: int,
+        give_cards: list[str],
+        want_cards: list[str],
+        give_coins: int,
+        want_coins: int,
+    ) -> str | None:
+        for user_id, card_ids, coin_amount in (
+            (initiator_id, give_cards, give_coins),
+            (recipient_id, want_cards, want_coins),
+        ):
+            for card_id, quantity in self._trade_quantities(card_ids).items():
+                owned = await self.bot.trading_card_service.get_card_quantity(guild_id, user_id, card_id)
+                if owned < quantity:
+                    card = self.bot.trading_card_catalog_service.get_card(card_id)
+                    return f"<@{user_id}> no longer has enough **{card.name if card else card_id}**."
+            profile = await self.bot.economy_service.get_profile(guild_id, user_id)
+            if profile["bruh_coins"] < coin_amount:
+                return f"<@{user_id}> no longer has enough bruh.coins."
+        return None
+
     @card_trade_group.command(name="offer", description="Offer a trading card trade.")
     @app_commands.describe(
         user="User to trade with",
@@ -1718,16 +1796,17 @@ class EconomyCog(commands.Cog):
         if not any([give_list, want_list, give_coins > 0, want_coins > 0]):
             return await interaction.followup.send(embed=_coins_embed("Empty Trade", "Specify at least one card or coin."), ephemeral=True)
 
-        for cid in give_list:
-            qty = await self.bot.trading_card_service.get_card_quantity(interaction.guild.id, interaction.user.id, cid)
-            c = self.bot.trading_card_catalog_service.get_card(cid)
-            if qty < 1:
-                return await interaction.followup.send(embed=_coins_embed("Invalid", f"You don't own **{c.name if c else cid}**."), ephemeral=True)
-
-        if give_coins > 0:
-            profile = await self.bot.economy_service.get_profile(interaction.guild.id, interaction.user.id)
-            if profile["bruh_coins"] < give_coins:
-                return await interaction.followup.send(embed=_coins_embed("Invalid", f"Only 🪙 {profile['bruh_coins']:.2f}."), ephemeral=True)
+        validation_error = await self._validate_card_trade(
+            interaction.guild.id,
+            interaction.user.id,
+            user.id,
+            give_list,
+            want_list,
+            give_coins,
+            want_coins,
+        )
+        if validation_error:
+            return await interaction.followup.send(embed=_coins_embed("Invalid", validation_error), ephemeral=True)
 
         trade_id = uuid.uuid4().hex[:12]
 
@@ -1754,8 +1833,21 @@ class EconomyCog(commands.Cog):
         await view.wait()
 
         if view.accepted:
+            validation_error = await self._validate_card_trade(
+                interaction.guild.id,
+                interaction.user.id,
+                user.id,
+                give_list,
+                want_list,
+                give_coins,
+                want_coins,
+            )
+            if validation_error:
+                return await interaction.followup.send(embed=_coins_embed("Failed", f"The trade changed before acceptance: {validation_error}"))
             if give_coins > 0:
-                await self.bot.economy_service.deduct_coins(interaction.guild.id, interaction.user.id, give_coins)
+                success, _ = await self.bot.economy_service.deduct_coins(interaction.guild.id, interaction.user.id, give_coins)
+                if not success:
+                    return await interaction.followup.send(embed=_coins_embed("Failed", "The initiator no longer has enough bruh.coins."))
                 await self.bot.economy_service.record_transaction(interaction.guild.id, interaction.user.id, "card_trade_debit", -give_coins, 0.0, reference_type="card_trade", reference_id=trade_id)
             if want_coins > 0:
                 s, _ = await self.bot.economy_service.deduct_coins(interaction.guild.id, user.id, want_coins)

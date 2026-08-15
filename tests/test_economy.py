@@ -27,11 +27,7 @@ class TradingCardPackAutocompleteTests(unittest.IsolatedAsyncioTestCase):
             SimpleNamespace(pack_id="alpha_standard", name="Alpha Standard", price=350),
             SimpleNamespace(pack_id="beta_premium", name="Beta Premium", price=1100),
         ]
-        interaction = SimpleNamespace(
-            client=SimpleNamespace(
-                trading_card_catalog_service=SimpleNamespace(get_all_packs=lambda: {pack.pack_id: pack for pack in packs})
-            )
-        )
+        interaction = SimpleNamespace(client=SimpleNamespace(trading_card_catalog_service=SimpleNamespace(get_all_packs=lambda: {pack.pack_id: pack for pack in packs})))
 
         choices = await pack_id_autocomplete(interaction, "premium")
 
@@ -39,11 +35,7 @@ class TradingCardPackAutocompleteTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_pack_autocomplete_limits_results_to_discord_choice_limit(self):
         packs = [SimpleNamespace(pack_id=f"pack_{index}", name=f"Pack {index}", price=index) for index in range(30)]
-        interaction = SimpleNamespace(
-            client=SimpleNamespace(
-                trading_card_catalog_service=SimpleNamespace(get_all_packs=lambda: {pack.pack_id: pack for pack in packs})
-            )
-        )
+        interaction = SimpleNamespace(client=SimpleNamespace(trading_card_catalog_service=SimpleNamespace(get_all_packs=lambda: {pack.pack_id: pack for pack in packs})))
 
         choices = await pack_id_autocomplete(interaction, "")
 

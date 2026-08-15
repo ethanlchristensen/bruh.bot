@@ -548,12 +548,15 @@ class BruhBot(commands.Bot):
         if not force and not await self.reputation_service.should_send_notice(message.guild.id, message.author.id):
             return
         events = await self.reputation_service.get_recent_events(message.guild.id, message.author.id)
-        audit_lines = [f"- {event['summary']} (+{event['score_delta']})" for event in events]
+        audit_lines = [f"- {event['summary']} ({event['score_delta']:+})" for event in events]
         audit = "\n".join(audit_lines) or "No recent audit entries are available."
         if blocked:
             until = profile.get("blocked_until")
             expiry = f"Your block expires <t:{int(until.timestamp())}:R>." if until else "This is a manual block."
-            embed = self.embed_service.create_error_embed(f"{message.author.mention}, bruh.bot will not respond to you right now. {expiry}\n\n**Recent audit entries:**\n{audit}\n\nUse `/reputation me` to view your reputation and recent events privately. Contact a server administrator if you believe this is incorrect.")
+            description = (
+                f"{message.author.mention}, bruh.bot will not respond to you right now. {expiry}\n\n**Score:** {profile['score']:+}\n\n**Recent audit entries:**\n{audit}\n\nUse `/reputation me` to view your reputation and recent events privately. Contact a server administrator if you believe this is incorrect."
+            )
+            embed = self.embed_service.create_error_embed(description)
             embed.title = "Interaction Blocked"
         else:
             embed = self.embed_service.create_warning_embed(

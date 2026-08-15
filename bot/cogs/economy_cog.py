@@ -1986,20 +1986,18 @@ class EconomyCog(commands.Cog):
 
     @bruh_cards_admin_group.command(name="grant-pack", description="Give trading card packs to a user.")
     @app_commands.describe(user="The user", pack_id="Pack type", quantity="How many")
-    @app_commands.choices(
-        pack_id=[
-            app_commands.Choice(name="Void Archive Pack", value="void_archive_standard"),
-            app_commands.Choice(name="Void Archive Premium", value="void_archive_premium"),
-        ]
-    )
+    @app_commands.autocomplete(pack_id=pack_id_autocomplete)
     @log_command_usage()
     @is_admin()
     @is_globally_blocked()
     async def bruh_cards_admin_grant_pack(self, interaction: discord.Interaction, user: discord.Member, pack_id: str, quantity: int = 1):
+        pk = self.bot.trading_card_catalog_service.get_pack(pack_id)
+        if not pk:
+            embed = self.bot.embed_service.create_error_embed(f"No pack found with ID `{pack_id}`.")
+            return await interaction.followup.send(embed=embed, ephemeral=True, files=self.bot.embed_service.get_brand_files(embed=embed))
+
         await self.bot.trading_card_service.add_packs(interaction.guild.id, user.id, pack_id, quantity)
-        pk = self.bot.trading_card_catalog_service.get_all_packs().get(pack_id, {})
-        name = pk.name if pk else pack_id
-        embed = self.bot.embed_service.create_success_embed(f"Gave **{quantity}x {name}** to **{user.display_name}**.", title="Packs Granted")
+        embed = self.bot.embed_service.create_success_embed(f"Gave **{quantity}x {pk.name}** to **{user.display_name}**.", title="Packs Granted")
         await interaction.followup.send(embed=embed, ephemeral=True, files=self.bot.embed_service.get_brand_files(embed=embed))
 
     @bruh_cards_admin_group.command(name="inspect", description="Inspect a user's trading card collection.")

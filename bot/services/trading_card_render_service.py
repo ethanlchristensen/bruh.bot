@@ -4,7 +4,7 @@ from io import BytesIO
 from typing import TYPE_CHECKING
 
 from motor.motor_asyncio import AsyncIOMotorGridFSBucket
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from bot.data.trading_card_models import CARD_RENDER_VERSION, RARITY_FRAME_COLORS, TradingCardRarity
 
@@ -74,22 +74,49 @@ class TradingCardRenderService:
 
     def _create_frame(self, canvas: Image.Image, rarity: TradingCardRarity):
         color = RARITY_FRAME_COLORS.get(rarity, (160, 160, 160))
-        draw = ImageDraw.Draw(canvas)
+        bounds = [4, 4, CARD_CANVAS[0] - 5, CARD_CANVAS[1] - 5]
+
+        glow = Image.new("RGBA", CARD_CANVAS, (0, 0, 0, 0))
+        glow_draw = ImageDraw.Draw(glow)
+        glow_draw.rounded_rectangle(bounds, radius=20, outline=(*color, 180), width=24)
+        glow = glow.filter(ImageFilter.GaussianBlur(18))
+        canvas.alpha_composite(glow)
+
+        frame = Image.new("RGBA", CARD_CANVAS, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(frame)
         draw.rounded_rectangle(
-            [0, 0, CARD_CANVAS[0] - 1, CARD_CANVAS[1] - 1],
-            radius=16,
-            outline=color,
+            bounds,
+            radius=20,
+            outline=(*color, 100),
+            width=FRAME_WIDTH + 8,
+        )
+        draw.rounded_rectangle(
+            [8, 8, CARD_CANVAS[0] - 9, CARD_CANVAS[1] - 9],
+            radius=17,
+            outline=(*color, 255),
             width=FRAME_WIDTH,
         )
+        draw.rounded_rectangle(
+            [20, 20, CARD_CANVAS[0] - 21, CARD_CANVAS[1] - 21],
+            radius=12,
+            outline=(255, 255, 255, 70),
+            width=2,
+        )
+        canvas.alpha_composite(frame)
 
     def _draw_text_box(self, canvas: Image.Image, rarity: TradingCardRarity, name: str, card_number: int, series_name: str):
         draw = ImageDraw.Draw(canvas)
         color = RARITY_FRAME_COLORS.get(rarity, (160, 160, 160))
-        name_bg_top = CARD_CANVAS[1] - 124
+        panel = [24, CARD_CANVAS[1] - 142, CARD_CANVAS[0] - 24, CARD_CANVAS[1] - 24]
 
         overlay = Image.new("RGBA", CARD_CANVAS, (0, 0, 0, 0))
         overlay_draw = ImageDraw.Draw(overlay)
-        overlay_draw.rectangle([0, name_bg_top, CARD_CANVAS[0], CARD_CANVAS[1]], fill=(0, 0, 0, 200))
+        fade_start = CARD_CANVAS[1] - 220
+        for y in range(fade_start, CARD_CANVAS[1]):
+            progress = (y - fade_start) / (CARD_CANVAS[1] - fade_start)
+            alpha = int(16 + progress * 174)
+            overlay_draw.line([(0, y), (CARD_CANVAS[0], y)], fill=(10, 13, 20, alpha))
+        overlay_draw.rounded_rectangle(panel, radius=18, fill=(10, 13, 20, 194), outline=(*color, 150), width=2)
         canvas.paste(overlay, (0, 0), overlay)
 
         try:
@@ -101,9 +128,16 @@ class TradingCardRenderService:
             rarity_font = ImageFont.load_default()
             series_font = ImageFont.load_default()
 
-        draw.text((CARD_CANVAS[0] // 2, name_bg_top + 18), name, fill=color, font=name_font, anchor="mt")
-        draw.text((CARD_CANVAS[0] // 2, name_bg_top + 62), rarity.value.title(), fill=color, font=rarity_font, anchor="mt")
-        draw.text((CARD_CANVAS[0] // 2, name_bg_top + 94), f"{series_name} · #{card_number}", fill=(200, 200, 200), font=series_font, anchor="mt")
+        badge_text = rarity.value.upper()
+        badge_width = draw.textbbox((0, 0), badge_text, font=rarity_font)[2] + 24
+        badge = [36, CARD_CANVAS[1] - 128, 36 + badge_width, CARD_CANVAS[1] - 96]
+        draw.rounded_rectangle(badge, radius=12, fill=(8, 12, 18, 220), outline=(*color, 210), width=1)
+        draw.text(((badge[0] + badge[2]) // 2, (badge[1] + badge[3]) // 2), badge_text, fill=(242, 245, 250), font=rarity_font, anchor="mm")
+        number_badge = [CARD_CANVAS[0] - 100, CARD_CANVAS[1] - 128, CARD_CANVAS[0] - 36, CARD_CANVAS[1] - 96]
+        draw.rounded_rectangle(number_badge, radius=12, fill=(8, 12, 18, 220), outline=(*color, 150), width=1)
+        draw.text(((number_badge[0] + number_badge[2]) // 2, (number_badge[1] + number_badge[3]) // 2), f"#{card_number}", fill=(242, 245, 250), font=series_font, anchor="mm")
+        draw.text((CARD_CANVAS[0] // 2, CARD_CANVAS[1] - 92), name, fill=(248, 249, 252), font=name_font, anchor="mt")
+        draw.text((CARD_CANVAS[0] // 2, CARD_CANVAS[1] - 48), series_name, fill=(178, 186, 198), font=series_font, anchor="mt")
 
     def _cache_key(self, card_id: str) -> str:
         card = self.bot.trading_card_catalog_service.get_card(card_id)

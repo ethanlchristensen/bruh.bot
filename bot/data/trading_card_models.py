@@ -12,6 +12,9 @@ class TradingCardRarity(StrEnum):
     PLATINUM = "platinum"
 
 
+RARITY_SORT_ORDER = {rarity: index for index, rarity in enumerate(reversed(tuple(TradingCardRarity)))}
+
+
 RARITY_FRAME_COLORS = {
     TradingCardRarity.BASIC: (160, 160, 160),
     TradingCardRarity.COMMON: (50, 200, 50),
@@ -104,4 +107,4 @@ DEFAULT_DROP_TABLE: list[tuple[TradingCardRarity, float]] = [
     (TradingCardRarity.PLATINUM, 0.002),
 ]
 
-CARD_RENDER_VERSION = "1"
+CARD_RENDER_VERSION = "5"

@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 import discord
 
-from bot.data.trading_card_models import RARITY_DISPLAY_EMOJI, TradingCardRarity
+from bot.data.trading_card_models import RARITY_DISPLAY_EMOJI, RARITY_SORT_ORDER, TradingCardRarity
 
 if TYPE_CHECKING:
     from bot.bruh_bot import BruhBot
@@ -109,6 +109,7 @@ class BruhCardsInventoryView(discord.ui.View):
             if self.binder_rarity and card.rarity.value != self.binder_rarity:
                 continue
             filtered.append((card, entry.get("quantity", 1)))
+        filtered.sort(key=lambda item: (RARITY_SORT_ORDER.get(item[0].rarity, 999), item[0].number))
 
         total_pages = max(1, (len(filtered) - 1) // CARDS_PER_PAGE + 1)
         start = self.binder_page * CARDS_PER_PAGE
@@ -174,6 +175,7 @@ class BruhCardsInventoryView(discord.ui.View):
                 all_cards = [c for c in all_cards if c.rarity == r]
             except ValueError:
                 pass
+        all_cards.sort(key=lambda card: (RARITY_SORT_ORDER.get(card.rarity, 999), card.number))
 
         total_pages = max(1, (len(all_cards) - 1) // CARDS_PER_PAGE + 1)
         start = self.catalog_page * CARDS_PER_PAGE
@@ -184,7 +186,7 @@ class BruhCardsInventoryView(discord.ui.View):
             qty = owned_ids.get(card.card_id, 0)
             set_label = card.series_id.replace("_", " ").title()
             own_str = f" x{qty}" if qty > 0 else " 🔒"
-            lines.append(f"{_rarity_emoji(card.rarity)} **#{card.number} {card.name}** ({set_label}){own_str}")
+            lines.append(f"{_rarity_emoji(card.rarity)} **#{card.number} {card.name}** ({set_label}){own_str}\n　`{card.card_id}`")
 
         rarity_label = f" · {self.catalog_rarity.title()}" if self.catalog_rarity else ""
         embed = discord.Embed(
@@ -293,7 +295,12 @@ class BruhCardsInventoryView(discord.ui.View):
         if self.screen == "collection":
             s = self._stats
             cards = s.get("cards", [])
-            filtered = [c for c in cards if not self.binder_rarity or self._catalog.get_card(c["card_id"]).rarity.value == self.binder_rarity]
+            filtered = []
+            for entry in cards:
+                card = self._catalog.get_card(entry["card_id"])
+                if card and (not self.binder_rarity or card.rarity.value == self.binder_rarity):
+                    filtered.append(card)
+            filtered.sort(key=lambda card: (RARITY_SORT_ORDER.get(card.rarity, 999), card.number))
             max_page = max(0, (len(filtered) - 1) // CARDS_PER_PAGE)
             self.binder_page = min(max_page, self.binder_page + 1)
             await interaction.response.edit_message(embed=self._collection_page_embed(), view=self)
@@ -305,6 +312,7 @@ class BruhCardsInventoryView(discord.ui.View):
                     all_cards = [c for c in all_cards if c.rarity == r]
                 except ValueError:
                     pass
+            all_cards.sort(key=lambda card: (RARITY_SORT_ORDER.get(card.rarity, 999), card.number))
             max_page = max(0, (len(all_cards) - 1) // CARDS_PER_PAGE)
             self.catalog_page = min(max_page, self.catalog_page + 1)
             await interaction.response.edit_message(embed=self._catalog_embed(), view=self)
@@ -375,6 +383,7 @@ class BruhCardsInventoryView(discord.ui.View):
                 if not card or (self.binder_rarity and card.rarity.value != self.binder_rarity):
                     continue
                 filtered.append((card, entry.get("quantity", 1)))
+            filtered.sort(key=lambda item: (RARITY_SORT_ORDER.get(item[0].rarity, 999), item[0].number))
             start = self.binder_page * CARDS_PER_PAGE
             page_items = filtered[start : start + CARDS_PER_PAGE]
             for card, qty in page_items:
@@ -387,10 +396,11 @@ class BruhCardsInventoryView(discord.ui.View):
                     all_cards = [c for c in all_cards if c.rarity == r]
                 except ValueError:
                     pass
+            all_cards.sort(key=lambda card: (RARITY_SORT_ORDER.get(card.rarity, 999), card.number))
             start = self.catalog_page * CARDS_PER_PAGE
             page_items = all_cards[start : start + CARDS_PER_PAGE]
             for c in page_items:
-                options.append(discord.SelectOption(label=f"#{c.number} {c.name}", value=c.card_id, description=c.rarity.value.title()))
+                options.append(discord.SelectOption(label=f"#{c.number} {c.name}", value=c.card_id, description=f"{c.rarity.value.title()} · {c.card_id}"[:100]))
         else:
             return
         if not options:

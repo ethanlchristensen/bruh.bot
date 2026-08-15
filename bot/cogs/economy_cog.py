@@ -10,7 +10,7 @@ from discord.ext import commands
 
 from bot.data.cosmetic_catalog import get_all_released, get_cosmetic
 from bot.data.models import RARITY_COLORS, RARITY_DISPLAY_EMOJI, CosmeticRarity, CosmeticSlot
-from bot.data.trading_card_models import RARITY_DISCORD_COLORS, TradingCardRarity
+from bot.data.trading_card_models import RARITY_DISCORD_COLORS, RARITY_SORT_ORDER, TradingCardRarity
 from bot.data.trading_card_models import RARITY_DISPLAY_EMOJI as TC_EMOJI
 from bot.utils.decarators.admin_check import is_admin
 from bot.utils.decarators.command_logging import log_command_usage
@@ -198,7 +198,7 @@ async def card_id_autocomplete(interaction: discord.Interaction, current: str) -
 
     return [
         app_commands.Choice(
-            name=f"#{card.number} {card.name} ({card.rarity.value.title()})",
+            name=f"#{card.number} {card.name} · {card.card_id}"[:100],
             value=card.card_id,
         )
         for card in matches[:25]
@@ -1562,6 +1562,12 @@ class EconomyCog(commands.Cog):
             embed.set_thumbnail(url=target.display_avatar.url)
             return await interaction.followup.send(embed=embed, files=self.bot.embed_service.get_brand_files(embed=embed))
 
+        owned_cards.sort(
+            key=lambda entry: (
+                RARITY_SORT_ORDER.get(self.bot.trading_card_catalog_service.get_card(entry["card_id"]).rarity, 999),
+                self.bot.trading_card_catalog_service.get_card(entry["card_id"]).number,
+            )
+        )
         card_ids = [c["card_id"] for c in owned_cards]
         grid_buf = await self.bot.trading_card_render_service.render_collection_grid(card_ids)
         set_display = set_id.replace("_", " ").title()
@@ -1636,7 +1642,7 @@ class EconomyCog(commands.Cog):
         owned = await self.bot.trading_card_service.get_card_quantity(interaction.guild.id, interaction.user.id, card_id)
         if owned == 0:
             return await interaction.followup.send(
-                embed=_coins_embed("Not Owned", "You don't own this card yet. Open packs to collect it!"),
+                embed=_coins_embed("Not Owned", f"You don't own **{card.name}** (`{card_id}`) yet. Open packs to collect it!"),
                 ephemeral=True,
             )
         image_buffer = await self.bot.trading_card_render_service.render_card(card_id)

@@ -194,6 +194,8 @@ class ReputationConfig(BaseModel):
     warningThreshold: int = -5
     blockThreshold: int = -10
     blockDurationHours: int = 168
+    repeatBlockMultiplier: int = 2
+    maxBlockDurationHours: int = 1344
     noticeCooldownHours: int = 24
 
 

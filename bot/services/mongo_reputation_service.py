@@ -56,10 +56,21 @@ class MongoReputationService:
         now = datetime.now(UTC)
         await self.collection.update_one(
             {"guild_id": Int64(guild_id), "user_id": Int64(user_id)},
-            {"$setOnInsert": {"guild_id": Int64(guild_id), "user_id": Int64(user_id), "score": 0, "score_version": 2, "status": "active", "blocked_until": None, "last_notice_at": None, "created_at": now}},
+            {"$setOnInsert": {"guild_id": Int64(guild_id), "user_id": Int64(user_id), "score": 0, "score_version": 2, "status": "active", "blocked_until": None, "automatic_block_count": 0, "last_notice_at": None, "created_at": now}},
             upsert=True,
         )
-        return await self.collection.find_one({"guild_id": Int64(guild_id), "user_id": Int64(user_id)})
+        profile = await self.collection.find_one({"guild_id": Int64(guild_id), "user_id": Int64(user_id)})
+        if "automatic_block_count" not in profile:
+            profile["automatic_block_count"] = 0
+            await self.collection.update_one({"_id": profile["_id"]}, {"$set": {"automatic_block_count": 0}})
+        return profile
+
+    @staticmethod
+    def _automatic_block_duration_hours(config, block_count: int) -> int:
+        base = max(1, config.blockDurationHours)
+        multiplier = max(1, config.repeatBlockMultiplier)
+        maximum = max(base, config.maxBlockDurationHours)
+        return min(maximum, base * multiplier ** max(0, block_count - 1))
 
     async def record_event(self, guild_id: int, user_id: int, source_message_id: int, channel_id: int, reason_code: str, severity: int, confidence: float, summary: str) -> dict:
         if user_id == self.bot.user.id or reason_code not in REPUTATION_DELTAS or not 1 <= severity <= 3:
@@ -78,12 +89,25 @@ class MongoReputationService:
         score = profile.get("score", 0) + delta
         status = "active"
         blocked_until = None
-        if score <= config.reputationConfig.blockThreshold:
+        block_count = profile.get("automatic_block_count", 0)
+        if profile.get("status") == "manual_blocked":
+            status = "manual_blocked"
+        elif score <= config.reputationConfig.blockThreshold:
             status = "blocked"
-            blocked_until = now + timedelta(hours=config.reputationConfig.blockDurationHours)
+            current_block_until = self._as_utc(profile.get("blocked_until"))
+            active_block = profile.get("status") == "blocked" and current_block_until and current_block_until > now
+            if active_block:
+                blocked_until = current_block_until
+            else:
+                block_count += 1
+                duration_hours = self._automatic_block_duration_hours(config.reputationConfig, block_count)
+                blocked_until = now + timedelta(hours=duration_hours)
         elif score <= config.reputationConfig.warningThreshold:
             status = "warning"
-        await self.collection.update_one({"_id": profile["_id"]}, {"$set": {"score": score, "status": status, "blocked_until": blocked_until, "updated_at": now}})
+        await self.collection.update_one(
+            {"_id": profile["_id"]},
+            {"$set": {"score": score, "status": status, "blocked_until": blocked_until, "automatic_block_count": block_count, "updated_at": now}},
+        )
         return {"ok": True, "score": score, "status": status}
 
     async def can_respond(self, guild_id: int, user_id: int) -> tuple[bool, dict]:
@@ -110,7 +134,9 @@ class MongoReputationService:
         if profile.get("status") != "blocked":
             return profile
         config = await self.bot.config_service.get_config(str(guild_id))
-        blocked_until = datetime.now(UTC) + timedelta(hours=config.reputationConfig.blockDurationHours)
+        block_count = max(1, profile.get("automatic_block_count", 1))
+        duration_hours = self._automatic_block_duration_hours(config.reputationConfig, block_count)
+        blocked_until = datetime.now(UTC) + timedelta(hours=duration_hours)
         await self.collection.update_one({"_id": profile["_id"]}, {"$set": {"blocked_until": blocked_until, "updated_at": datetime.now(UTC)}})
         profile["blocked_until"] = blocked_until
         return profile

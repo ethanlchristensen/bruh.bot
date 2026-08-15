@@ -124,6 +124,8 @@ export interface ReputationConfig {
   warningThreshold: number;
   blockThreshold: number;
   blockDurationHours: number;
+  repeatBlockMultiplier: number;
+  maxBlockDurationHours: number;
   noticeCooldownHours: number;
 }
 
@@ -132,6 +134,7 @@ export interface ReputationProfile {
   score: number;
   status: 'active' | 'warning' | 'blocked' | 'manual_blocked';
   blocked_until: string | null;
+  automatic_block_count: number;
   updated_at: string | null;
 }
 

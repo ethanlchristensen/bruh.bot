@@ -1379,6 +1379,8 @@ class EconomyCog(commands.Cog):
     @is_globally_blocked()
     async def bruh_cards_inventory(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
+        if not await is_bruh_cards_enabled(self.bot, interaction.guild.id):
+            return await interaction.followup.send("bruh.cards is not enabled for this server.", ephemeral=True)
         from bot.views.bruh_cards_view import BruhCardsInventoryView
 
         view = BruhCardsInventoryView(self.bot, interaction.guild.id, interaction.user.id)
@@ -1573,6 +1575,7 @@ class EconomyCog(commands.Cog):
             embed.set_thumbnail(url=target.display_avatar.url)
             return await interaction.followup.send(embed=embed, files=self.bot.embed_service.get_brand_files(embed=embed))
 
+        owned_cards = [entry for entry in owned_cards if self.bot.trading_card_catalog_service.get_card(entry["card_id"])]
         owned_cards.sort(
             key=lambda entry: (
                 RARITY_SORT_ORDER.get(self.bot.trading_card_catalog_service.get_card(entry["card_id"]).rarity, 999),

@@ -200,6 +200,10 @@ class MongoTradingCardService:
         if not pack_def:
             return {"success": False, "error": f"Unknown pack type: {pack_id}"}
 
+        config = await self.bot.config_service.get_config(str(guild_id))
+        if not config.economyConfig.bruhCardsEnabled or not config.economyConfig.tradingCardPacksEnabled:
+            return {"success": False, "error": "Trading card packs are currently disabled."}
+
         doc = await self._get_or_create(guild_id, user_id)
         packs = doc.get("unopened_packs", [])
         found = False
@@ -300,7 +304,7 @@ class MongoTradingCardService:
         packs = doc.get("unopened_packs", [])
 
         catalog = self.bot.trading_card_catalog_service
-        total_cards = sum(c.get("quantity", 1) for c in cards)
+        total_cards = 0
         unique_cards = 0
         series_total = 0
         rarity_counts = dict.fromkeys(TradingCardRarity, 0)
@@ -310,9 +314,10 @@ class MongoTradingCardService:
             card = catalog.get_card(entry["card_id"])
             if card:
                 qty = entry.get("quantity", 1)
-                rarity_counts[card.rarity] += qty
                 if set_id and card.series_id != set_id:
                     continue
+                total_cards += qty
+                rarity_counts[card.rarity] += qty
                 unique_cards += 1
                 set_counts[card.series_id] = set_counts.get(card.series_id, 0) + 1
 

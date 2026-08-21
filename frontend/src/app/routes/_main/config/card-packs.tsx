@@ -13,12 +13,15 @@ import {
   Plus,
   RefreshCw,
   Save,
+  UserRound,
 } from 'lucide-react';
 
 import type { TradingCardPackCard } from '@/lib/api-client';
 import {
   economyKeys,
   useCreateTradingCardPack,
+  useGuildMembers,
+  useTradingCardCollection,
   useTradingCardSet,
   useTradingCardSets,
   useUpdateTradingCardPack,
@@ -29,6 +32,7 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
+  CardIcon,
   CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -121,6 +125,10 @@ function CardPacksComponent() {
   const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null);
   const { data: setDetail, isLoading: setLoading } =
     useTradingCardSet(selectedSeriesId);
+  const { data: membersData, isLoading: membersLoading } = useGuildMembers();
+  const [selectedMemberId, setSelectedMemberId] = useState('');
+  const { data: memberCollection, isLoading: memberCollectionLoading, isError: memberCollectionError } =
+    useTradingCardCollection(selectedMemberId);
   const updatePack = useUpdateTradingCardPack();
   const createPack = useCreateTradingCardPack();
 
@@ -151,6 +159,9 @@ function CardPacksComponent() {
   const [stackIndex, setStackIndex] = useState(0);
 
   const sets = setsData?.sets ?? [];
+  const selectedMember = membersData?.members.find(
+    (member) => member.user_id === selectedMemberId,
+  );
 
   const stackCards = useMemo(() => {
     if (!setDetail) return [];
@@ -161,6 +172,10 @@ function CardPacksComponent() {
     setStackIndex(0);
     setSelectedCard(null);
   }, [selectedSeriesId]);
+
+  useEffect(() => {
+    setSelectedCard(null);
+  }, [selectedMemberId]);
 
   useEffect(() => {
     setStackIndex((index) => Math.min(index, Math.max(0, stackCards.length - 1)));
@@ -301,6 +316,183 @@ function CardPacksComponent() {
           </Button>
         }
       />
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-4">
+            <CardIcon>
+              <UserRound />
+            </CardIcon>
+            <div>
+              <CardTitle>Collection Inspector</CardTitle>
+              <CardDescription>
+                Select a guild member to review their complete card collection by set.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <Select value={selectedMemberId} onValueChange={setSelectedMemberId}>
+            <SelectTrigger className="w-full sm:max-w-md">
+              <SelectValue
+                placeholder={
+                  membersLoading ? 'Loading guild members...' : 'Select a guild member...'
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {(membersData?.members ?? []).map((member) => (
+                <SelectItem key={member.user_id} value={member.user_id}>
+                  <span className="flex items-center gap-2">
+                    {member.avatar_url && (
+                      <img src={member.avatar_url} alt="" className="size-5 rounded-full" />
+                    )}
+                    {member.display_name || member.username}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {memberCollectionLoading && (
+            <div className="flex justify-center py-8">
+              <Spinner className="size-7" />
+            </div>
+          )}
+          {memberCollectionError && (
+            <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+              Unable to load this member&apos;s collection.
+            </p>
+          )}
+          {memberCollection && (
+            <div className="space-y-8">
+              <div className="flex flex-wrap items-center gap-4 rounded-xl border bg-muted/20 p-4">
+                {selectedMember?.avatar_url && (
+                  <img
+                    src={selectedMember.avatar_url}
+                    alt=""
+                    className="size-12 rounded-full"
+                  />
+                )}
+                <div className="mr-auto">
+                  <p className="font-semibold">
+                    {selectedMember?.display_name || selectedMember?.username || selectedMemberId}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{memberCollection.user_id}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Cards</p>
+                  <p className="text-xl font-semibold">{memberCollection.total_cards}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Unique</p>
+                  <p className="text-xl font-semibold">
+                    {memberCollection.unique_cards}/{memberCollection.series_total}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Completion</p>
+                  <p className="text-xl font-semibold">{memberCollection.completion_pct}%</p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {RARITY_ORDER.filter((rarity) => memberCollection.rarity_counts[rarity]).map(
+                  (rarity) => (
+                    <span
+                      key={rarity}
+                      className="rounded-full border px-3 py-1 text-xs capitalize"
+                      style={{ borderColor: `${RARITY_COLORS[rarity]}80` }}
+                    >
+                      {rarity}: {memberCollection.rarity_counts[rarity]}
+                    </span>
+                  ),
+                )}
+              </div>
+
+              {memberCollection.unopened_packs.length > 0 && (
+                <div className="space-y-3">
+                  <div>
+                    <h3 className="font-semibold">Unopened Packs</h3>
+                    <p className="text-sm text-muted-foreground">Packs still available to open.</p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {memberCollection.unopened_packs.map((pack) => (
+                      <div key={pack.pack_id} className="flex items-center gap-3 rounded-lg border bg-muted/20 p-3">
+                        <Package className="size-5 text-muted-foreground" />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{pack.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {sets.find((set) => set.series_id === pack.series_id)?.display_name ?? pack.series_id}
+                          </p>
+                        </div>
+                        <span className="ml-auto rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold">
+                          x{pack.quantity}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {memberCollection.cards.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  This member has no collected cards yet.
+                </p>
+              ) : (
+                <div className="space-y-10">
+                  {memberCollection.sets
+                    .filter((set) => memberCollection.cards.some((card) => card.series_id === set.series_id))
+                    .map((set) => {
+                      const setCards = memberCollection.cards
+                        .filter((card) => card.series_id === set.series_id)
+                        .sort(
+                          (a, b) =>
+                            RARITY_ORDER.indexOf(a.rarity as (typeof RARITY_ORDER)[number]) -
+                              RARITY_ORDER.indexOf(b.rarity as (typeof RARITY_ORDER)[number]) ||
+                            a.number - b.number,
+                        );
+                      return (
+                        <section key={set.series_id} className="space-y-4">
+                          <div className="flex flex-wrap items-baseline gap-2">
+                            <h3 className="text-lg font-semibold">{set.display_name}</h3>
+                            <span className="text-sm text-muted-foreground">
+                              {set.owned_unique}/{set.total_cards} unique · {set.completion_pct}%
+                            </span>
+                          </div>
+                          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                            {setCards.map((card) => (
+                              <button
+                                key={card.card_id}
+                                type="button"
+                                className="relative overflow-hidden rounded-xl border bg-card text-left outline-none transition-shadow hover:shadow-lg focus-visible:ring-2 focus-visible:ring-primary"
+                                style={{ borderColor: `${RARITY_COLORS[card.rarity] ?? '#9B9B9B'}60` }}
+                                onClick={() => setSelectedCard(card)}
+                                aria-label={`Open ${card.name} fullscreen`}
+                              >
+                                <CardArtwork card={card} renderVersion={memberCollection.render_version} />
+                                <div className="space-y-1 p-3">
+                                  <div className="flex items-center gap-2">
+                                    <span className="shrink-0 font-mono text-xs text-muted-foreground">#{card.number}</span>
+                                    <span className="truncate text-sm font-medium">{card.name}</span>
+                                  </div>
+                                  <p className="text-xs capitalize text-muted-foreground">{card.rarity}</p>
+                                </div>
+                                <span className="absolute right-3 top-3 rounded-full bg-background/90 px-2 py-1 text-xs font-bold shadow">
+                                  x{card.quantity}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </section>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {!sets.length ? (
         <Card>

@@ -12,6 +12,7 @@ export const economyKeys = {
   tradingCardPacks: ['trading-card-packs'] as const,
   tradingCardSets: ['trading-card-sets'] as const,
   tradingCardSet: (seriesId: string) => [...economyKeys.tradingCardSets, seriesId] as const,
+  tradingCardCollection: (userId: string) => [...economyKeys.all, 'trading-card-collection', userId] as const,
 };
 
 export const memberKeys = {
@@ -87,6 +88,15 @@ export function useTradingCardSet(seriesId: string | null) {
     queryFn: () => apiClient.getTradingCardSet(seriesId!),
     enabled: !!seriesId,
     staleTime: 30000,
+  });
+}
+
+export function useTradingCardCollection(userId: string) {
+  return useQuery({
+    queryKey: economyKeys.tradingCardCollection(userId),
+    queryFn: () => apiClient.getTradingCardCollection(userId),
+    enabled: userId.length > 0,
+    staleTime: 10000,
   });
 }
 

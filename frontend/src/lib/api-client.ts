@@ -446,6 +446,40 @@ export interface TradingCardSetDetailResponse {
   render_version?: string;
 }
 
+export interface TradingCardCollectionCard extends TradingCardPackCard {
+  series_id: string;
+  quantity: number;
+}
+
+export interface TradingCardCollectionSet {
+  series_id: string;
+  display_name: string;
+  owned_unique: number;
+  total_cards: number;
+  completion_pct: number;
+}
+
+export interface TradingCardCollectionPack {
+  pack_id: string;
+  series_id: string;
+  name: string;
+  quantity: number;
+}
+
+export interface TradingCardCollectionResponse {
+  success: boolean;
+  user_id: string;
+  total_cards: number;
+  unique_cards: number;
+  series_total: number;
+  completion_pct: number;
+  rarity_counts: Record<string, number>;
+  sets: Array<TradingCardCollectionSet>;
+  cards: Array<TradingCardCollectionCard>;
+  unopened_packs: Array<TradingCardCollectionPack>;
+  render_version?: string;
+}
+
 export class ConfigAPIClient {
   private baseUrl: string;
   private adminKey: string;
@@ -682,6 +716,13 @@ export class ConfigAPIClient {
     return this.fetch<TradingCardSetDetailResponse>(`/trading-cards/sets/${seriesId}`, {
       method: 'GET',
     });
+  }
+
+  async getTradingCardCollection(userId: string): Promise<TradingCardCollectionResponse> {
+    return this.fetch<TradingCardCollectionResponse>(
+      `/trading-cards/collections/${encodeURIComponent(userId)}`,
+      { method: 'GET' },
+    );
   }
 
   // Create a new trading card pack

@@ -1123,6 +1123,99 @@ async def get_trading_card_set(series_id: str, guild_id: str = Depends(get_guild
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+@app.get("/trading-cards/collections/{user_id}")
+async def get_trading_card_collection(user_id: int, guild_id: str = Depends(get_guild_id), authorized: bool = Depends(verify_admin)):
+    try:
+        if config_service.db is None:
+            raise HTTPException(status_code=503, detail="Database not initialized")
+
+        catalog, _render, revision = await _get_trading_services()
+        collection = await config_service.col("TradingCardCollections").find_one({"guild_id": Int64(int(guild_id)), "user_id": Int64(user_id)})
+        raw_cards = (collection or {}).get("cards", [])
+        raw_packs = (collection or {}).get("unopened_packs", [])
+
+        owned_cards = []
+        set_counts: dict[str, int] = {}
+        rarity_counts: dict[str, int] = {}
+        total_cards = 0
+        unique_cards = 0
+        for entry in raw_cards:
+            card = catalog.get_card(entry.get("card_id", ""))
+            quantity = int(entry.get("quantity", 1))
+            if not card or quantity <= 0:
+                continue
+            total_cards += quantity
+            unique_cards += 1
+            set_counts[card.series_id] = set_counts.get(card.series_id, 0) + 1
+            rarity = card.rarity.value
+            rarity_counts[rarity] = rarity_counts.get(rarity, 0) + quantity
+            owned_cards.append(
+                {
+                    "card_id": card.card_id,
+                    "series_id": card.series_id,
+                    "number": card.number,
+                    "name": card.name,
+                    "rarity": rarity,
+                    "description": card.description,
+                    "asset_sha256": card.asset_sha256,
+                    "quantity": quantity,
+                }
+            )
+
+        owned_cards.sort(key=lambda item: (item["series_id"], item["number"]))
+        series_ids = set(set_counts)
+        series_ids.update(card.series_id for card in catalog.get_all_released_cards())
+        sets = []
+        for series_id in sorted(series_ids):
+            set_doc = await catalog.sets_col.find_one({"set_id": series_id})
+            display_name = set_doc["display_name"] if set_doc else series_id.replace("_", " ").title()
+            total = catalog.get_series_total(series_id)
+            owned = set_counts.get(series_id, 0)
+            sets.append(
+                {
+                    "series_id": series_id,
+                    "display_name": display_name,
+                    "owned_unique": owned,
+                    "total_cards": total,
+                    "completion_pct": round(owned / total * 100, 1) if total else 0,
+                }
+            )
+
+        unopened_packs = []
+        for entry in raw_packs:
+            pack = catalog.get_pack(entry.get("pack_id", ""))
+            if not pack or entry.get("quantity", 0) <= 0:
+                continue
+            unopened_packs.append(
+                {
+                    "pack_id": pack.pack_id,
+                    "series_id": pack.series_id,
+                    "name": pack.name,
+                    "quantity": int(entry.get("quantity", 1)),
+                }
+            )
+
+        series_total = len(catalog.get_all_released_cards())
+        return {
+            "success": True,
+            "user_id": str(user_id),
+            "total_cards": total_cards,
+            "unique_cards": unique_cards,
+            "series_total": series_total,
+            "completion_pct": round(unique_cards / series_total * 100, 1) if series_total else 0,
+            "rarity_counts": rarity_counts,
+            "sets": sets,
+            "cards": owned_cards,
+            "unopened_packs": unopened_packs,
+            "render_version": _card_cache_version(revision),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting trading card collection for user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @app.get("/trading-cards/packs")
 async def get_trading_card_packs(guild_id: str = Depends(get_guild_id), authorized: bool = Depends(verify_admin)):
     try:

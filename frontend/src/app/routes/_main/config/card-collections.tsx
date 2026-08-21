@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { Images, Package, UserRound } from 'lucide-react';
 
+import type { TradingCardCollectionCard } from '@/lib/api-client';
 import {
   useGuildMembers,
   useTradingCardCollection,
@@ -52,7 +53,7 @@ function CardCollectionsComponent() {
     (card) => card.card_id === selectedCardId,
   );
   const cardsBySet = useMemo(() => {
-    if (!collection) return new Map<string, typeof collection.cards>();
+    if (!collection) return new Map<string, Array<TradingCardCollectionCard>>();
     return collection.cards.reduce((groups, card) => {
       const cards = groups.get(card.series_id) ?? [];
       cards.push(card);

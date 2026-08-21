@@ -153,6 +153,7 @@ function CardPacksComponent() {
   const [newPackGuarantee, setNewPackGuarantee] = useState('none');
   const [newPackDesc, setNewPackDesc] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'stack'>('grid');
+  const [showInspector] = useState(false);
   const [selectedCard, setSelectedCard] = useState<TradingCardPackCard | null>(
     null,
   );
@@ -162,7 +163,6 @@ function CardPacksComponent() {
   const selectedMember = membersData?.members.find(
     (member) => member.user_id === selectedMemberId,
   );
-
   const stackCards = useMemo(() => {
     if (!setDetail) return [];
     return RARITY_ORDER.flatMap((rarity) => setDetail.eligible_cards[rarity] ?? []);
@@ -172,10 +172,6 @@ function CardPacksComponent() {
     setStackIndex(0);
     setSelectedCard(null);
   }, [selectedSeriesId]);
-
-  useEffect(() => {
-    setSelectedCard(null);
-  }, [selectedMemberId]);
 
   useEffect(() => {
     setStackIndex((index) => Math.min(index, Math.max(0, stackCards.length - 1)));
@@ -317,7 +313,7 @@ function CardPacksComponent() {
         }
       />
 
-      <Card>
+      {showInspector && <Card>
         <CardHeader>
           <div className="flex items-center gap-4">
             <CardIcon>
@@ -492,7 +488,7 @@ function CardPacksComponent() {
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card>}
 
       {!sets.length ? (
         <Card>

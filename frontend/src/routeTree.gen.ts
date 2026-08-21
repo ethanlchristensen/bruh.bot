@@ -24,6 +24,7 @@ import { Route as MainConfigMemoriesRouteImport } from './app/routes/_main/confi
 import { Route as MainConfigLeaderboardRouteImport } from './app/routes/_main/config/leaderboard'
 import { Route as MainConfigEconomyRouteImport } from './app/routes/_main/config/economy'
 import { Route as MainConfigCardPacksRouteImport } from './app/routes/_main/config/card-packs'
+import { Route as MainConfigCardCollectionsRouteImport } from './app/routes/_main/config/card-collections'
 import { Route as MainConfigAiRouteImport } from './app/routes/_main/config/ai'
 
 const LoginRoute = LoginRouteImport.update({
@@ -100,6 +101,12 @@ const MainConfigCardPacksRoute = MainConfigCardPacksRouteImport.update({
   path: '/config/card-packs',
   getParentRoute: () => MainRoute,
 } as any)
+const MainConfigCardCollectionsRoute =
+  MainConfigCardCollectionsRouteImport.update({
+    id: '/config/card-collections',
+    path: '/config/card-collections',
+    getParentRoute: () => MainRoute,
+  } as any)
 const MainConfigAiRoute = MainConfigAiRouteImport.update({
   id: '/config/ai',
   path: '/config/ai',
@@ -113,6 +120,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof MainProfileRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/config/ai': typeof MainConfigAiRoute
+  '/config/card-collections': typeof MainConfigCardCollectionsRoute
   '/config/card-packs': typeof MainConfigCardPacksRoute
   '/config/economy': typeof MainConfigEconomyRoute
   '/config/leaderboard': typeof MainConfigLeaderboardRoute
@@ -130,6 +138,7 @@ export interface FileRoutesByTo {
   '/profile': typeof MainProfileRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/config/ai': typeof MainConfigAiRoute
+  '/config/card-collections': typeof MainConfigCardCollectionsRoute
   '/config/card-packs': typeof MainConfigCardPacksRoute
   '/config/economy': typeof MainConfigEconomyRoute
   '/config/leaderboard': typeof MainConfigLeaderboardRoute
@@ -149,6 +158,7 @@ export interface FileRoutesById {
   '/_main/profile': typeof MainProfileRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/_main/config/ai': typeof MainConfigAiRoute
+  '/_main/config/card-collections': typeof MainConfigCardCollectionsRoute
   '/_main/config/card-packs': typeof MainConfigCardPacksRoute
   '/_main/config/economy': typeof MainConfigEconomyRoute
   '/_main/config/leaderboard': typeof MainConfigLeaderboardRoute
@@ -168,6 +178,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/auth/callback'
     | '/config/ai'
+    | '/config/card-collections'
     | '/config/card-packs'
     | '/config/economy'
     | '/config/leaderboard'
@@ -185,6 +196,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/auth/callback'
     | '/config/ai'
+    | '/config/card-collections'
     | '/config/card-packs'
     | '/config/economy'
     | '/config/leaderboard'
@@ -203,6 +215,7 @@ export interface FileRouteTypes {
     | '/_main/profile'
     | '/auth/callback'
     | '/_main/config/ai'
+    | '/_main/config/card-collections'
     | '/_main/config/card-packs'
     | '/_main/config/economy'
     | '/_main/config/leaderboard'
@@ -328,6 +341,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MainConfigCardPacksRouteImport
       parentRoute: typeof MainRoute
     }
+    '/_main/config/card-collections': {
+      id: '/_main/config/card-collections'
+      path: '/config/card-collections'
+      fullPath: '/config/card-collections'
+      preLoaderRoute: typeof MainConfigCardCollectionsRouteImport
+      parentRoute: typeof MainRoute
+    }
     '/_main/config/ai': {
       id: '/_main/config/ai'
       path: '/config/ai'
@@ -342,6 +362,7 @@ interface MainRouteChildren {
   MainMusicRoute: typeof MainMusicRoute
   MainProfileRoute: typeof MainProfileRoute
   MainConfigAiRoute: typeof MainConfigAiRoute
+  MainConfigCardCollectionsRoute: typeof MainConfigCardCollectionsRoute
   MainConfigCardPacksRoute: typeof MainConfigCardPacksRoute
   MainConfigEconomyRoute: typeof MainConfigEconomyRoute
   MainConfigLeaderboardRoute: typeof MainConfigLeaderboardRoute
@@ -357,6 +378,7 @@ const MainRouteChildren: MainRouteChildren = {
   MainMusicRoute: MainMusicRoute,
   MainProfileRoute: MainProfileRoute,
   MainConfigAiRoute: MainConfigAiRoute,
+  MainConfigCardCollectionsRoute: MainConfigCardCollectionsRoute,
   MainConfigCardPacksRoute: MainConfigCardPacksRoute,
   MainConfigEconomyRoute: MainConfigEconomyRoute,
   MainConfigLeaderboardRoute: MainConfigLeaderboardRoute,

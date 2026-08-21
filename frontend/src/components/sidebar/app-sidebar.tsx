@@ -4,6 +4,7 @@ import {
   Coins,
   Gauge,
   Images,
+  Library,
   Music,
   PanelLeft,
   Server,
@@ -49,9 +50,12 @@ const data = {
       ],
     },
     {
-      title: 'Card Packs',
-      url: '/config/card-packs',
+      title: 'Cards',
       icon: Images,
+      items: [
+        { title: 'Card Catalog', url: '/config/card-packs', icon: Images },
+        { title: 'Member Collections', url: '/config/card-collections', icon: Library },
+      ],
     },
     {
       title: 'Music Queue',

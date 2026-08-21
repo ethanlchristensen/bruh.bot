@@ -1,9 +1,21 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Images, Package, Plus, RefreshCw, Save } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Grid2X2,
+  Images,
+  Layers3,
+  Maximize2,
+  Package,
+  Plus,
+  RefreshCw,
+  Save,
+} from 'lucide-react';
 
+import type { TradingCardPackCard } from '@/lib/api-client';
 import {
   economyKeys,
   useCreateTradingCardPack,
@@ -30,6 +42,13 @@ import {
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { PageHeader } from '@/components/layouts/page-header';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 export const Route = createFileRoute('/_main/config/card-packs')({
   component: CardPacksComponent,
@@ -64,6 +83,38 @@ function cardImageUrl(
   return `/api/trading-cards/card/${encodeURIComponent(cardId)}/image?v=${encodeURIComponent(v)}`;
 }
 
+function CardArtwork({
+  card,
+  renderVersion,
+  className,
+}: {
+  card: TradingCardPackCard;
+  renderVersion?: string;
+  className?: string;
+}) {
+  return (
+    <div className="relative flex aspect-[3/4] items-center justify-center overflow-hidden bg-muted/30">
+      <img
+        src={cardImageUrl(card.card_id, card.asset_sha256, renderVersion)}
+        alt={card.name}
+        className={className ?? 'h-full w-full object-cover'}
+        loading="lazy"
+        decoding="async"
+        onError={(e) => {
+          const target = e.currentTarget;
+          target.style.display = 'none';
+          const placeholder = target.nextElementSibling as HTMLElement;
+          placeholder.style.display = 'flex';
+        }}
+      />
+      <div className="absolute inset-0 hidden h-full w-full flex-col items-center justify-center gap-1 text-muted-foreground">
+        <Package className="h-6 w-6 opacity-30" />
+        <span className="text-xs">No art</span>
+      </div>
+    </div>
+  );
+}
+
 function CardPacksComponent() {
   const queryClient = useQueryClient();
   const { data: setsData, isLoading: setsLoading } = useTradingCardSets();
@@ -93,8 +144,44 @@ function CardPacksComponent() {
   const [newPackCardsPer, setNewPackCardsPer] = useState(3);
   const [newPackGuarantee, setNewPackGuarantee] = useState('none');
   const [newPackDesc, setNewPackDesc] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'stack'>('grid');
+  const [selectedCard, setSelectedCard] = useState<TradingCardPackCard | null>(
+    null,
+  );
+  const [stackIndex, setStackIndex] = useState(0);
 
   const sets = setsData?.sets ?? [];
+
+  const stackCards = useMemo(() => {
+    if (!setDetail) return [];
+    return RARITY_ORDER.flatMap((rarity) => setDetail.eligible_cards[rarity] ?? []);
+  }, [setDetail]);
+
+  useEffect(() => {
+    setStackIndex(0);
+    setSelectedCard(null);
+  }, [selectedSeriesId]);
+
+  useEffect(() => {
+    setStackIndex((index) => Math.min(index, Math.max(0, stackCards.length - 1)));
+  }, [stackCards.length]);
+
+  useEffect(() => {
+    if (viewMode !== 'stack') return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        setStackIndex((index) => Math.max(0, index - 1));
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        setStackIndex((index) => Math.min(stackCards.length - 1, index + 1));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [viewMode, stackCards.length]);
 
   useEffect(() => {
     if (sets.length && !selectedSeriesId) {
@@ -254,6 +341,30 @@ function CardPacksComponent() {
                 {showAddForm ? 'Cancel' : 'Add Pack'}
               </Button>
             )}
+            <div className="ml-auto flex items-center rounded-lg border bg-muted/30 p-1">
+              <Button
+                type="button"
+                variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+                size="sm"
+                aria-label="Grid view"
+                aria-pressed={viewMode === 'grid'}
+                onClick={() => setViewMode('grid')}
+              >
+                <Grid2X2 className="mr-1.5 h-4 w-4" />
+                Grid
+              </Button>
+              <Button
+                type="button"
+                variant={viewMode === 'stack' ? 'secondary' : 'ghost'}
+                size="sm"
+                aria-label="Stacked card view"
+                aria-pressed={viewMode === 'stack'}
+                onClick={() => setViewMode('stack')}
+              >
+                <Layers3 className="mr-1.5 h-4 w-4" />
+                Stack
+              </Button>
+            </div>
           </div>
 
           {showAddForm && selectedSeriesId && (
@@ -403,8 +514,8 @@ function CardPacksComponent() {
                               <Label className="text-xs">Guarantee</Label>
                               <Select
                                 value={
-                                  editGuarantees[pack.pack_id] ??
-                                  pack.guaranteed_rarity ??
+                                  editGuarantees[pack.pack_id] ||
+                                  pack.guaranteed_rarity ||
                                   'none'
                                 }
                                 onValueChange={(v) =>
@@ -442,14 +553,82 @@ function CardPacksComponent() {
                     ))}
                   </div>
 
-                  {Object.keys(setDetail.eligible_cards).length === 0 ? (
-                    <Card>
+                   {stackCards.length === 0 ? (
+                     <Card>
                       <CardContent className="py-16 text-center text-muted-foreground">
                         <p>No eligible cards found for this collection.</p>
                       </CardContent>
                     </Card>
-                  ) : (
-                    <div className="space-y-10">
+                   ) : viewMode === 'stack' ? (
+                     <section
+                       className="flex min-h-[min(70vh,680px)] flex-col items-center justify-center gap-6 rounded-2xl border bg-muted/10 px-4 py-8"
+                       aria-label="Stacked card viewer"
+                     >
+                       <div className="relative flex h-[min(58vh,560px)] w-full max-w-sm items-center justify-center">
+                         {stackCards.slice(stackIndex + 1, stackIndex + 3).reverse().map((card, offset) => (
+                           <div
+                             key={card.card_id}
+                             className="absolute w-[min(78vw,320px)] overflow-hidden rounded-2xl border bg-card shadow-xl transition-transform motion-reduce:transition-none"
+                             style={{
+                               transform: `translateY(${(offset + 1) * -12}px) scale(${1 - (offset + 1) * 0.04})`,
+                               zIndex: offset,
+                             }}
+                           >
+                             <CardArtwork card={card} renderVersion={setDetail.render_version} />
+                           </div>
+                         ))}
+                         {stackCards[stackIndex] && (
+                           <button
+                             type="button"
+                             className="group relative z-10 w-[min(78vw,320px)] overflow-hidden rounded-2xl border-2 bg-card text-left shadow-2xl outline-none transition-transform hover:scale-[1.01] focus-visible:ring-2 focus-visible:ring-primary motion-reduce:transition-none"
+                             onClick={() => setSelectedCard(stackCards[stackIndex])}
+                             aria-label={`Open ${stackCards[stackIndex].name} fullscreen`}
+                           >
+                             <CardArtwork card={stackCards[stackIndex]} renderVersion={setDetail.render_version} />
+                             <div className="space-y-1 p-4">
+                               <p className="text-xs font-mono text-muted-foreground">
+                                 #{stackCards[stackIndex].number} · {stackCards[stackIndex].rarity}
+                               </p>
+                               <h3 className="font-semibold">{stackCards[stackIndex].name}</h3>
+                               <p className="line-clamp-2 text-sm text-muted-foreground">
+                                 {stackCards[stackIndex].description || 'No description available.'}
+                               </p>
+                             </div>
+                             <span className="absolute right-3 top-3 rounded-full bg-background/80 p-2 opacity-0 shadow transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                               <Maximize2 className="h-4 w-4" />
+                             </span>
+                           </button>
+                         )}
+                       </div>
+                       <div className="flex items-center gap-4">
+                         <Button
+                           type="button"
+                           variant="outline"
+                           size="icon"
+                           onClick={() => setStackIndex((index) => Math.max(0, index - 1))}
+                           disabled={stackIndex === 0}
+                           aria-label="Previous card"
+                         >
+                           <ArrowLeft className="h-4 w-4" />
+                         </Button>
+                         <span className="min-w-20 text-center text-sm text-muted-foreground">
+                           {stackIndex + 1} of {stackCards.length}
+                         </span>
+                         <Button
+                           type="button"
+                           variant="outline"
+                           size="icon"
+                           onClick={() => setStackIndex((index) => Math.min(stackCards.length - 1, index + 1))}
+                           disabled={stackIndex === stackCards.length - 1}
+                           aria-label="Next card"
+                         >
+                           <ArrowRight className="h-4 w-4" />
+                         </Button>
+                       </div>
+                       <p className="text-xs text-muted-foreground">Use the arrow keys or buttons to browse. Click a card to expand it.</p>
+                     </section>
+                   ) : (
+                     <div className="space-y-10">
                       {RARITY_ORDER.filter(
                         (r) => (setDetail.eligible_cards[r] ?? []).length,
                       ).map((rarity) => {
@@ -470,37 +649,17 @@ function CardPacksComponent() {
                               </span>
                             </div>
                             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                              {cards.map((card) => (
-                                <div
-                                  key={card.card_id}
-                                  className="rounded-xl border bg-card overflow-hidden hover:shadow-lg transition-shadow"
-                                  style={{ borderColor: color + '60' }}
-                                >
-                                  <div className="aspect-[3/4] bg-muted/30 flex items-center justify-center overflow-hidden">
-                                    <img
-                                      src={cardImageUrl(
-                                        card.card_id,
-                                        card.asset_sha256,
-                                        setDetail.render_version,
-                                      )}
-                                      alt={card.name}
-                                      className="w-full h-full object-cover"
-                                      loading="lazy"
-                                      decoding="async"
-                                      onError={(e) => {
-                                        const target = e.currentTarget;
-                                        target.style.display = 'none';
-                                        const placeholder =
-                                          target.nextElementSibling as HTMLElement;
-                                        placeholder.style.display = 'flex';
-                                      }}
-                                    />
-                                    <div className="hidden w-full h-full flex-col items-center justify-center gap-1 text-muted-foreground">
-                                      <Package className="h-6 w-6 opacity-30" />
-                                      <span className="text-xs">No art</span>
-                                    </div>
-                                  </div>
-                                  <div className="p-3 space-y-1">
+                               {cards.map((card) => (
+                                 <button
+                                   type="button"
+                                   key={card.card_id}
+                                   className="w-full overflow-hidden rounded-xl border bg-card text-left outline-none transition-shadow hover:shadow-lg focus-visible:ring-2 focus-visible:ring-primary motion-reduce:transition-none"
+                                   style={{ borderColor: color + '60' }}
+                                   onClick={() => setSelectedCard(card)}
+                                   aria-label={`Open ${card.name} fullscreen`}
+                                 >
+                                   <CardArtwork card={card} renderVersion={setDetail.render_version} />
+                                   <div className="p-3 space-y-1">
                                     <div className="flex items-center gap-2">
                                       <span className="text-xs text-muted-foreground font-mono shrink-0">
                                         #{card.number}
@@ -515,14 +674,44 @@ function CardPacksComponent() {
                                       </p>
                                     )}
                                   </div>
-                                </div>
-                              ))}
+                                 </button>
+                               ))}
                             </div>
                           </section>
                         );
                       })}
                     </div>
-                  )}
+                   )}
+                   <Dialog
+                     open={selectedCard !== null}
+                     onOpenChange={(open) => !open && setSelectedCard(null)}
+                   >
+                     <DialogContent className="max-h-[95vh] w-[min(96vw,1100px)] max-w-none overflow-y-auto p-0 sm:rounded-2xl">
+                       {selectedCard && (
+                         <div className="grid gap-0 md:grid-cols-[minmax(280px,0.9fr)_1.1fr]">
+                           <CardArtwork
+                             card={selectedCard}
+                             renderVersion={setDetail.render_version}
+                             className="h-full min-h-[360px] w-full object-cover md:min-h-[620px]"
+                           />
+                           <DialogHeader className="justify-center gap-4 p-6 sm:p-10">
+                             <div className="flex items-center gap-2 text-sm font-medium capitalize text-muted-foreground">
+                               <span
+                                 className="h-3 w-3 rounded-full"
+                                 style={{ backgroundColor: RARITY_COLORS[selectedCard.rarity] ?? '#9B9B9B' }}
+                               />
+                               {selectedCard.rarity} · #{selectedCard.number}
+                             </div>
+                             <DialogTitle className="text-3xl">{selectedCard.name}</DialogTitle>
+                             <DialogDescription className="text-base leading-7">
+                                 {selectedCard.description}
+                             </DialogDescription>
+                             <p className="text-xs text-muted-foreground">Card ID: {selectedCard.card_id}</p>
+                           </DialogHeader>
+                         </div>
+                       )}
+                     </DialogContent>
+                   </Dialog>
                 </>
               ) : null}
             </>

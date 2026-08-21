@@ -49,8 +49,42 @@ CARD_IMAGE_MODEL = "google/gemini-3.1-flash-image"
 CARD_TEXT_MODEL = "deepseek/deepseek-v4-pro"
 CARD_FRIENDLY_DESCRIPTION_MODEL = "google/gemini-3.1-flash-lite"
 CARD_ASPECT_RATIO = "3:4"
+CHARACTER_SHEET_ASPECT_RATIO = "16:9"
+CARD_IMAGE_MAX_TOKENS = 4096
 
 RARITY_COUNTS = {"basic": 14, "common": 12, "rare": 9, "epic": 6, "legendary": 4, "diamond": 3, "platinum": 2}
+
+THEME_STORY_BEATS = {
+    "basic": "awakening: each character is discovered in its own corner of the reclaimed vault",
+    "common": "exploration: the characters range farther into the forest-machine ecosystem",
+    "rare": "alliance: recurring characters encounter and begin cooperating with one another",
+    "epic": "conflict: the alliance faces territorial threats and unstable old technology",
+    "legendary": "convergence: all three characters unite around a major power source",
+    "diamond": "overclock: the united cast transforms the vault through overwhelming living circuitry",
+    "platinum": "ascension: the fully united cast embodies the set's ultimate techno-organic state",
+}
+
+
+def apply_theme_story(cards: list[dict], theme_bible: dict) -> list[dict]:
+    """Guarantee every themed card advances the recurring cast's visual story."""
+    characters = theme_bible.get("characters", [])
+    if len(characters) != 3:
+        return cards
+
+    for card in cards:
+        number = int(card["number"])
+        rarity = card.get("rarity", "basic")
+        primary = (number - 1) % len(characters)
+        if rarity in {"basic", "common"}:
+            featured = [characters[primary]]
+        elif rarity in {"rare", "epic"}:
+            featured = [characters[primary], characters[(primary + 1) % len(characters)]]
+        else:
+            featured = characters
+        card["featured_character_ids"] = [character["id"] for character in featured]
+        card["faction"] = featured[0]["faction"]
+        card["story_beat"] = THEME_STORY_BEATS.get(rarity, "the recurring cast advances its shared story")
+    return cards
 
 
 # ── API utilities ──
@@ -89,9 +123,14 @@ async def resolve_api_key(env: str) -> str:
     sys.exit(1)
 
 
-async def generate_image(prompt: str, api_key: str, reference_image: Image.Image | None = None) -> tuple[Image.Image | None, str]:
+async def generate_image(
+    prompt: str,
+    api_key: str,
+    reference_images: list[Image.Image] | None = None,
+    aspect_ratio: str = CARD_ASPECT_RATIO,
+) -> tuple[Image.Image | None, str]:
     parts = [MessagePart(type="text", text=prompt)]
-    if reference_image:
+    for reference_image in reversed(reference_images or []):
         buf = BytesIO()
         reference_image.save(buf, format="PNG")
         b64 = base64.b64encode(buf.getvalue()).decode()
@@ -102,8 +141,9 @@ async def generate_image(prompt: str, api_key: str, reference_image: Image.Image
         model=CARD_IMAGE_MODEL,
         messages=[Message(role="user", parts=parts)],
         stream=False,
+        max_tokens=CARD_IMAGE_MAX_TOKENS,
         modalities=["image", "text"],
-        image_config={"aspect_ratio": CARD_ASPECT_RATIO},
+        image_config={"aspect_ratio": aspect_ratio},
     )
     response = await get_mesh_gateway().complete(request, credentials={"api_key": api_key})
     for part in response.parts:
@@ -126,16 +166,28 @@ async def generate_image(prompt: str, api_key: str, reference_image: Image.Image
     return None, "PNG"
 
 
-async def generate_card_names(theme_name: str, theme_desc: str, rarity_themes: dict, api_key: str) -> list[dict] | None:
+async def generate_card_names(theme_name: str, theme_desc: str, rarity_themes: dict, api_key: str, theme_bible: dict | None = None) -> list[dict] | None:
     sections = []
     for rarity in ["basic", "common", "rare", "epic", "legendary", "diamond", "platinum"]:
         count = RARITY_COUNTS[rarity]
         theme = rarity_themes.get(rarity, f"Cards of {rarity} tier.")
         sections.append(f"{rarity.upper()} ({count} cards): {theme}")
 
+    themed_rules = ""
+    if theme_bible:
+        characters = theme_bible.get("characters", [])
+        character_lines = "\n".join(f'- {c["id"]}: {c["name"]} — {c["description"]}' for c in characters)
+        themed_rules = f"""
+Set visual mechanics: {theme_bible.get("visual_mechanics", "")}
+Recurring characters (use their ids exactly when featured):
+{character_lines}
+The generator assigns the recurring characters and story progression after this response. Retain the set mechanics in every visual description and make each scene suitable for recurring characters to visibly inhabit.
+"""
+
     prompt = f"""Generate {sum(RARITY_COUNTS.values())} trading card names and art-direction descriptions for a card set called "{theme_name}".
 
 Theme description: {theme_desc}
+{themed_rules}
 
 Rarity tiers and what each represents:
 {chr(10).join(sections)}
@@ -180,6 +232,41 @@ Platinum cards should be the ultimate chase cards. Each description must be uniq
                 }
             )
     return cards if len(cards) >= 10 else None
+
+
+async def generate_theme_characters(theme_name: str, theme_desc: str, visual_mechanics: str, api_key: str) -> list[dict] | None:
+    prompt = f"""Create exactly three recurring character designs for the trading-card set "{theme_name}".
+
+World: {theme_desc}
+Visual mechanics: {visual_mechanics}
+
+Create one character in each faction: plugs, slots, and nodes. Each must have a distinct, repeatable silhouette, hardware chassis, material treatment, LED core color/state, and personality expressed visually. These descriptions are art direction for character reference sheets, not player-facing lore. Do not include readable text, symbols, code, labels, or logos.
+
+Return ONLY valid JSON: [{{"id": "rootwake_cabinet", "name": "Rootwake Cabinet", "faction": "plugs", "description": "Visual character-sheet direction."}}, ...]"""
+    request = NormalizedRequest(
+        provider="openrouter",
+        model=CARD_TEXT_MODEL,
+        messages=[Message(role="user", parts=[MessagePart(type="text", text=prompt)])],
+        stream=False,
+    )
+    response = await get_mesh_gateway().complete(request, credentials={"api_key": api_key})
+    text = "".join(p.content for p in response.parts if p.type == "text")
+
+    import re
+
+    match = re.search(r"\[.*\]", text, re.DOTALL)
+    if not match:
+        return None
+    try:
+        data = json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return None
+    characters = []
+    expected_factions = {"plugs", "slots", "nodes"}
+    for item in data:
+        if isinstance(item, dict) and item.get("faction") in expected_factions and item.get("id"):
+            characters.append({"id": str(item["id"]).lower().replace(" ", "_"), "name": str(item.get("name", item["id"])), "faction": item["faction"], "description": str(item.get("description", ""))})
+    return characters if {character["faction"] for character in characters} == expected_factions else None
 
 
 async def generate_rarity_themes(theme_name: str, theme_desc: str, api_key: str) -> dict[str, str] | None:
@@ -265,6 +352,7 @@ class CardSetGenerator:
         self.pub = TradingCardPublisher(env=env)
         self.set_id = ""
         self.base_image = None
+        self.character_images: dict[str, Image.Image] = {}
 
     async def connect(self, resolve_credentials: bool = True):
         if resolve_credentials:
@@ -309,13 +397,149 @@ class CardSetGenerator:
         else:
             console.print("\n[green]Every catalog card has a GridFS artwork file.[/green]")
 
+    async def _load_character_images(self, set_doc: dict):
+        self.character_images = {}
+        for character in set_doc.get("theme_bible", {}).get("characters", []):
+            data = await self.pub.get_asset_bytes(f"{self.set_id}_character_{character['id']}")
+            if data:
+                self.character_images[character["id"]] = Image.open(BytesIO(data))
+
+    async def _generate_character_references(self, theme_bible: dict):
+        self.character_images = {}
+        for character in theme_bible["characters"]:
+            prompt = (
+                f"Create a full-body character reference sheet for {character['name']} in the '{theme_bible['name']}' trading card set. "
+                f"World direction: {theme_bible['description']} Visual mechanics: {theme_bible['visual_mechanics']} "
+                f"Character faction: {character['faction']}. Character identity: {character['description']} "
+                "Create a four-view character turnaround on a simple dark neutral background: front, three-quarter, side, and rear. "
+                "These are design angles of exactly one character, not four characters and not a story scene. Keep every angle visually identical in chassis, silhouette, materials, colors, LED core, and accessories. "
+                "CRITICAL: no text, words, letters, logos, labels, stat boxes, or code."
+            )
+            console.print(f"\n[cyan]Generating character sheet for {character['name']}...[/cyan]")
+            image, _ = await generate_image(prompt, self.api_key, aspect_ratio=CHARACTER_SHEET_ASPECT_RATIO)
+            if not image:
+                raise RuntimeError(f"Character sheet generation failed for {character['name']}")
+
+            tf = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+            image.save(tf.name)
+            console.print(f"[green]Character sheet preview: {tf.name}[/green]")
+            console.print("[dim]Opening for review...[/dim]")
+            webbrowser.open(tf.name)
+            while True:
+                choice = Prompt.ask(f"Approve {character['name']}?", choices=["approve", "retry", "cancel"], default="approve")
+                if choice == "cancel":
+                    tf.close()
+                    os.unlink(tf.name)
+                    raise RuntimeError(f"Character sheet approval cancelled for {character['name']}")
+                if choice == "approve":
+                    break
+                adjustment = Prompt.ask("What should change?", default="")
+                if adjustment:
+                    prompt = f"{prompt} {adjustment}"
+                image, _ = await generate_image(prompt, self.api_key, aspect_ratio=CHARACTER_SHEET_ASPECT_RATIO)
+                if image:
+                    image.save(tf.name)
+                    webbrowser.open(tf.name)
+                    console.print("[green]Updated.[/green]")
+                else:
+                    console.print("[red]Generation failed. Keeping the previous preview.[/red]")
+
+            self.character_images[character["id"]] = image
+            buf = BytesIO()
+            image.save(buf, format="PNG")
+            await self.pub.upload_asset(f"{self.set_id}_character_{character['id']}", buf.getvalue(), replace=True)
+            tf.close()
+            os.unlink(tf.name)
+
+    async def regenerate_character_sheets(self, set_id: str):
+        self.set_id = set_id
+        set_doc = await self.pub.get_set(set_id)
+        if not set_doc:
+            console.print(f"[red]Set '{set_id}' not found in Mongo.[/red]")
+            return
+        theme_bible = set_doc.get("theme_bible", {})
+        if not theme_bible.get("characters"):
+            console.print(f"[red]Set '{set_id}' has no recurring character theme.[/red]")
+            return
+        await self._generate_character_references(theme_bible)
+        console.print("[green]Character sheets updated. Regenerate card art to apply them.[/green]")
+
+    def _reference_images_for_card(self, card: dict) -> list[Image.Image]:
+        references = [self.base_image] if self.base_image else []
+        for character_id in card.get("featured_character_ids", []):
+            image = self.character_images.get(character_id)
+            if image:
+                references.append(image)
+        return references
+
+    def _build_card_prompt(self, card: dict) -> str:
+        character_ids = card.get("featured_character_ids", [])
+        character_instruction = ""
+        if character_ids:
+            character_instruction = (
+                f"The attached character reference sheets for {', '.join(character_ids)} are canonical; "
+                "depict exactly ONE visible instance of each referenced character in this card. Never duplicate, clone, echo, or repeat a character in the same composition. "
+                "Use the reference sheets only for character design, not as a multi-angle composition to copy. Preserve their silhouettes, chassis, materials, and LED cores. "
+            )
+        return (
+            "Use the provided base template card to create a trading card. "
+            f"Depict the following concept as a character or scene illustration: {card['description']} "
+            f"Story progression: {card.get('story_beat', 'an independent scene from this set')}. "
+            f"{character_instruction}"
+            "CRITICAL: Do NOT put any text, words, letters, titles, names, placeholders, "
+            "or description text on the card. The card must have zero text — only artwork."
+        )
+
+    async def apply_theme_story(self, set_id: str) -> bool:
+        self.set_id = set_id
+        set_doc = await self.pub.get_set(set_id)
+        if not set_doc:
+            console.print(f"[red]Set '{set_id}' not found in Mongo.[/red]")
+            return False
+        if not set_doc.get("theme_bible", {}).get("characters"):
+            console.print(f"[red]Set '{set_id}' has no recurring character theme to apply.[/red]")
+            return False
+
+        cards = await self.pub.get_all_cards(set_id)
+        if not cards:
+            console.print(f"[red]Set '{set_id}' has no cards.[/red]")
+            return False
+        apply_theme_story(cards, set_doc["theme_bible"])
+        for card in cards:
+            await self.pub.catalog_col.update_one(
+                {"card_id": card["card_id"]},
+                {"$set": {"featured_character_ids": card["featured_character_ids"], "faction": card["faction"], "story_beat": card["story_beat"]}},
+            )
+        console.print(f"[green]Assigned recurring characters and story beats to {len(cards)} cards.[/green]")
+        return True
+
     # ── Wizard ──
-    async def wizard(self):
+    async def wizard(self, auto_release: bool = False):
         console.print(Panel.fit("[bold cyan]Card Set Generator — Direct to Mongo[/bold cyan]\n\nDefine a theme, generate cards with AI, and publish directly to MongoDB.", title="bruh.bot Card Generator"))
 
         self.set_id = Prompt.ask("\n[bold]Set ID[/bold]", default="my_set").lower().replace(" ", "_")
         theme_name = Prompt.ask("[bold]Display name[/bold]", default=self.set_id.replace("_", " ").title())
         theme_desc = Prompt.ask("[bold]Theme description[/bold]", default="A mysterious collection of dark fantasy trading cards.")
+        themed = Confirm.ask("Create recurring themed characters?", default=False)
+        theme_bible = {}
+        if themed:
+            visual_mechanics = Prompt.ask("[bold]Visual elements and set mechanics[/bold]", default="Keep a consistent visual language across every card.")
+            console.print("\n[cyan]Generating the three faction character designs...[/cyan]")
+            characters = None
+            while not characters:
+                characters = await generate_theme_characters(theme_name, theme_desc, visual_mechanics, self.api_key)
+                if not characters and not Confirm.ask("Character generation failed. Retry?", default=True):
+                    return
+            theme_bible = {"name": theme_name, "description": theme_desc, "visual_mechanics": visual_mechanics, "characters": characters}
+            character_table = Table(title="Recurring Characters")
+            character_table.add_column("Faction")
+            character_table.add_column("Name")
+            character_table.add_column("Visual identity", max_width=70)
+            for character in characters:
+                character_table.add_row(character["faction"].title(), character["name"], character["description"])
+            console.print(character_table)
+            if not Confirm.ask("Approve recurring characters?", default=True):
+                return
 
         console.print("\n[cyan]Generating rarity tier descriptions with AI...[/cyan]")
         rarity_themes = None
@@ -345,11 +569,14 @@ class CardSetGenerator:
         console.print("\n[cyan]Generating card names and descriptions with AI...[/cyan]")
         ai_cards = None
         while not ai_cards or len(ai_cards) < 10:
-            ai_cards = await generate_card_names(theme_name, theme_desc, rarity_themes, self.api_key)
+            ai_cards = await generate_card_names(theme_name, theme_desc, rarity_themes, self.api_key, theme_bible or None)
             if not ai_cards or len(ai_cards) < 10:
                 console.print("[red]AI generation returned too few cards.[/red]")
                 if not Confirm.ask("Retry?", default=True):
                     return
+
+        if theme_bible:
+            apply_theme_story(ai_cards, theme_bible)
 
         table = Table(title=f"Preview — {theme_name}")
         table.add_column("#", style="dim")
@@ -376,13 +603,16 @@ class CardSetGenerator:
                     "name": c["name"],
                     "rarity": c["rarity"],
                     "description": c["description"],
+                    "featured_character_ids": c.get("featured_character_ids", []),
+                    "faction": c.get("faction"),
+                    "story_beat": c.get("story_beat", ""),
                     "art_path": f"{self.set_id}/{c['rarity']}_{safe}.png",
                     "tradable": True,
                 }
             )
 
         # Generate base template
-        base_prompt = self._build_base_prompt(theme_name, theme_desc)
+        base_prompt = self._build_base_prompt(theme_name, theme_desc, theme_bible.get("visual_mechanics", ""))
         console.print("\n[cyan]Generating base template...[/cyan]")
         self.base_image, base_fmt = await generate_image(base_prompt, self.api_key)
         if not self.base_image:
@@ -424,6 +654,13 @@ class CardSetGenerator:
 
         tf.close()
         os.unlink(tf.name)
+
+        if theme_bible:
+            try:
+                await self._generate_character_references(theme_bible)
+            except RuntimeError as error:
+                console.print(f"[red]{error}[/red]")
+                return
 
         # Pack definitions
         console.print("\n[bold]Pack settings:[/bold]")
@@ -475,6 +712,7 @@ class CardSetGenerator:
                 "description": theme_desc,
                 "base_prompt": base_prompt,
                 "rarity_themes": rarity_themes,
+                "theme_bible": theme_bible,
                 "status": "generating",
                 "generation_model": CARD_IMAGE_MODEL,
                 "version": 1,
@@ -503,11 +741,15 @@ class CardSetGenerator:
                 "description": theme_desc,
                 "base_prompt": base_prompt,
                 "rarity_themes": rarity_themes,
+                "theme_bible": theme_bible,
                 "status": "ready",
                 "generation_model": CARD_IMAGE_MODEL,
             },
         )
-        console.print(f"\n[bold green]Done! Publish with: poetry run python tools/card_gen.py publish {self.set_id} --env {self.env}[/bold green]")
+        if auto_release or themed:
+            await self.release(self.set_id)
+        else:
+            console.print(f"\n[bold green]Done! Publish with: poetry run python tools/card_gen.py publish {self.set_id} --env {self.env}[/bold green]")
 
     async def _generate_cards_direct(self, cards: list[dict]):
         total = len(cards)
@@ -521,16 +763,11 @@ class CardSetGenerator:
             card["asset_status"] = "generating"
             await self.pub.upsert_card(card)
 
-            prompt = (
-                f"Use the provided base template card to create a trading card. "
-                f"Depict the following concept as a character or scene illustration: {card['description']} "
-                f"CRITICAL: Do NOT put any text, words, letters, titles, names, placeholders, "
-                f"or description text on the card. The card must have zero text — only artwork."
-            )
+            prompt = self._build_card_prompt(card)
             console.print(f"  [{i + 1}/{total}] [cyan]{card['card_id']} ({card['rarity']})...[/cyan]")
 
             try:
-                image, _ = await generate_image(prompt, self.api_key, self.base_image)
+                image, _ = await generate_image(prompt, self.api_key, self._reference_images_for_card(card))
                 if image:
                     if image.mode != "RGBA":
                         image = image.convert("RGBA")
@@ -614,7 +851,8 @@ class CardSetGenerator:
         if st["failed"] > 0 and not retry_failed:
             console.print(f"  [yellow]{st['failed']} failed cards exist. Use --retry-failed to retry them.[/yellow]")
 
-        statuses = ["pending"]
+        # A cancelled process can leave its in-flight card in generating state.
+        statuses = ["pending", "generating"]
         if retry_failed:
             statuses.append("failed")
         cards = await self.pub.get_cards_by_status(set_id, *statuses)
@@ -635,6 +873,7 @@ class CardSetGenerator:
         else:
             console.print("[yellow]No base template in GridFS, generating without reference[/yellow]")
 
+        await self._load_character_images(sd)
         await self._generate_cards_direct(cards)
         console.print(f"\n[green]Done. Check status: poetry run python tools/card_gen.py status {set_id} --env {self.env}[/green]")
 
@@ -662,6 +901,25 @@ class CardSetGenerator:
         await self.pub.bump_revision(f"published set {set_id}")
         console.print(f"[green]Set '{s['display_name']}' published! Run /bruh-cards-admin reload in Discord.[/green]")
 
+    async def release(self, set_id: str):
+        if self.env != "dev":
+            console.print("[red]Release must start from dev so the production catalog has a reviewed source.[/red]")
+            return
+        status = await self.pub.get_set_status(set_id)
+        if not status["total_cards"] or status["ready"] != status["total_cards"]:
+            console.print(f"[red]Cannot release: {status['ready']}/{status['total_cards']} cards are ready in dev.[/red]")
+            return
+
+        await self.publish(set_id)
+        await self.promote(set_id, "prod")
+        prod = CardSetGenerator(env="prod")
+        try:
+            await prod.connect(resolve_credentials=False)
+            await prod.publish(set_id)
+        finally:
+            await prod.pub.close()
+        console.print(f"[bold green]Released '{status['display_name']}' to dev and prod.[/bold green]")
+
     # ── Promote ──
     async def promote(self, set_id: str, target_env: str):
         console.print(f"[yellow]Promoting '{set_id}' from {self.env} to {target_env}...[/yellow]")
@@ -684,6 +942,7 @@ class CardSetGenerator:
                     "description": sd.get("description", ""),
                     "base_prompt": sd.get("base_prompt", ""),
                     "rarity_themes": sd.get("rarity_themes", {}),
+                    "theme_bible": sd.get("theme_bible", {}),
                     "status": sd.get("status", "ready"),
                     "released": sd.get("released", False),
                     "version": sd.get("version", 1),
@@ -696,6 +955,13 @@ class CardSetGenerator:
             if base:
                 await dst.upload_asset(f"{set_id}_base_template", base, replace=True)
                 console.print("  Base template copied")
+
+            for character in sd.get("theme_bible", {}).get("characters", []):
+                character_asset = f"{set_id}_character_{character['id']}"
+                image = await src.get_asset_bytes(character_asset)
+                if image:
+                    await dst.upload_asset(character_asset, image, replace=True)
+                    console.print(f"  Character sheet copied: {character['name']}")
 
             # Copy cards
             cards = await src.get_all_cards(set_id)
@@ -824,6 +1090,7 @@ class CardSetGenerator:
             "description": sd.get("description", ""),
             "base_prompt": sd.get("base_prompt", ""),
             "rarity_themes": sd.get("rarity_themes", {}),
+            "theme_bible": sd.get("theme_bible", {}),
             "version": sd.get("version", 1),
             "cards": exp_cards,
             "packs": exp_packs,
@@ -832,6 +1099,11 @@ class CardSetGenerator:
 
         if base:
             (out / "base_template.png").write_bytes(base)
+
+        for character in sd.get("theme_bible", {}).get("characters", []):
+            reference = await self.pub.get_asset_bytes(f"{set_id}_character_{character['id']}")
+            if reference:
+                (out / f"character_{character['id']}.png").write_bytes(reference)
 
         for c in cards:
             if c.get("asset_status") == "ready":
@@ -873,6 +1145,9 @@ class CardSetGenerator:
         if not doc:
             console.print(f"[red]Card '{card_id}' not found in catalog.[/red]")
             return
+
+        if sd.get("theme_bible", {}).get("characters"):
+            apply_theme_story([doc], sd["theme_bible"])
         if doc.get("set_id") != set_id:
             console.print(f"[red]Card '{card_id}' belongs to set '{doc.get('set_id')}', not '{set_id}'.[/red]")
             return
@@ -884,11 +1159,7 @@ class CardSetGenerator:
         console.print(f"\n[bold]{sd['display_name']}[/bold] — [cyan]{card_name}[/cyan] ({rarity})")
         console.print(f"  Description: {description}")
 
-        prompt = (
-            prompt_override
-            if prompt_override
-            else (f"Use the provided base template card to create a trading card. Depict the following concept as a character or scene illustration: {description} CRITICAL: Do NOT put any text, words, letters, titles, names, placeholders, or description text on the card. The card must have zero text — only artwork.")
-        )
+        prompt = prompt_override if prompt_override else self._build_card_prompt(doc)
         if prompt_override:
             console.print(f"  [yellow]Prompt override: {prompt}[/yellow]")
         else:
@@ -902,8 +1173,10 @@ class CardSetGenerator:
             self.base_image = None
             console.print("[yellow]No base template in GridFS, generating without reference[/yellow]")
 
+        await self._load_character_images(sd)
+
         console.print("\n[cyan]Generating card art...[/cyan]")
-        image, _ = await generate_image(prompt, self.api_key, self.base_image)
+        image, _ = await generate_image(prompt, self.api_key, self._reference_images_for_card(doc))
         if not image:
             console.print("[red]Generation returned no image.[/red]")
             return
@@ -929,7 +1202,7 @@ class CardSetGenerator:
                 adj = Prompt.ask("Tweak prompt", default="")
                 if adj:
                     prompt = f"{prompt} {adj}"
-                image, _ = await generate_image(prompt, self.api_key, self.base_image)
+                image, _ = await generate_image(prompt, self.api_key, self._reference_images_for_card(doc))
                 if image:
                     if image.mode != "RGBA":
                         image = image.convert("RGBA")
@@ -953,6 +1226,9 @@ class CardSetGenerator:
                     "asset_filename": f"{rarity}_{card_name.lower().replace(' ', '_').replace(chr(39), '')}.png",
                     "asset_error": None,
                     "asset_updated_at": datetime.now(UTC),
+                    "featured_character_ids": doc.get("featured_character_ids", []),
+                    "faction": doc.get("faction"),
+                    "story_beat": doc.get("story_beat", ""),
                 }
             },
         )
@@ -1021,6 +1297,9 @@ class CardSetGenerator:
             console.print("[red]No cards found for this set.[/red]")
             return
 
+        if sd.get("theme_bible", {}).get("characters"):
+            await self.apply_theme_story(set_id)
+
         if not yes:
             if not Confirm.ask(f"\nReset all {st['total_cards']} cards to pending and regenerate?", default=False):
                 return
@@ -1046,7 +1325,7 @@ class CardSetGenerator:
             theme_name = sd.get("display_name", set_id)
             theme_desc = sd.get("description", "")
             if not base_prompt:
-                base_prompt = self._build_base_prompt(theme_name, theme_desc)
+                base_prompt = self._build_base_prompt(theme_name, theme_desc, sd.get("theme_bible", {}).get("visual_mechanics", ""))
 
             console.print("\n[cyan]Generating base template...[/cyan]")
             self.base_image, _ = await generate_image(base_prompt, self.api_key)
@@ -1095,6 +1374,7 @@ class CardSetGenerator:
                 os.unlink(tf.name)
 
         cards = await self.pub.get_cards_by_status(set_id, "pending")
+        await self._load_character_images(sd)
         console.print(f"\nGenerating {len(cards)} cards...")
         await self._generate_cards_direct(cards)
         await self.pub.bump_revision(f"regenerated set {set_id}")
@@ -1417,10 +1697,10 @@ class CardSetGenerator:
             "platinum": "The absolute pinnacle — embodiment of the theme itself.",
         }.get(rarity, "Cards of this tier.")
 
-    def _build_base_prompt(self, name: str, desc: str) -> str:
+    def _build_base_prompt(self, name: str, desc: str, visual_mechanics: str = "") -> str:
         return (
             f"A trading card template frame, 768x1024 portrait orientation, "
-            f"for the '{name}' card set. {desc} "
+            f"for the '{name}' card set. {desc} {visual_mechanics} "
             f"Stylized flat-color cartoon illustration with bold clean outlines and cel-shading "
             f"— similar to Hades game art or Castlevania animated series. "
             f"The center shows a subtle gradient background matching the theme. "
@@ -1437,7 +1717,8 @@ async def main():
 
     sub = parser.add_subparsers(dest="command")
 
-    sub.add_parser("wizard", help="Interactive card set creation wizard")
+    wz = sub.add_parser("wizard", help="Interactive card set creation wizard")
+    wz.add_argument("--release", action="store_true", help="Publish in dev and promote-and-publish in prod after generation")
     sub.add_parser("list", help="List all sets in Mongo")
     sub.add_parser("health", help="Check MongoDB and trading-card storage health")
 
@@ -1450,6 +1731,9 @@ async def main():
 
     pb = sub.add_parser("publish", help="Publish a completed set to players")
     pb.add_argument("set_id")
+
+    rl = sub.add_parser("release", help="Publish a completed dev set, then promote and publish it in prod")
+    rl.add_argument("set_id")
 
     ar = sub.add_parser("archive", help="Hide a set from players")
     ar.add_argument("set_id")
@@ -1478,6 +1762,12 @@ async def main():
     ra.add_argument("set_id")
     ra.add_argument("--yes", action="store_true", help="Skip confirmation prompt")
     ra.add_argument("--skip-base", action="store_true", help="Skip base template regeneration")
+
+    ats = sub.add_parser("apply-theme-story", help="Assign recurring characters and story beats to an existing themed set")
+    ats.add_argument("set_id")
+
+    rcs = sub.add_parser("regenerate-character-sheets", help="Replace a themed set's recurring character sheets with approved multi-angle turnarounds")
+    rcs.add_argument("set_id")
 
     up = sub.add_parser("upload-set", help="Upload a pre-generated card set from a folder")
     up.add_argument("set_id")
@@ -1515,7 +1805,7 @@ async def main():
         await gen.connect(resolve_credentials=args.command != "health")
 
         if args.command == "wizard":
-            await gen.wizard()
+            await gen.wizard(auto_release=args.release)
         elif args.command == "list":
             await gen.list_sets()
         elif args.command == "health":
@@ -1526,6 +1816,8 @@ async def main():
             await gen.status(args.set_id)
         elif args.command == "publish":
             await gen.publish(args.set_id)
+        elif args.command == "release":
+            await gen.release(args.set_id)
         elif args.command == "archive":
             await gen.archive(args.set_id)
         elif args.command == "delete":
@@ -1540,6 +1832,10 @@ async def main():
             await gen.regenerate_card(args.set_id, args.card_id, prompt_override=args.prompt, yes=args.yes)
         elif args.command == "regenerate-all":
             await gen.regenerate_all(args.set_id, yes=args.yes, skip_base=args.skip_base)
+        elif args.command == "apply-theme-story":
+            await gen.apply_theme_story(args.set_id)
+        elif args.command == "regenerate-character-sheets":
+            await gen.regenerate_character_sheets(args.set_id)
         elif args.command == "upload-set":
             await gen.upload_set(args.set_id, args.folder, display_name=args.name, prefix=args.prefix, manifest=args.manifest)
         elif args.command == "generate-friendly-descriptions":
